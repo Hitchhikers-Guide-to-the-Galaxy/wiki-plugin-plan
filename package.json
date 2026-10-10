@@ -1,0 +1,50 @@
+{
+  "name": "wiki-plugin-plan",
+  "version": "0.1.0",
+  "description": "Federated Wiki - Plan Plugin: the Plan Tool lists a site's plans, newest edit first, each with its ticks done over total and its open questions, read off the plan pages themselves",
+  "type": "module",
+  "main": "client/plan.js",
+  "files": [
+    "client",
+    "pages",
+    "factory.json"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "plan",
+    "roadmap",
+    "checkpoints",
+    "wiki",
+    "federated wiki",
+    "plugin"
+  ],
+  "author": "David Bovill",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan/issues"
+  },
+  "homepage": "https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "fedwiki": {
+    "requires": {
+      "plugins": []
+    },
+    "provides": {
+      "seats": [
+        "plan"
+      ]
+    }
+  }
+}

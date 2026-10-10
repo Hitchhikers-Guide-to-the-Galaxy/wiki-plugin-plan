@@ -1,0 +1,68 @@
+{
+  "title": "Plan Tool",
+  "story": [
+    {
+      "type": "paragraph",
+      "id": "b59a4ac997e33d00",
+      "text": "Opened beside a plan, the state of that plan: its phases with their ticks, the next phase and what blocks it, its open questions and its lints. Opened beside anything else, every plan on this site, newest edit first, each a link that opens the plan beside this page. Beside any page it ends with a Trash Page button, which moves that page to the recycler, and a link to the [[Recycled Pages]]."
+    },
+    {
+      "type": "plan",
+      "id": "8da40e8a41ccb137",
+      "text": "SUBJECT"
+    },
+    {
+      "type": "paragraph",
+      "id": "28c27827c7a26b03",
+      "text": "More [[About Plan Plugin]]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "Plan Tool",
+        "story": [
+          {
+            "type": "paragraph",
+            "id": "b59a4ac997e33d00",
+            "text": "Every plan on this site, newest edit first, with its ticks done over total and its open questions, each a link that opens the plan beside this page."
+          },
+          {
+            "type": "plan",
+            "id": "8da40e8a41ccb137",
+            "text": "SUBJECT"
+          },
+          {
+            "type": "paragraph",
+            "id": "28c27827c7a26b03",
+            "text": "More [[About Plan Plugin]]"
+          }
+        ]
+      },
+      "date": 1791663153607,
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+    },
+    {
+      "type": "edit",
+      "id": "b59a4ac997e33d00",
+      "item": {
+        "type": "paragraph",
+        "id": "b59a4ac997e33d00",
+        "text": "Opened beside a plan, the state of that plan: its phases with their ticks, the next phase and what blocks it, its open questions and its lints. Opened beside anything else, every plan on this site, newest edit first, each a link that opens the plan beside this page."
+      },
+      "date": 1791664527862,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "edit",
+      "id": "b59a4ac997e33d00",
+      "item": {
+        "type": "paragraph",
+        "id": "b59a4ac997e33d00",
+        "text": "Opened beside a plan, the state of that plan: its phases with their ticks, the next phase and what blocks it, its open questions and its lints. Opened beside anything else, every plan on this site, newest edit first, each a link that opens the plan beside this page. Beside any page it ends with a Trash Page button, which moves that page to the recycler, and a link to the [[Recycled Pages]]."
+      },
+      "date": 1791665550896
+    }
+  ]
+}

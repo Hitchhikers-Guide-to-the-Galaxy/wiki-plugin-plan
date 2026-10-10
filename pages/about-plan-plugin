@@ -1,0 +1,328 @@
+{
+  "title": "About Plan Plugin",
+  "story": [
+    {
+      "type": "markdown",
+      "id": "452360c0e34e1124",
+      "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the \u2630 menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
+    },
+    {
+      "type": "plan",
+      "id": "519eb697d1919efd",
+      "text": "The five most recently edited plans on this site.\nLIMIT 5"
+    },
+    {
+      "type": "markdown",
+      "id": "2c9ed6f779d733f8",
+      "text": "# Commands\n> One per line, in capitals; any other line is the caption."
+    },
+    {
+      "type": "table",
+      "id": "aef99ed22f7f0ebc",
+      "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool: it reads the plan to its left, or lists the plans when nothing to the left is a plan |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |"
+    },
+    {
+      "type": "markdown",
+      "id": "88d6d1b9a11c730b",
+      "text": "A trailing colon is allowed (SITE: plan.localhost), the [[Fedwiki DSL Skill]] convention. A bare item, with neither SUBJECT nor SITE, is the status line when it sits on a plan page and the list anywhere else."
+    },
+    {
+      "type": "markdown",
+      "id": "2dd0621d9309a30f",
+      "text": "# Three Faces\n> Decided by the item's text and the page it sits on."
+    },
+    {
+      "type": "markdown",
+      "id": "4741ccff87e2083d",
+      "text": "The status face is a bare item on a plan page: it shows that page's own state, and one at the top of every plan is the plan's status line. The subject face is SUBJECT with a plan to the left: the item looks past ghost pages and tool pages (Selected Plugin Pages, Voice Tool, Plan Tool) to the nearest real page, and when that page is a plan it shows its state headed by its title. The list face is everything else: SITE, SUBJECT with no plan to the left, or a bare item on a page that is not a plan."
+    },
+    {
+      "type": "markdown",
+      "id": "374ddb2875ebf934",
+      "text": "# The State View\n> Phases, the next phase, its blockers, questions and lints."
+    },
+    {
+      "type": "markdown",
+      "id": "0fc5c809cbe7175e",
+      "text": "Phases are the plan's headings: each section from a heading to the next that holds at least one checkpoint, the Open Questions section excepted, shown with its ticks done over total. The next phase is the first with an unticked checkpoint; beneath it are its blockers, the unanswered questions and the red links inside its section. A red link is a link whose page is on neither the plan's site nor any site in the neighbourhood."
+    },
+    {
+      "type": "markdown",
+      "id": "4b93d3def7d0b6ab",
+      "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered when a page exists behind its link. The view says how many of them are answered and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+    },
+    {
+      "type": "markdown",
+      "id": "a44f58860228fb51",
+      "text": "Three house lints show only when they trigger: every checkpoint ticked but no link on the page whose title ends in Demo; a file named in a markdown item but not linked; and scatter, the same title on another site in the neighbourhood with no fork lineage between the copies, the rule of the Plan Index lint."
+    },
+    {
+      "type": "markdown",
+      "id": "5593cb46bbf7f70e",
+      "text": "# What It Reads\n> Page JSON only, nothing stored."
+    },
+    {
+      "type": "markdown",
+      "id": "5c270a1b2c085917",
+      "text": "The list comes from the site's sitemap: every title ending in the word Plan or Roadmap, skipping the Plan Index and Current Plan pages, the same rule the [[Plan Index]] board uses. Each plan's own JSON then gives three things."
+    },
+    {
+      "type": "markdown",
+      "id": "67e07e31a2d31e33",
+      "text": "In the list, ticks are the task lines, `- [ ]` and `- [x]`, counted across every markdown item, since the house format puts one checkpoint in each item. Open questions are the unticked task lines in the section headed `# Open Questions`, which runs to the next heading. The order is the latest dated journal entry, newest first, with the title as the tiebreak and the sitemap date as the fallback."
+    },
+    {
+      "type": "markdown",
+      "id": "513940fb7bade9fb",
+      "text": "# Page Actions\n> The tool acts on the page to its left as well."
+    },
+    {
+      "type": "markdown",
+      "id": "e62bcb49b80a1398",
+      "text": "Beside any page, not only a plan, the Plan Tool ends with a **Trash Page** button and a link to [[Recycled Pages]]. Trash Page asks once, then calls the server's own delete, which moves the page to the site's recycler; the page leaves the lineup and the Recycled Pages page (shipped by the recycler plugin) lists it, where opening it and forking it brings it back. It is offered only for a page that is really on this site: not a remote copy, a ghost, a browser-local draft, a recycled page or a revision view. It exists because the usual delete, forking the page's creation ghost, needs revision 0 to open from the first journal action, and a page whose journal starts with a fork (the New plugin's create from a twin, or an interlink seed) opens the remote copy from that action instead, so the fork button never deletes."
+    },
+    {
+      "type": "markdown",
+      "id": "3d73cc7bfe1f2bd9",
+      "text": "# Next\n> Then act on the plan."
+    },
+    {
+      "type": "markdown",
+      "id": "f80c178da6af3127",
+      "text": "The next version adds Update Plan, the mechanical write that ticks the questions whose pages now exist, then Do Next Phase, the agentic write that returns a ghost page. The [[Plan Tool Plan]] carries the order."
+    },
+    {
+      "type": "markdown",
+      "id": "a180150d09b7d386",
+      "text": "# See\n\n- [[Plan Tool]]\n- [[Plan Tool Plan]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "About Plan Plugin",
+        "story": [
+          {
+            "type": "markdown",
+            "id": "452360c0e34e1124",
+            "text": "This plugin, type: plan, reads the state of a site's plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap; the item lists them newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup. It is the item behind the [[Plan Tool]] in the \u2630 menu."
+          },
+          {
+            "type": "plan",
+            "id": "519eb697d1919efd",
+            "text": "The five most recently edited plans on this site.\nLIMIT 5"
+          },
+          {
+            "type": "markdown",
+            "id": "2c9ed6f779d733f8",
+            "text": "# Commands\n> One per line, in capitals; any other line is the caption."
+          },
+          {
+            "type": "table",
+            "id": "aef99ed22f7f0ebc",
+            "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool; for now it lists the plans, and it will read the plan to its left |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |"
+          },
+          {
+            "type": "markdown",
+            "id": "88d6d1b9a11c730b",
+            "text": "A trailing colon is allowed (SITE: plan.localhost), the [[Fedwiki DSL Skill]] convention. An item with no commands at all behaves like SUBJECT."
+          },
+          {
+            "type": "markdown",
+            "id": "5593cb46bbf7f70e",
+            "text": "# What It Reads\n> Page JSON only, nothing stored."
+          },
+          {
+            "type": "markdown",
+            "id": "5c270a1b2c085917",
+            "text": "The list comes from the site's sitemap: every title ending in the word Plan or Roadmap, skipping the Plan Index and Current Plan pages, the same rule the [[Plan Index]] board uses. Each plan's own JSON then gives three things."
+          },
+          {
+            "type": "markdown",
+            "id": "67e07e31a2d31e33",
+            "text": "Ticks are the task lines, `- [ ]` and `- [x]`, counted across every markdown item, since the house format puts one checkpoint in each item. Open questions are the unticked task lines in the section headed `# Open Questions`, which runs to the next heading. The order is the latest dated journal entry, newest first, with the title as the tiebreak and the sitemap date as the fallback."
+          },
+          {
+            "type": "markdown",
+            "id": "3d73cc7bfe1f2bd9",
+            "text": "# Next\n> Look left, then act."
+          },
+          {
+            "type": "markdown",
+            "id": "f80c178da6af3127",
+            "text": "The next version reads the plan on the page to the left of the Plan Tool: its phases with their ticks, the next phase and what blocks it, and its open questions as red links. Later versions add Update Plan and Do Next Phase. The [[Plan Tool Plan]] carries the order."
+          },
+          {
+            "type": "markdown",
+            "id": "a180150d09b7d386",
+            "text": "# See\n\n- [[Plan Tool]]\n- [[Plan Tool Plan]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
+          }
+        ]
+      },
+      "date": 1791663153607,
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+    },
+    {
+      "type": "edit",
+      "id": "452360c0e34e1124",
+      "item": {
+        "type": "markdown",
+        "id": "452360c0e34e1124",
+        "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the \u2630 menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
+      },
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "edit",
+      "id": "aef99ed22f7f0ebc",
+      "item": {
+        "type": "table",
+        "id": "aef99ed22f7f0ebc",
+        "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool: it reads the plan to its left, or lists the plans when nothing to the left is a plan |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |"
+      },
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "edit",
+      "id": "88d6d1b9a11c730b",
+      "item": {
+        "type": "markdown",
+        "id": "88d6d1b9a11c730b",
+        "text": "A trailing colon is allowed (SITE: plan.localhost), the [[Fedwiki DSL Skill]] convention. A bare item, with neither SUBJECT nor SITE, is the status line when it sits on a plan page and the list anywhere else."
+      },
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "add",
+      "id": "2dd0621d9309a30f",
+      "item": {
+        "type": "markdown",
+        "id": "2dd0621d9309a30f",
+        "text": "# Three Faces\n> Decided by the item's text and the page it sits on."
+      },
+      "after": "88d6d1b9a11c730b",
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "add",
+      "id": "4741ccff87e2083d",
+      "item": {
+        "type": "markdown",
+        "id": "4741ccff87e2083d",
+        "text": "The status face is a bare item on a plan page: it shows that page's own state, and one at the top of every plan is the plan's status line. The subject face is SUBJECT with a plan to the left: the item looks past ghost pages and tool pages (Selected Plugin Pages, Voice Tool, Plan Tool) to the nearest real page, and when that page is a plan it shows its state headed by its title. The list face is everything else: SITE, SUBJECT with no plan to the left, or a bare item on a page that is not a plan."
+      },
+      "after": "2dd0621d9309a30f",
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "add",
+      "id": "374ddb2875ebf934",
+      "item": {
+        "type": "markdown",
+        "id": "374ddb2875ebf934",
+        "text": "# The State View\n> Phases, the next phase, its blockers, questions and lints."
+      },
+      "after": "4741ccff87e2083d",
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "add",
+      "id": "0fc5c809cbe7175e",
+      "item": {
+        "type": "markdown",
+        "id": "0fc5c809cbe7175e",
+        "text": "Phases are the plan's headings: each section from a heading to the next that holds at least one checkpoint, the Open Questions section excepted, shown with its ticks done over total. The next phase is the first with an unticked checkpoint; beneath it are its blockers, the unanswered questions and the red links inside its section. A red link is a link whose page is on neither the plan's site nor any site in the neighbourhood."
+      },
+      "after": "374ddb2875ebf934",
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "add",
+      "id": "4b93d3def7d0b6ab",
+      "item": {
+        "type": "markdown",
+        "id": "4b93d3def7d0b6ab",
+        "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered when a page exists behind its link. The view says how many of them are answered and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+      },
+      "after": "0fc5c809cbe7175e",
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "add",
+      "id": "a44f58860228fb51",
+      "item": {
+        "type": "markdown",
+        "id": "a44f58860228fb51",
+        "text": "Three house lints show only when they trigger: every checkpoint ticked but no link on the page whose title ends in Demo; a file named in a markdown item but not linked; and scatter, the same title on another site in the neighbourhood with no fork lineage between the copies, the rule of the Plan Index lint."
+      },
+      "after": "4b93d3def7d0b6ab",
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "edit",
+      "id": "f80c178da6af3127",
+      "item": {
+        "type": "markdown",
+        "id": "f80c178da6af3127",
+        "text": "The next version adds Update Plan, the mechanical write that ticks the questions whose pages now exist, then Do Next Phase, the agentic write that returns a ghost page. The [[Plan Tool Plan]] carries the order."
+      },
+      "date": 1791664527861,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "edit",
+      "id": "3d73cc7bfe1f2bd9",
+      "item": {
+        "type": "markdown",
+        "id": "3d73cc7bfe1f2bd9",
+        "text": "# Next\n> Then act on the plan."
+      },
+      "date": 1791664538404,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "edit",
+      "id": "67e07e31a2d31e33",
+      "item": {
+        "type": "markdown",
+        "id": "67e07e31a2d31e33",
+        "text": "In the list, ticks are the task lines, `- [ ]` and `- [x]`, counted across every markdown item, since the house format puts one checkpoint in each item. Open questions are the unticked task lines in the section headed `# Open Questions`, which runs to the next heading. The order is the latest dated journal entry, newest first, with the title as the tiebreak and the sitemap date as the fallback."
+      },
+      "date": 1791664538404,
+      "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
+    },
+    {
+      "type": "add",
+      "id": "513940fb7bade9fb",
+      "item": {
+        "type": "markdown",
+        "id": "513940fb7bade9fb",
+        "text": "# Page Actions\n> The tool acts on the page to its left as well."
+      },
+      "after": "67e07e31a2d31e33",
+      "date": 1791665550894
+    },
+    {
+      "type": "add",
+      "id": "e62bcb49b80a1398",
+      "item": {
+        "type": "markdown",
+        "id": "e62bcb49b80a1398",
+        "text": "Beside any page, not only a plan, the Plan Tool ends with a **Trash Page** button and a link to [[Recycled Pages]]. Trash Page asks once, then calls the server's own delete, which moves the page to the site's recycler; the page leaves the lineup and the Recycled Pages page (shipped by the recycler plugin) lists it, where opening it and forking it brings it back. It is offered only for a page that is really on this site: not a remote copy, a ghost, a browser-local draft, a recycled page or a revision view. It exists because the usual delete, forking the page's creation ghost, needs revision 0 to open from the first journal action, and a page whose journal starts with a fork (the New plugin's create from a twin, or an interlink seed) opens the remote copy from that action instead, so the fork button never deletes."
+      },
+      "after": "513940fb7bade9fb",
+      "date": 1791665550894
+    }
+  ],
+  "plugin": "plan"
+}
