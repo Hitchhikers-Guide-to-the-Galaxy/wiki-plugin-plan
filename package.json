@@ -1,12 +1,14 @@
 {
   "name": "wiki-plugin-plan",
   "version": "0.1.0",
-  "description": "Federated Wiki - Plan Plugin: the Plan Tool lists a site's plans, newest edit first, each with its ticks done over total and its open questions, read off the plan pages themselves",
+  "description": "Federated Wiki - Plan Plugin: the Plan Tool lists a site's plans and reads one plan's state off its page; Update Plan ticks the open questions whose pages now exist, and Do Next Phase and Revise Plan ask the shared Claude door for a phase report or a redraft, opened as a ghost page; Finish Plan writes a complete plan's Conclusion and demo link, Answer hands an open question to the Voice Tool, and Check Plan Index reports what has moved since the Plan Index was written, through the farm API",
   "type": "module",
   "main": "client/plan.js",
   "files": [
     "client",
     "pages",
+    "api",
+    "src/client",
     "factory.json"
   ],
   "scripts": {
@@ -23,6 +25,9 @@
   ],
   "author": "David Bovill",
   "license": "MIT",
+  "dependencies": {
+    "@fortyfoxes/wiki-claude-door": "^0.1.0"
+  },
   "devDependencies": {
     "esbuild": "^0.25.0"
   },
@@ -38,6 +43,11 @@
     "node": ">=18"
   },
   "fedwiki": {
+    "api": {
+      "version": 1,
+      "spec": "api/openapi.json",
+      "handlers": "api/handlers.js"
+    },
     "requires": {
       "plugins": []
     },

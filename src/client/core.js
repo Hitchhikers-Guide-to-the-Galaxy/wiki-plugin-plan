@@ -18,12 +18,18 @@
 //   SUBJECT        — the item is the Plan Tool: it reads the plan to its left
 //   SITE domain    — list the plans of that site instead of this one
 //   LIMIT n        — show at most n plans
+//   SKILLS a, b    — on a plan's status item: the skills Do Next Phase and
+//                    Revise Plan hand the model beside fedwiki-plan, read
+//                    from ~/.claude/skills/<name>/SKILL.md on the machine the
+//                    farm runs on (Phase 4); names split on commas or spaces,
+//                    and several SKILLS lines add up
 // subject is true only for an explicit SUBJECT line; face() below decides
-// what a bare item does from the page it sits on.
-export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT']
+// what a bare item does from the page it sits on. SKILLS does not change the
+// face: a status item that names skills is still the status line.
+export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS']
 
 export const parse = text => {
-  const out = { subject: false, site: null, limit: null, caption: '', commands: 0 }
+  const out = { subject: false, site: null, limit: null, skills: [], caption: '', commands: 0 }
   const caption = []
   for (const raw of (text || '').split('\n')) {
     const line = raw.trim()
@@ -39,6 +45,9 @@ export const parse = text => {
     if (key === 'LIMIT') {
       const n = parseInt(args[0], 10)
       out.limit = Number.isFinite(n) && n > 0 ? n : null
+    }
+    if (key === 'SKILLS') {
+      for (const name of args.join(' ').split(/[,\s]+/)) if (name && !out.skills.includes(name)) out.skills.push(name)
     }
   }
   out.caption = caption.join('\n').trim()
@@ -130,14 +139,28 @@ export const byRecent = (a, b) =>
   b.modified - a.modified || (a.title.toLowerCase() < b.title.toLowerCase() ? -1 : a.title.toLowerCase() > b.title.toLowerCase() ? 1 : 0)
 
 // One plan's row, from its sitemap entry and (when it could be read) its page.
-export const summarise = (entry, page) => ({
-  title: entry.title,
-  slug: entry.slug,
-  modified: lastEdit(page, entry.date),
-  read: !!page,
-  ...(page ? ticks(page) : { done: 0, total: 0 }),
-  questions: page ? openQuestions(page) : 0,
-})
+//
+// done/total are the state view's numbers, planState()'s phase checkpoints,
+// so a plan reads the same fraction in the list as in its status line and on
+// the Plan Tool (David's decision, Phase 3). Open Questions task lines are not
+// in the total; their count is shown apart. ticks() above stays the Plan Index
+// rule, which counts every task line on the page: the board and this list
+// differ by design.
+export const summarise = (entry, page) => {
+  const st = page ? planState(page) : null
+  return {
+    title: entry.title,
+    slug: entry.slug,
+    modified: lastEdit(page, entry.date),
+    read: !!page,
+    done: st ? st.done : 0,
+    total: st ? st.total : 0,
+    questions: page ? openQuestions(page) : 0,
+    // The Plan Index board's own count, every task line on the page (ticks()
+    // above): what Check Plan Index compares the board against (Phase 5).
+    all: page ? ticks(page) : null,
+  }
+}
 
 // ======================================================================
 // Phase 2 — the state of one plan, read off its page.
@@ -276,6 +299,17 @@ export const audit = copies => {
 export const forkSites = page =>
   new Set((page && Array.isArray(page.journal) ? page.journal : []).filter(e => e && e.type === 'fork' && e.site).map(e => e.site))
 
+// The demo a Conclusion names, "The demo is [[Title]].", the line Finish Plan
+// writes (Phase 5); it satisfies the no-Demo lint whatever the title ends in.
+const DEMO_LINE_RE = /The demo is \[\[([^\]]+)\]\]/
+export const namedDemo = page => {
+  for (const it of markdown(page)) {
+    const m = String(it.text || '').match(DEMO_LINE_RE)
+    if (m) return m[1].trim()
+  }
+  return ''
+}
+
 // ---------- the state view ----------
 //
 // planState(page, known) — everything the status and subject faces show.
@@ -314,7 +348,7 @@ export const planState = (page, known = new Set(), slug = asSlug) => {
   const lints = []
   const done = phases.reduce((n, p) => n + p.done, 0)
   const total = phases.reduce((n, p) => n + p.total, 0)
-  if (total > 0 && done === total && !linkTitles(page).some(t => /Demo$/.test(t)))
+  if (total > 0 && done === total && !linkTitles(page).some(t => /Demo$/.test(t)) && !namedDemo(page))
     lints.push('Every checkpoint is ticked but nothing on the page links a Demo.')
   const files = unlinkedFiles(page)
   if (files.length) lints.push(`Named but not linked: ${files.join(', ')}.`)
@@ -353,4 +387,547 @@ export const trashable = ({ site = null, host = '', ghost = false, local = false
   const origin = !site || ['view', 'origin', 'local', host].includes(site)
   if (!origin) return { ok: false, why: `a copy from ${site}; trash it on that site` }
   return { ok: true, why: '' }
+}
+
+
+// ======================================================================
+// Phase 3 — Update Plan, the pure part. The farm handler (api/handlers.js)
+// does the file IO, the WIP claim and the index reset around these.
+// ======================================================================
+
+// ---------- ticking answered questions ----------
+//
+// Every unticked Open Questions task line whose ?-link has a page behind it
+// (known, the slugs that exist) is ticked, "- [ ]" to "- [x]", in that item's
+// text. One journal edit per item changed, shaped as the wiki itself journals
+// an edit: {type, id, item, date}, no site. Returns a new page; the one given
+// is not touched.
+export const tickAnswered = (page, known = new Set(), slug = asSlug, now = () => Date.now()) => {
+  const out = JSON.parse(JSON.stringify(page || {}))
+  out.story = Array.isArray(out.story) ? out.story : []
+  out.journal = Array.isArray(out.journal) ? out.journal : []
+  const sec = sections(out).find(s => s.heading === 'Open Questions')
+  const ticked = []
+  if (sec) {
+    for (const it of sec.items) {
+      if (!it || it.type !== 'markdown' || !it.id) continue
+      let changed = false
+      const lines = String(it.text || '').split('\n').map(line => {
+        const m = line.match(TASK_LINE_RE)
+        if (!m || m[1] !== ' ') return line
+        const title = wikilinksIn(m[2]).find(t => t.endsWith('?'))
+        if (!title || !known.has(slug(title))) return line
+        changed = true
+        ticked.push({ id: it.id, title, slug: slug(title) })
+        return line.replace('[ ]', '[x]')
+      })
+      if (!changed) continue
+      it.text = lines.join('\n')
+      out.journal.push({ type: 'edit', id: it.id, item: { ...it }, date: now() })
+    }
+  }
+  const unanswered = questionsOf(out, known, slug)
+    .filter(q => !q.answered)
+    .map(({ title, slug }) => ({ title, slug }))
+  return { page: out, ticked, unanswered }
+}
+
+// ---------- the plan's markdown asset ----------
+//
+// A faithful port of the fedwiki-plan skill's plan-md.py render(): the page
+// back to markdown, so the plan carries its own source in its assets folder.
+// test/render.test.js checks this against the Python byte for byte.
+//   markdown, paragraph   as is; a run of one-checkpoint items kept as one list
+//   code, terminal        fenced (terminal tagged bash)
+//   timeline, mermaid     fenced with their DSL, so the roadmap survives as text
+//   assets                skipped: it points at the folder the file lives in
+//   image                 ![caption](url)
+//   anything else         a one-line placeholder naming the type
+// then the create entry's provenance, and runs of blank lines collapsed.
+const FENCED = { code: '', terminal: 'bash', timeline: 'timeline', mermaid: 'mermaid' }
+const PASSTHROUGH = new Set(['markdown', 'paragraph'])
+const CHECKPOINT_RE = /^[-*] \[( |x|X)\] /
+// Python's str.rstrip() with no argument: trailing Unicode whitespace, which
+// is what String.prototype.trimEnd removes (the two lists differ only in
+// \x1c-\x1f and ﻿, which no plan page carries).
+const rstrip = s => String(s).trimEnd()
+// An f-string's view of a JSON value: null prints as None, as it does there.
+const pyStr = v => (v === null ? 'None' : String(v))
+
+export const planMarkdown = page => {
+  const p = page || {}
+  const out = [`# ${p.title === undefined ? 'Untitled' : pyStr(p.title)}`, '']
+  for (const item of Array.isArray(p.story) ? p.story : []) {
+    const it = item || {}
+    const kind = it.type || ''
+    const text = rstrip(it.text || '')
+    if (kind === 'assets') continue
+    if (PASSTHROUGH.has(kind)) {
+      if (text) {
+        if (CHECKPOINT_RE.test(text) && out.length >= 2 && out[out.length - 1] === '' && CHECKPOINT_RE.test(out[out.length - 2])) out.pop()
+        out.push(text, '')
+      }
+    } else if (Object.prototype.hasOwnProperty.call(FENCED, kind)) {
+      out.push(rstrip('```' + FENCED[kind]), text, '```', '')
+    } else if (kind === 'image') {
+      const cap = text || it.caption || ''
+      out.push(`![${pyStr(cap)}](${it.url === undefined ? '' : pyStr(it.url)})`, '')
+    } else {
+      out.push(`*[${kind} item]*`, '')
+    }
+  }
+  const journal = Array.isArray(p.journal) ? p.journal : []
+  const create = journal.find(e => e && e.type === 'create' && e.provenance)
+  if (create) out.push('---', '', `*${create.provenance}*`, '')
+  const lines = []
+  let blank = false
+  for (const line of out) {
+    if (line === '') {
+      if (blank) continue
+      blank = true
+    } else blank = false
+    lines.push(line)
+  }
+  return rstrip(lines.join('\n')) + '\n'
+}
+
+
+// ======================================================================
+// Phase 4 — Do Next Phase and Revise Plan, the pure part. The farm handler
+// (api/handlers.js) claims the WIP marker and calls the Claude door around
+// these; the client opens the answer as a ghost page with them; and the demo
+// saved its report page through the same functions.
+// ======================================================================
+
+// ---------- which skills ----------
+//
+// fedwiki-plan always, then whatever the plan's own plan items name on a
+// SKILLS line, in order, once each. A name is a skill folder's name: letters,
+// digits, hyphens and underscores, so it can never climb out of the skills
+// folder. Others are returned apart, to be reported and skipped.
+export const DEFAULT_SKILLS = ['fedwiki-plan']
+const SKILL_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
+export const skillsOf = page => {
+  const named = []
+  for (const it of page && Array.isArray(page.story) ? page.story : []) {
+    if (it && it.type === 'plan') named.push(...parse(it.text).skills)
+  }
+  const all = [...new Set([...DEFAULT_SKILLS, ...named])]
+  return { skills: all.filter(n => SKILL_NAME_RE.test(n)), refused: all.filter(n => !SKILL_NAME_RE.test(n)) }
+}
+
+// ---------- the phase ----------
+//
+// The phases as planState counts them (sections holding a checkpoint, Open
+// Questions excepted), each with its checkpoints read line by line and the id
+// of the last item holding one — where a report's link goes.
+const phaseNumber = heading => {
+  const m = String(heading || '').match(/^Phase\s+(\d+)\b/i)
+  return m ? parseInt(m[1], 10) : null
+}
+
+export const phasesOf = page =>
+  sections(page)
+    .filter(s => s.heading !== 'Open Questions')
+    .map(s => {
+      const checkpoints = []
+      let lastItemId = null
+      for (const it of s.items) {
+        if (!it || it.type !== 'markdown') continue
+        let here = false
+        for (const line of String(it.text || '').split('\n')) {
+          const m = line.match(TASK_LINE_RE)
+          if (!m) continue
+          here = true
+          checkpoints.push({ id: it.id, text: m[2].trim(), done: m[1] !== ' ', line: line.trim() })
+        }
+        if (here) lastItemId = it.id
+      }
+      const first = String(s.items[0].text || '').trim().split('\n')
+      const strap = (first.find((l, i) => i > 0 && /^\s*>/.test(l)) || '').replace(/^\s*>\s*/, '').trim()
+      const number = phaseNumber(s.heading)
+      return {
+        heading: s.heading,
+        label: number === null ? s.heading : `Phase ${number}`,
+        number,
+        strap,
+        headingId: s.items[0].id,
+        checkpoints,
+        lastItemId,
+        done: checkpoints.filter(c => c.done).length,
+        total: checkpoints.length,
+      }
+    })
+    .filter(p => p.total > 0)
+
+// The phase a run is for: `phase` given as a number (Phase N) or a heading,
+// else the next, the first with an unticked checkpoint. null when there is
+// none: no such phase, or every checkpoint ticked.
+export const choosePhase = (page, phase) => {
+  const phases = phasesOf(page)
+  if (phase === undefined || phase === null || phase === '') return phases.find(p => p.done < p.total) || null
+  const want = String(phase).trim()
+  if (/^\d+$/.test(want)) return phases.find(p => p.number === parseInt(want, 10)) || null
+  const low = want.toLowerCase()
+  return phases.find(p => p.heading.toLowerCase() === low || p.label.toLowerCase() === low) || null
+}
+
+// ---------- the ghost page ----------
+
+export const today = (now = Date.now()) => new Date(now).toISOString().slice(0, 10)
+
+/** "<Plan Title> Phase N Report" for Do Next Phase; "<Plan Title> Revision <YYYY-MM-DD>" for Revise Plan. */
+export const reportTitle = ({ kind, planTitle, phaseLabel = '', date = today() }) =>
+  kind === 'revise' ? `${planTitle} Revision ${date}` : `${planTitle} ${phaseLabel} Report`
+
+/**
+ * Markdown as separately draggable items: each paragraph its own item, each
+ * top-level bullet its own item with anything nested beneath it. COPIED from
+ * wiki-plugin-audionote's splitMarkdown (client/voice.js), the Voice Tool's
+ * rule for a summary, so a report reads as a spoken note does. A heading with
+ * its strap line directly beneath stays one item, the house heading.
+ */
+export const splitMarkdown = markdown => {
+  const blocks = []
+  for (const chunk of String(markdown || '').trim().split(/\n\s*\n/)) {
+    const lines = chunk.split('\n')
+    const isList = lines.every(l => /^\s*([-*+]|\d+[.)])\s/.test(l) || /^\s+\S/.test(l))
+    if (!isList) {
+      blocks.push(chunk.trim())
+      continue
+    }
+    let current = null
+    for (const line of lines) {
+      if (/^([-*+]|\d+[.)])\s/.test(line)) {
+        if (current) blocks.push(current)
+        current = line
+      } else current = current === null ? line : `${current}\n${line}`
+    }
+    if (current) blocks.push(current)
+  }
+  return blocks.filter(Boolean)
+}
+
+const randomHex = () => {
+  const bytes = new Uint8Array(8)
+  globalThis.crypto.getRandomValues(bytes)
+  return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * The story of a report or revision ghost: a provenance line saying who wrote
+ * it and that nothing was ticked, the model's markdown one item per point, and
+ * a "# See" item linking back to the plan. audionote's spokenItems shape.
+ */
+// A heading and the "> " strap the model set a blank line beneath it are one
+// house heading item, as fedwiki-page writes them.
+export const joinStraps = blocks => {
+  const out = []
+  for (const b of blocks) {
+    const prev = out[out.length - 1]
+    if (prev !== undefined && /^\s*>\s/.test(b) && /^#{1,6}\s/.test(prev) && !prev.includes('\n')) out[out.length - 1] = `${prev}\n${b}`
+    else out.push(b)
+  }
+  return out
+}
+
+export const reportItems = ({ kind, markdown, planTitle, phaseLabel = '', model = '', date = today(), id = randomHex }) => {
+  const item = text => ({ type: 'markdown', id: id(), text })
+  const what = kind === 'revise' ? 'Revise Plan' : `Do Next Phase for ${phaseLabel}`
+  const by = model ? ` by ${model.replace(/^claude-cli:/, '')}` : ''
+  const after =
+    kind === 'revise'
+      ? 'It is a draft beside the plan: the plan itself was not changed.'
+      : 'Its proposed ticks are proposals: nothing on the plan was ticked.'
+  return [
+    item(`Written${by} through the [[Plan Tool]]'s ${what} on [[${planTitle}]], ${date}. ${after}`),
+    ...joinStraps(splitMarkdown(markdown)).map(item),
+    item(`# See\n\n- [[${planTitle}]]`),
+  ]
+}
+
+// ---------- proposed ticks ----------
+//
+// The bullets of the report's "# Proposed Ticks" section, matched back to the
+// phase's checkpoints by their words. Never applied: the report lists them.
+const words = t => String(t || '').replace(/^\s*[-*+]\s+/, '').replace(/^\[[ xX]\]\s+/, '').replace(/\s+/g, ' ').trim().toLowerCase()
+export const proposedTicks = (markdown, checkpoints = []) => {
+  const lines = String(markdown || '').split('\n')
+  const at = lines.findIndex(l => /^\s*#\s+Proposed Ticks\b/i.test(l))
+  if (at === -1) return { found: false, listed: [], matched: [], none: false }
+  const listed = []
+  for (const line of lines.slice(at + 1)) {
+    if (/^\s*#{1,6}\s/.test(line)) break
+    if (/^\s*[-*+]\s/.test(line)) listed.push(line.replace(/^\s*[-*+]\s+/, '').trim())
+  }
+  const none = !listed.length || (listed.length === 1 && /^none\.?$/i.test(listed[0]))
+  const want = new Set(listed.map(words))
+  const matched = checkpoints.filter(c => want.has(words(c.text)))
+  return { found: true, listed: none ? [] : listed, matched, none }
+}
+
+// ---------- where the link goes ----------
+//
+// A report's [[link]] goes immediately after the last item of its phase that
+// holds a checkpoint; a revision's after the last item of the See section;
+// either, failing that, at the end of the story. Answers the item id to add
+// after (null for an empty story).
+export const linkAfter = (page, { kind, phase } = {}) => {
+  const story = page && Array.isArray(page.story) ? page.story : []
+  if (kind !== 'revise') {
+    const p = choosePhase(page, phase)
+    if (p && p.lastItemId) return p.lastItemId
+  } else {
+    const see = sections(page).find(s => /^see$/i.test(s.heading))
+    if (see) return see.items[see.items.length - 1].id
+  }
+  return story.length ? story[story.length - 1].id : null
+}
+
+/** The add the wiki client journals for one new item: {type, id, item, after, date}. */
+export const addAction = (item, after, date = Date.now()) => ({ type: 'add', id: item.id, item: { ...item }, after, date })
+
+
+// ======================================================================
+// Phase 5 — Finish Plan, Answer a question and Check Plan Index, the pure
+// part. The farm handler (api/handlers.js, finish) does the file IO, the WIP
+// claim, the demo lookup and the index reset around these; the client hands
+// a question to the Voice Tool and compares the board with the live plans.
+// ======================================================================
+
+// ---------- Finish Plan ----------
+
+// The Finish form's guess at the demo page: the one an existing Conclusion
+// names, else the first title the page links that ends in Demo, the rule the
+// "no Demo" lint reads.
+export const demoCandidate = page => namedDemo(page) || linkTitles(page).find(t => /Demo$/.test(t)) || ''
+
+/**
+ * Why Finish Plan must not write, or null. Every phase checkpoint ticked
+ * (planState's phases; the Open Questions are not phases), a conclusion and a
+ * demo title given. The demo page's existence is the handler's to check: it
+ * needs the farm's files.
+ */
+export const finishRefusal = (page, { conclusion, demo } = {}) => {
+  const st = planState(page)
+  if (!st.total) return `${(page && page.title) || 'this page'} has no checkpoints to finish`
+  if (!st.complete) {
+    const open = phasesOf(page).flatMap(p => p.checkpoints.filter(c => !c.done).map(c => `${p.label}: ${c.text}`))
+    const shown = open.slice(0, 3).join('; ') + (open.length > 3 ? `; and ${open.length - 3} more` : '')
+    return `${st.total - st.done} of ${st.total} checkpoints of ${page.title} are still unticked (${shown}); Finish Plan waits for every one`
+  }
+  if (!String(conclusion || '').trim()) return 'a conclusion is required: what the plan delivered, in a paragraph or two'
+  const d = String(demo || '').trim()
+  if (!d) return 'a demo page title is required: the page that shows the finished work'
+  if (/\[\[|\]\]|\n/.test(d)) return `a demo page title is a title, not a link or several lines: ${d}`
+  return null
+}
+
+const SEE_RE = /^see$/i
+const LIST_LINE_RE = /^\s*[-*]\s/m
+
+/**
+ * Write the Conclusion section and the See link, as the wiki would journal
+ * them. The Conclusion goes immediately above # See (the fedwiki-plan end
+ * matter: body, Files, Links, Assets, Conclusion, See), or at the end when
+ * there is no See; an existing Conclusion section has its body replaced, item
+ * by item. Its items: the heading "# Conclusion", the conclusion one item per
+ * paragraph, then "The demo is [[Demo]].". "- [[Demo]]" joins the See list
+ * unless the section already links it. Returns a new page and the journal
+ * actions written; the page given is not touched.
+ */
+export const writeConclusion = (page, { conclusion, demo, slug = asSlug, id = randomHex, now = () => Date.now() } = {}) => {
+  const out = JSON.parse(JSON.stringify(page || {}))
+  out.story = Array.isArray(out.story) ? out.story : []
+  out.journal = Array.isArray(out.journal) ? out.journal : []
+  const story = out.story
+  const actions = []
+  const record = a => {
+    out.journal.push(a)
+    actions.push(a)
+  }
+  const add = (item, after) => record({ type: 'add', id: item.id, item: { ...item }, after, date: now() })
+  const edit = item => record({ type: 'edit', id: item.id, item: { ...item }, date: now() })
+  const title = String(demo).trim()
+  const texts = [
+    ...String(conclusion || '')
+      .trim()
+      .split(/\n\s*\n/)
+      .map(p => p.trim())
+      .filter(Boolean),
+    `The demo is [[${title}]].`,
+  ]
+  const indexOfHeading = test => story.findIndex(it => {
+    const h = headingOf(it)
+    return h !== null && test(h)
+  })
+  const bodyEnd = start => {
+    let i = start + 1
+    while (i < story.length && headingOf(story[i]) === null) i++
+    return i
+  }
+
+  // The Conclusion.
+  const at = indexOfHeading(h => h === 'Conclusion')
+  let replaced = false
+  const ids = []
+  if (at !== -1) {
+    replaced = true
+    const head = story[at]
+    if (String(head.text || '').trim() !== '# Conclusion') {
+      head.text = '# Conclusion'
+      edit(head)
+    }
+    ids.push(head.id)
+    const old = story.slice(at + 1, bodyEnd(at))
+    let prev = head.id
+    texts.forEach((text, i) => {
+      if (i < old.length) {
+        const it = old[i]
+        if (it.type !== 'markdown' || it.text !== text) {
+          it.type = 'markdown'
+          it.text = text
+          edit(it)
+        }
+        prev = it.id
+        ids.push(it.id)
+      } else {
+        const it = { type: 'markdown', id: id(), text }
+        story.splice(story.findIndex(x => x.id === prev) + 1, 0, it)
+        add(it, prev)
+        prev = it.id
+        ids.push(it.id)
+      }
+    })
+    for (const it of old.slice(texts.length)) {
+      story.splice(story.findIndex(x => x.id === it.id), 1)
+      record({ type: 'remove', id: it.id, date: now() })
+    }
+  } else {
+    const see = indexOfHeading(h => SEE_RE.test(h))
+    let pos = see === -1 ? story.length : see
+    let prev = pos > 0 ? story[pos - 1].id : null
+    for (const text of ['# Conclusion', ...texts]) {
+      const it = { type: 'markdown', id: id(), text }
+      story.splice(pos++, 0, it)
+      add(it, prev)
+      prev = it.id
+      ids.push(it.id)
+    }
+  }
+
+  // The See link.
+  const want = slug(title)
+  const see = indexOfHeading(h => SEE_RE.test(h))
+  let seeAdded = false
+  if (see === -1) {
+    const it = { type: 'markdown', id: id(), text: `# See\n\n- [[${title}]]` }
+    const prev = story.length ? story[story.length - 1].id : null
+    story.push(it)
+    add(it, prev)
+    seeAdded = true
+  } else {
+    const items = story.slice(see, bodyEnd(see))
+    const linked = items.some(it => wikilinksIn(it && it.text).some(t => slug(t) === want))
+    if (!linked) {
+      const list = [...items].reverse().find(it => it.type === 'markdown' && LIST_LINE_RE.test(String(it.text || '')))
+      if (list) {
+        list.text = `${String(list.text).replace(/\s+$/, '')}\n- [[${title}]]`
+        edit(list)
+      } else {
+        const it = { type: 'markdown', id: id(), text: `- [[${title}]]` }
+        const last = items[items.length - 1]
+        story.splice(story.findIndex(x => x.id === last.id) + 1, 0, it)
+        add(it, last.id)
+      }
+      seeAdded = true
+    }
+  }
+  return { page: out, actions, conclusion: { replaced, ids, items: texts.length + 1 }, see: { added: seeAdded } }
+}
+
+// ---------- Answer a question ----------
+//
+// Where the Voice Tool reads the question it is to wait for: a sessionStorage
+// key, read and removed by wiki-plugin-audionote (client/main.js, findRed)
+// when it paints its "a page it is waiting for" select.
+export const WAITING_FOR_KEY = 'audionote.waitingFor'
+
+// ---------- Check Plan Index ----------
+//
+// The board as fedwiki-plan-index's plan-index.py writes it: a local plan is
+// a markdown line "- [ ] [[Title]] · 20/23 · 29 Jul" ("[x]" when complete,
+// "no checkpoints" when it has none); a plan on another site, and a rolled-up
+// site's index, is a reference item whose text is "site · 7/39 · 21 Aug".
+// PLAN_LINE_RE there, read line by line here so a block of lines still reads.
+const BOARD_LINE_RE = /^\s*[-*]\s+\[([ xX])\]\s*\[\[(.+?)\]\]\s*(?:·(.*))?$/
+const progressOf = tail => {
+  const m = String(tail || '').match(/(\d+)\s*\/\s*(\d+)/)
+  if (m) return { done: parseInt(m[1], 10), total: parseInt(m[2], 10) }
+  if (/no checkpoints/.test(String(tail || ''))) return { done: 0, total: 0 }
+  return null
+}
+export const boardEntries = (...pages) => {
+  const plans = []
+  const refs = []
+  for (const page of pages) {
+    for (const it of page && Array.isArray(page.story) ? page.story : []) {
+      if (!it) continue
+      if (it.type === 'reference' && it.site && it.slug) {
+        refs.push({ site: it.site, slug: it.slug, title: it.title || it.slug, ...(progressOf(it.text) || { done: null, total: null }) })
+        continue
+      }
+      if (it.type !== 'markdown') continue
+      for (const line of String(it.text || '').split('\n')) {
+        const m = line.match(BOARD_LINE_RE)
+        if (!m) continue
+        const p = progressOf(m[3])
+        plans.push({ title: m[2].trim(), box: m[1] !== ' ', board: (page && page.title) || '', ...(p || { done: null, total: null }) })
+      }
+    }
+  }
+  return { plans, refs }
+}
+
+const frac = (done, total) => (total ? `${done}/${total}` : done === null || done === undefined ? 'no count' : 'no checkpoints')
+
+/**
+ * The board against the live plans. live: rows of the list face, each with
+ * the board's own count (all, every task line on the page: plan-index.py's
+ * completion(), ticks() above), so a fraction that differs has really moved
+ * and is not just the list's phases-only rule. Answers what the laptop skill
+ * would change: plans missing from the board, plans on it that no longer
+ * exist, fractions that moved (from and to), plans newly complete.
+ */
+export const compareIndex = ({ plans = [], refs = [] } = {}, live = [], slug = asSlug) => {
+  const onBoard = new Map()
+  for (const p of plans) if (!onBoard.has(slug(p.title))) onBoard.set(slug(p.title), p)
+  const missing = []
+  const moved = []
+  const complete = []
+  const unreadable = []
+  let same = 0
+  const seen = new Set()
+  for (const r of live) {
+    const s = r.slug || slug(r.title)
+    seen.add(s)
+    const b = onBoard.get(s)
+    if (!r.read || !r.all) {
+      if (b) unreadable.push({ title: r.title, slug: s })
+      else missing.push({ title: r.title, slug: s, to: null })
+      continue
+    }
+    const to = frac(r.all.done, r.all.total)
+    if (!b) {
+      missing.push({ title: r.title, slug: s, to })
+      continue
+    }
+    const nowComplete = r.all.total > 0 && r.all.done === r.all.total
+    const wasComplete = b.box || (b.total > 0 && b.done === b.total)
+    if (b.done !== r.all.done || b.total !== r.all.total) moved.push({ title: r.title, slug: s, from: frac(b.done, b.total), to, board: b.board })
+    else same++
+    if (nowComplete && !wasComplete) complete.push({ title: r.title, slug: s, to })
+  }
+  const gone = [...onBoard.entries()].filter(([s]) => !seen.has(s)).map(([s, b]) => ({ title: b.title, slug: s, from: frac(b.done, b.total), board: b.board }))
+  return { missing, gone, moved, complete, unreadable, unchanged: same, listed: plans.length, elsewhere: refs.length }
 }

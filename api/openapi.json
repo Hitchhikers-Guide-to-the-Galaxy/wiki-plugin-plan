@@ -1,0 +1,258 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Plan",
+    "version": "0.1.0",
+    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
+  },
+  "paths": {
+    "/update.json": {
+      "post": {
+        "operationId": "update",
+        "summary": "Update Plan: tick the questions whose pages now exist and re-render the plan's markdown asset",
+        "description": "Reads the plan page on this site. Every unticked Open Questions line, - [ ] [[Question?]] gloss, whose question now has a page on this site or on a sibling site of this farm is ticked, with one journal edit per item ticked, and the page is written whole (temp file and rename). The site's sitemap.json, site-index.json and sitemap.xml are then removed together so it reindexes on the next request. The plan's markdown is re-rendered to assets/<slug>/<slug>.md either way. The write holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) and releases it; a live claim by anyone else is answered with 409 and nothing is written. The status line on the page is the plan item, which re-renders from the page JSON, so it needs no write of its own.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. plan-tool-plan."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What changed: the questions ticked (and the site each answer was found on), the questions still unanswered, whether the page was written and the index reset, the asset rendered, and the WIP claim's token with its claim and release times."
+          },
+          "400": {
+            "description": "Not a slug, or the page is not a plan."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was written."
+          }
+        }
+      }
+    },
+    "/next.json": {
+      "post": {
+        "operationId": "next",
+        "summary": "Do Next Phase: ask the Claude door for a report on the plan's next phase, as a job",
+        "description": "Reads the plan page on this site and chooses its next phase, the first with an unticked checkpoint, or the phase named. The content is the plan rendered as markdown, the phase's heading and checkpoints marked out, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked for a fixed shape: a one-paragraph summary; one section per checkpoint of the phase saying what to do, how to verify it and whether the pages already show it done; and a closing # Proposed Ticks section listing verbatim the checkpoints it judges done, or none. The result is kept in the job; nothing is written to the plan or any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Do Next Phase <site>/<slug> phase N) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. next-demo-plan."
+                  },
+                  "phase": {
+                    "type": "string",
+                    "description": "Optional: the phase to report on, as its number (2) or its heading (Phase 2). By default the next phase."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind, slug, title, phase, reportTitle, model, session, started } at once; poll job.json with the job id."
+          },
+          "400": {
+            "description": "Not a slug, not a plan, no such phase, or every checkpoint already ticked."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
+    "/revise.json": {
+      "post": {
+        "operationId": "revise",
+        "summary": "Revise Plan: ask the Claude door to redraft the plan given its answered questions, as a job",
+        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job; the plan is never overwritten. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. next-demo-plan."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind, slug, title, phase, reportTitle, model, session, started } at once; poll job.json with the job id."
+          },
+          "400": {
+            "description": "Not a slug, or the page is not a plan."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
+    "/job.json": {
+      "get": {
+        "operationId": "job",
+        "summary": "How a Do Next Phase or Revise Plan run is getting on, and its report when done",
+        "description": "Answers { status: 'running' | 'done' | 'failed', result?, error?, started, finished } with the run's kind, plan, phase, report title, model, the account of what went to the model (skills loaded and skipped, pages, bytes) and the WIP claim's times. result is { markdown, model, ms, reportTitle, proposedTicks? }. Jobs are kept in the farm's handler process and mirrored to status/farm-tmp/plan-jobs/<id>.json; one found only on disk and still marked running is answered as failed, since the process that ran it is gone. Declared as a write so only someone who may edit the site reads a report on its plan. Another site's job is not found.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The job id next.json or revise.json answered."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run as it stands."
+          },
+          "400": {
+            "description": "Not a job id."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site."
+          },
+          "404": {
+            "description": "No such job on this site."
+          }
+        }
+      }
+    },
+    "/finish.json": {
+      "post": {
+        "operationId": "finish",
+        "summary": "Finish Plan: write the Conclusion section and the demo link once every checkpoint is ticked",
+        "description": "Reads the plan page on this site and refuses with 400 unless every phase checkpoint is ticked (the Open Questions are not phases), a conclusion is given, and the demo title names a page that exists on this site or on a sibling site of this farm. It then writes, in place, a # Conclusion section immediately above the # See section (the fedwiki-plan end matter: body, Files, Links, Assets, Conclusion, See), or at the end when there is no See: the heading item # Conclusion, the conclusion one markdown item per paragraph, and a closing line The demo is [[<demo>]]. An existing Conclusion section has its body replaced, item by item. - [[<demo>]] is added to the See list unless the section already links it. Each item is journaled as an add or an edit (a remove for a surplus old body item), shaped as the wiki journals them; the page is written whole (temp file and rename); the site's sitemap.json, site-index.json and sitemap.xml are removed together so it reindexes; and the plan's markdown is re-rendered to assets/<slug>/<slug>.md. The write holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) with a note naming it and releases it; a live claim by anyone else is answered with 409 and nothing is written.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "conclusion",
+                  "demo"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. finish-demo-plan."
+                  },
+                  "conclusion": {
+                    "type": "string",
+                    "description": "What the plan delivered, as markdown; each paragraph becomes its own item."
+                  },
+                  "demo": {
+                    "type": "string",
+                    "description": "The title of the page that shows the finished work, e.g. Finish Demo Result; it must exist on this site or a sibling site of this farm."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was written: the demo page and the site it was found on, the Conclusion's item ids and whether an old one was replaced, whether the See list gained the link, the journal actions written, the index reset, the asset rendered, and the WIP claim's token with its claim and release times."
+          },
+          "400": {
+            "description": "Not a slug, not a plan, a checkpoint still unticked (named), no conclusion or no demo given, or no page of the demo's title on this farm."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was written."
+          }
+        }
+      }
+    }
+  }
+}

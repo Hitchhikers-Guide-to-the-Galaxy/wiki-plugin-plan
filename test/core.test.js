@@ -1,9 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parse, isPlanTitle, ticks, openQuestions, lastEdit, byRecent, headingOf, face, asSlug, sections, questionsOf, unlinkedFiles, linkTitles, audit, forkSites, planState, trashable } from '../src/client/core.js'
+import { parse, isPlanTitle, ticks, summarise, openQuestions, lastEdit, byRecent, headingOf, face, asSlug, sections, questionsOf, unlinkedFiles, linkTitles, audit, forkSites, planState, trashable } from '../src/client/core.js'
 
 test('parse: commands, optional colon, caption, bare item', () => {
-  assert.deepEqual(parse('SUBJECT'), { subject: true, site: null, limit: null, caption: '', commands: 1 })
+  assert.deepEqual(parse('SUBJECT'), { subject: true, site: null, limit: null, skills: [], caption: '', commands: 1 })
   const p = parse('Plans of the plan site\nSITE: plan.localhost\nLIMIT 5')
   assert.equal(p.site, 'plan.localhost')
   assert.equal(p.limit, 5)
@@ -36,7 +36,13 @@ test('ticks across items, open questions in their section only', () => {
     ],
     journal: [{ date: 5 }, { date: 9 }, { type: 'x' }],
   }
-  assert.deepEqual(ticks(page), { done: 2, total: 6 })
+  assert.deepEqual(ticks(page), { done: 2, total: 6 }) // the Plan Index rule: every task line
+  // The list face counts as the state view does (David's decision, Phase 3):
+  // phase checkpoints only, Open Questions apart. Phase 1 here is 1/2 and See
+  // holds one stray checkpoint, so 1/3; the open questions are counted alone.
+  const r = summarise({ title: 'T Plan', slug: 't-plan', date: 3 }, page)
+  assert.deepEqual([r.done, r.total, r.questions, r.modified], [1, 3, 2, 9])
+  assert.deepEqual([summarise({ title: 'U Plan', slug: 'u', date: 3 }, null).total, summarise({ title: 'U Plan', slug: 'u', date: 3 }, null).read], [0, false])
   assert.equal(openQuestions(page), 2)
   assert.equal(lastEdit(page, 1), 9)
   assert.equal(lastEdit({ journal: [] }, 7), 7)
