@@ -488,7 +488,7 @@ function paintAgent($item) {
   const model = A.model ? ` with ${escapeHtml(String(A.model).replace(/^claude-cli:/, ''))}` : ''
   let html = ''
   if (A.state === 'posting') html = `${name}: asking the farm…`
-  else if (A.state === 'running') html = `${name}${what}${model}: the model is reading the plan… ${secs(Date.now() - A.started)}`
+  else if (A.state === 'running') html = `${name}${what}${model}: the model is reading the ${A.kind === 'site' ? 'answers and every page of the site' : 'plan'}… ${secs(Date.now() - A.started)}`
   else if (A.state === 'refused' || A.state === 'failed') html = escapeHtml(A.line)
   else if (A.kind === 'site' && (A.state === 'done' || A.state === 'saving')) {
     const open = ghostIsOpen(A)
@@ -829,7 +829,7 @@ function appliedHtml(j, title, slug) {
     )
   if ((a.refused || []).length) parts.push(`Refused: <ul>${a.refused.map(x => `<li>${escapeHtml(x.title)} — ${escapeHtml(x.why)}</li>`).join('')}</ul>`)
   if ((a.failed || []).length) parts.push(`Failed: <ul>${a.failed.map(x => `<li>${escapeHtml(x.title)} — ${escapeHtml(x.error)}</li>`).join('')}</ul>`)
-  parts.push('Each page was written whole with a journal edit naming the answers; open it from its link to see it fresh.')
+  parts.push(`Each page was written whole with a journal edit naming the answers; open it from its link, or <a href="${escapeHtml(location.href)}" onclick="location.reload();return false">reload the lineup</a>, to see it fresh.`)
   return parts.join(' ')
 }
 
