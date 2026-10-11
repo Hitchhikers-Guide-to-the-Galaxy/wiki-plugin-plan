@@ -35,9 +35,9 @@ import crypto from 'node:crypto'
 
 import { ask, defaultModel } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion } from '../src/client/core.js'
+import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
-import { buildContent, SYSTEM } from './prompt.js'
+import { buildContent, buildSiteContent, buildPageContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
 
 const problem = (status, message) => Object.assign(new Error(message), { status })
 
@@ -139,8 +139,28 @@ export async function update({ slug, origin, status, farmRoot } = {}) {
     if (ticked.length) {
       writeAtomic(status, pageFile, JSON.stringify(next, null, 2))
       written = true
-      indexReset = resetIndex(status)
     }
+
+    // Phase 7: the page the plan links as [[Open Questions]] on this site,
+    // read whole, ticked by the same rule and journaled on that page.
+    const link = openQuestionsLink(page)
+    let oq = null
+    if (link && link.slug !== s) {
+      const oqFile = path.join(site, 'pages', link.slug)
+      let linked = null
+      try {
+        linked = JSON.parse(fs.readFileSync(oqFile, 'utf8'))
+      } catch {}
+      if (linked) {
+        const oqSlugs = [...new Set(questionsOf(linked, new Set(), undefined, { whole: true }).map(q => q.slug))]
+        const oqWhere = answeredOn(root, origin, oqSlugs)
+        for (const [k, v] of oqWhere) where.set(k, v)
+        const r = tickAnswered(linked, new Set(oqWhere.keys()), undefined, undefined, { whole: true })
+        if (r.ticked.length) writeAtomic(status, oqFile, JSON.stringify(r.page, null, 2))
+        oq = { slug: link.slug, title: linked.title || link.title, ticked: r.ticked, unanswered: r.unanswered, written: r.ticked.length > 0, journalEdits: r.page.journal.length - (linked.journal || []).length }
+      }
+    }
+    if (written || (oq && oq.written)) indexReset = resetIndex(status)
 
     const md = planMarkdown(written ? next : page)
     const assetFile = path.join(site, 'assets', s, `${s}.md`)
@@ -151,12 +171,14 @@ export async function update({ slug, origin, status, farmRoot } = {}) {
     writeAtomic(status, assetFile, md)
 
     const released = release(wip.token)
+    const seen = new Set(unanswered.map(q => q.slug))
     return {
       slug: s,
       title: page.title,
-      ticked: ticked.map(t => ({ ...t, foundOn: where.get(t.slug) })),
-      unanswered,
+      ticked: [...ticked.map(t => ({ ...t, foundOn: where.get(t.slug) })), ...(oq ? oq.ticked.map(t => ({ ...t, foundOn: where.get(t.slug), page: oq.slug })) : [])],
+      unanswered: [...unanswered, ...(oq ? oq.unanswered.filter(q => !seen.has(q.slug)).map(q => ({ ...q, page: oq.slug })) : [])],
       page: { written, journalEdits: written ? next.journal.length - (page.journal || []).length : 0 },
+      openQuestions: oq ? { slug: oq.slug, title: oq.title, written: oq.written, journalEdits: oq.journalEdits, ticked: oq.ticked.length } : null,
       index: { reset: indexReset },
       asset: { rendered: true, path: `/assets/${s}/${s}.md`, changed: before !== md, lines: md.split('\n').length - 1 },
       wip: { token: wip.token, session, claimed: wip.claimed, released, ...(wip.took ? { tookStaleClaim: wip.took } : {}) },
@@ -237,10 +259,10 @@ const readPlan = (status, origin, slug) => {
  * everything after it is the job's, and the marker is released in a finally
  * whatever happens. The heartbeat keeps the claim fresh while the model works.
  */
-const start = ({ kind, origin, status, slug, site, page, phase, session }) => {
+const start = ({ kind, origin, status, slug, site, page, phase, session, title = null, build = null, holdOff = null }) => {
   forget()
   const scope = `${origin}/${slug}`
-  const wip = claim({ session, scope, holdOff: `${session}: a model is reading the plan; the report opens as a ghost page and nothing is written to the plan` })
+  const wip = claim({ session, scope, holdOff: holdOff || `${session}: a model is reading the plan; the report opens as a ghost page and nothing is written to the plan` })
   const model = defaultModel('claude-opus-5-5')
   const id = crypto.randomBytes(8).toString('hex')
   const j = {
@@ -252,7 +274,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session }) => {
     slug,
     title: page.title,
     phase: phase ? { label: phase.label, heading: phase.heading, number: phase.number, checkpoints: phase.checkpoints.map(c => c.text) } : null,
-    reportTitle: reportTitle({ kind, planTitle: page.title, phaseLabel: phase ? phase.label : '', date: today() }),
+    reportTitle: title || reportTitle({ kind, planTitle: page.title, phaseLabel: phase ? phase.label : '', date: today() }),
     session,
     model,
     status: 'running',
@@ -274,7 +296,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session }) => {
 
   ;(async () => {
     try {
-      const { content, account } = buildContent({ kind, page, phase, origin, siteDir: site })
+      const { content, account } = build ? build() : buildContent({ kind, page, phase, origin, siteDir: site })
       j.context = account
       persist(j)
       const out = await ask(model, content, { system: SYSTEM, timeoutMs: RUN_TIMEOUT_MS, allowTools: false })
@@ -285,6 +307,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session }) => {
         ms: out.ms,
         reportTitle: j.reportTitle,
         ...(ticks ? { proposedTicks: { found: ticks.found, none: ticks.none, listed: ticks.listed, matched: ticks.matched.map(c => c.text) } } : {}),
+        ...(kind === 'site' ? { proposal: proposalSummary(out.markdown, page.title, origin) } : {}),
       }
       j.status = 'done'
     } catch (e) {
@@ -303,6 +326,14 @@ const start = ({ kind, origin, status, slug, site, page, phase, session }) => {
   })()
 
   return { job: id, status: j.status, kind, slug, title: page.title, phase: j.phase, reportTitle: j.reportTitle, model, session, started: j.started }
+}
+
+/** What a proposal's markdown holds, read back as the saved page will be: rows by action, untouched, names. */
+const proposalSummary = (markdown, planTitle, origin) => {
+  const pr = parseProposal({ story: proposalItems({ markdown, planTitle, site: origin }) })
+  const actions = {}
+  for (const r of pr.rows) actions[r.action] = (actions[r.action] || 0) + 1
+  return { rows: pr.rows.length, actions, untouched: pr.untouched.length, names: pr.names.filter(n => !/^none\.?$/i.test(n.name)).length, tone: !!pr.tone }
 }
 
 /** Do Next Phase: the plan's next phase (or the one named) to the door, as a job. */
@@ -409,4 +440,319 @@ export async function finish({ slug, conclusion, demo, origin, status, farmRoot 
     } catch {}
     throw e
   }
+}
+
+
+// ======================================================================
+// Phase 7 — Revise Site and Go Ahead.
+// ======================================================================
+//
+// reviseSite is a job like next and revise: every answered question's page,
+// then every page on the site, to the door, which answers a Revision
+// Proposal (the tone shift, a Page | Action | Reason table, the pages it will
+// not touch, the names it found). Nothing is written: the client opens it as
+// a ghost with Go Ahead and Pause, and Pause saves it as a page.
+//
+// applyRevision is Go Ahead: the saved proposal page is read back, and every
+// Amend, Rewrite and New row, in the table's order with the plan last, goes
+// to the door one page at a time; each page comes back whole and is written
+// whole, journaled, with the provenance naming the proposal and the answers.
+// Never written, whatever the table says: a page deleted (there is no delete
+// here at all), an answer page, the Open Questions page, a page forked from
+// or credited to another site, a page the proposal lists as Untouched, a
+// proposal page. A page that would carry a name whose box on the proposal is
+// still unticked, and that it did not carry before, is not written either.
+// The farm WIP marker is held for the whole run.
+
+/** A free title for a new proposal: Revision Proposal, else dated, else numbered. */
+const proposalTitle = (site, date = today()) => {
+  const free = t => !fs.existsSync(path.join(site, 'pages', asSlug(t)))
+  if (free(PROPOSAL_TITLE)) return PROPOSAL_TITLE
+  const dated = `${PROPOSAL_TITLE} ${date}`
+  if (free(dated)) return dated
+  for (let n = 2; ; n++) if (free(`${dated} ${n}`)) return `${dated} ${n}`
+}
+
+/** Revise Site: the answers and every page of the site to the door, asked for a revision proposal, as a job. */
+export async function reviseSite({ slug, origin, status } = {}) {
+  const p = readPlan(status, origin, slug)
+  const { questions } = questionsFor(p.site, p.page)
+  if (!questions.some(q => q.answered)) {
+    throw problem(400, `no open question of ${p.page.title} has an answer page on ${origin} yet: answer one, on the plan's Open Questions or the page it links as [[Open Questions]], then revise the site`)
+  }
+  const session = `Plan Tool: Revise Site ${origin}/${p.slug}`
+  return start({
+    kind: 'site',
+    origin,
+    status,
+    slug: p.slug,
+    site: p.site,
+    page: p.page,
+    phase: null,
+    session,
+    title: proposalTitle(p.site),
+    holdOff: `${session}: a model is reading the whole site; the proposal opens as a ghost page and nothing is written`,
+    build: () => buildSiteContent({ page: p.page, origin, siteDir: p.site }),
+  })
+}
+
+const readJson = file => {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/** The plan a proposal is for: the slug given, else the first page it links whose title is a plan's. */
+const planOfProposal = (site, proposal, plan) => {
+  if (plan) return checkSlug(plan)
+  for (const it of proposal.story || []) {
+    for (const t of wikilinksIn(it && it.text)) {
+      if (!isPlanTitle(t)) continue
+      if (fs.existsSync(path.join(site, 'pages', asSlug(t)))) return asSlug(t)
+    }
+  }
+  throw problem(400, `${proposal.title} links no plan on this site: say which plan it is for`)
+}
+
+const count = actions => actions.reduce((n, a) => ({ ...n, [a.type]: (n[a.type] || 0) + 1 }), {})
+
+/** Go Ahead: the saved proposal's rows to the door one page at a time, each written whole and journaled, the plan last; as a job. */
+export async function applyRevision({ slug, plan, origin, status } = {}) {
+  const s = checkSlug(slug)
+  const site = siteDir(status)
+  const proposalFile = path.join(site, 'pages', s)
+  const peek = readJson(proposalFile)
+  if (!peek) throw problem(404, `no page ${s} on ${origin}`)
+  const parsed = parseProposal(peek)
+  if (!parsed.rows.length) throw problem(400, `${peek.title || s} has no Page | Action | Reason table: it is not a revision proposal`)
+  if (proposalApplied(peek)) throw problem(400, `${peek.title} has already been applied; run Revise Site again for a new proposal`)
+  const p = readPlan(status, origin, planOfProposal(site, peek, plan))
+
+  forget()
+  const session = `plan: revise site ${origin}`
+  const wip = claim({ session, scope: origin, holdOff: `Go Ahead is rewriting pages of ${origin} from ${peek.title}, one at a time, the plan last; do not edit them until it is done` })
+  const model = defaultModel('claude-opus-5-5')
+  const id = crypto.randomBytes(8).toString('hex')
+  const j = {
+    id,
+    origin,
+    statusDir: status,
+    token: wip.token,
+    kind: 'apply',
+    slug: p.slug,
+    title: p.page.title,
+    proposal: { slug: s, title: peek.title },
+    session,
+    model,
+    status: 'running',
+    started: Date.now(),
+    progress: { n: 0, of: 0, title: '' },
+    wip: { session, claimed: wip.claimed, heartbeat: wip.claimed, ...(wip.took ? { tookStaleClaim: wip.took } : {}) },
+  }
+
+  // Under the claim: read the proposal and the plan again, and decide each row.
+  let work
+  try {
+    const proposal = readJson(proposalFile)
+    const prop = parseProposal(proposal)
+    const plan = readJson(path.join(site, 'pages', p.slug))
+    const { questions, openQuestions } = questionsFor(site, plan)
+    const answerSlugs = new Set(questions.filter(q => q.answered).map(q => q.slug))
+    const untouched = new Set(prop.untouched.map(t => asSlug(t)))
+    const refused = []
+    const kept = []
+    const todo = []
+    const seen = new Set()
+    for (const row of prop.rows) {
+      const title = row.page
+      const rs = asSlug(title)
+      const refuse = why => refused.push({ title, action: row.action, why })
+      if (!rs) continue
+      if (seen.has(rs)) {
+        refuse('listed twice; the first row stands')
+        continue
+      }
+      seen.add(rs)
+      if (row.action === 'Keep') {
+        kept.push(title)
+        continue
+      }
+      if (!ACTIONS.includes(row.action)) {
+        refuse(/delete|remove/i.test(row.action) ? 'a page is never deleted' : `"${row.action}" is not Keep, Amend, Rewrite or New`)
+        continue
+      }
+      if (rs === s || PROPOSAL_RE.test(title)) {
+        refuse('a revision proposal is a record, never revised')
+        continue
+      }
+      if (answerSlugs.has(rs)) {
+        refuse('an answer page is never written')
+        continue
+      }
+      if (openQuestions && rs === openQuestions.slug) {
+        refuse('the Open Questions page is the record of what was asked')
+        continue
+      }
+      if (untouched.has(rs)) {
+        refuse('listed under Untouched on the proposal')
+        continue
+      }
+      const file = path.join(site, 'pages', rs)
+      const target = readJson(file)
+      let action = row.action
+      if (target) {
+        const foreign = foreignOf(target, origin)
+        if (foreign) {
+          refuse(`${foreign}: another site's page is never written`)
+          continue
+        }
+        if (action === 'New') action = 'Amend'
+      } else if (action !== 'New') {
+        refuse(`no page of that title on ${origin}, and the row does not ask for a New one`)
+        continue
+      } else if (fs.existsSync(file)) {
+        refuse('a page is there but cannot be read')
+        continue
+      }
+      todo.push({ title: target ? target.title || title : title, slug: rs, action, asked: row.action, reason: row.reason, isPlan: rs === p.slug })
+    }
+    // The plan last.
+    work = { todo: [...todo.filter(w => !w.isPlan), ...todo.filter(w => w.isPlan)], refused, kept, prop, plan, proposal }
+  } catch (e) {
+    try {
+      release(wip.token)
+    } catch {}
+    throw e
+  }
+
+  const unconfirmed = work.prop.names.filter(n => !n.confirmed && !/^none\.?$/i.test(n.name)).map(n => n.name)
+  const confirmed = work.prop.names.filter(n => n.confirmed).map(n => n.name)
+  j.progress.of = work.todo.length
+  j.account = {
+    rows: work.prop.rows.length,
+    kept: work.kept,
+    refused: work.refused,
+    written: [],
+    failed: [],
+    names: { unconfirmed, confirmed },
+  }
+  jobs.set(id, j)
+  persist(j)
+
+  const beat = setInterval(() => {
+    try {
+      j.wip.heartbeat = heartbeat(wip.token)
+      persist(j)
+    } catch (e) {
+      j.wip.heartbeatError = e.message
+    }
+  }, HEARTBEAT_MS)
+  if (beat.unref) beat.unref()
+
+  ;(async () => {
+    let wrote = 0
+    try {
+      const answers = answerPages(site, work.plan)
+      const drawn = answers.pages.map(a => a.title)
+      const provenance = `Revised by the Plan Tool (Revise Site) from ${peek.title}, drawing on: ${drawn.join('; ') || 'no answer page'}.`
+      for (const w of work.todo) {
+        j.progress = { n: j.progress.n + 1, of: work.todo.length, title: w.title }
+        persist(j)
+        const file = path.join(site, 'pages', w.slug)
+        const before = readJson(file)
+        const bytesBefore = before ? Buffer.byteLength(JSON.stringify(before, null, 2)) : 0
+        try {
+          const { content } = buildPageContent({
+            target: before,
+            title: w.title,
+            action: w.action,
+            reason: w.reason,
+            tone: work.prop.tone,
+            proposalTitle: peek.title,
+            answers: answers.pages,
+            unconfirmed,
+            isPlan: w.isPlan,
+            origin,
+          })
+          const out = await ask(model, content, { system: SYSTEM, timeoutMs: RUN_TIMEOUT_MS, allowTools: false })
+          const old = before || { title: w.title, story: [], journal: [] }
+          const story = storyFromReply(old, out.markdown)
+          if (!story.some(it => it.type === 'markdown' && String(it.text || '').trim())) throw new Error('the door answered no page')
+          const draft = { ...old, story }
+          const names = namesCopied(before || { story: [] }, draft, unconfirmed)
+          if (names.length) {
+            j.account.refused.push({ title: w.title, action: w.asked, why: `name not confirmed: ${names.join(', ')}` })
+            persist(j)
+            continue
+          }
+          const date = Date.now()
+          let page
+          let actions
+          if (before) {
+            const r = reviseJournal(before.story || [], story, { provenance, date })
+            actions = r.actions
+            page = { ...before, story: r.story, journal: [...(before.journal || []), ...actions] }
+          } else {
+            actions = [{ type: 'create', item: { title: w.title, story: story.map(it => ({ ...it })) }, date, provenance }]
+            page = { title: w.title, story, journal: actions }
+          }
+          const body = JSON.stringify(page, null, 2)
+          writeAtomic(status, file, body)
+          wrote++
+          const dropped = before ? linksOf(before).filter(t => !linksOf(page).includes(t)) : []
+          const entry = { title: w.title, slug: w.slug, action: w.action, ...(w.asked !== w.action ? { asked: w.asked } : {}), before: bytesBefore, after: Buffer.byteLength(body), journal: count(actions), model: out.model, ms: out.ms }
+          if (dropped.length) entry.linksDropped = dropped
+          if (w.isPlan) {
+            const md = planMarkdown(page)
+            writeAtomic(status, path.join(site, 'assets', w.slug, `${w.slug}.md`), md)
+            entry.asset = { rendered: true, path: `/assets/${w.slug}/${w.slug}.md`, lines: md.split('\n').length - 1 }
+          }
+          j.account.written.push(entry)
+        } catch (e) {
+          j.account.failed.push({ title: w.title, action: w.action, error: e.message })
+        }
+        persist(j)
+      }
+
+      // The proposal says it was applied, so Go Ahead is not offered twice.
+      const now = readJson(proposalFile)
+      if (now) {
+        const n = j.account.written.length
+        const text =
+          `Applied through the [[Plan Tool]]'s Go Ahead on ${today()}: ${n} page${n === 1 ? '' : 's'} written` +
+          (n ? ` (${j.account.written.map(x => `[[${x.title}]]`).join(', ')})` : '') +
+          `, ${j.account.refused.length} refused, ${j.account.failed.length} failed, ${j.account.kept.length} kept as they were.`
+        const story = now.story || []
+        const see = story.findIndex(it => it && it.type === 'markdown' && /^see$/i.test(headingOf(it) || ''))
+        const at = see === -1 ? story.length : see
+        const item = { type: 'markdown', id: crypto.randomBytes(8).toString('hex'), text }
+        story.splice(at, 0, item)
+        now.story = story
+        now.journal = [...(now.journal || []), { type: 'add', id: item.id, item: { ...item }, after: at > 0 ? story[at - 1].id : null, date: Date.now(), provenance: 'Go Ahead, the Plan Tool (Revise Site).' }]
+        writeAtomic(status, proposalFile, JSON.stringify(now, null, 2))
+        wrote++
+      }
+      j.result = { model, written: j.account.written.length, refused: j.account.refused.length, failed: j.account.failed.length, kept: j.account.kept.length }
+      j.status = 'done'
+    } catch (e) {
+      j.status = 'failed'
+      j.error = e.message
+    } finally {
+      clearInterval(beat)
+      try {
+        if (wrote) j.account.indexReset = resetIndex(status)
+      } catch {}
+      try {
+        j.wip.released = release(wip.token)
+      } catch (e) {
+        j.wip.releaseError = e.message
+      }
+      j.finished = Date.now()
+      persist(j)
+    }
+  })()
+
+  return { job: id, status: j.status, kind: 'apply', slug: p.slug, title: p.page.title, proposal: j.proposal, pages: work.todo.map(w => ({ title: w.title, action: w.action })), refused: work.refused, kept: work.kept, model, session, started: j.started }
 }

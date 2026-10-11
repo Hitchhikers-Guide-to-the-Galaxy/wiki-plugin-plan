@@ -232,11 +232,20 @@ const sectionTicks = sec => {
 // neighbourhood. The tick on the line is the author's own mark, reported
 // alongside but never taken as the answer.
 const TASK_LINE_RE = /^\s*[-*]\s+\[([ xX])\]\s(.*)$/
-export const questionsOf = (page, known = new Set(), slug = asSlug) => {
+// The items a page's questions are read from. A plan keeps them in its
+// "# Open Questions" section; a page OF open questions (whole: true, the page a
+// research site links from its plan as [[Open Questions]], Phase 7) keeps them
+// anywhere on it, and its own Open Questions section is used when it has one.
+const questionItems = (page, whole = false) => {
   const sec = sections(page).find(s => s.heading === 'Open Questions')
-  if (!sec) return []
+  if (sec) return sec.items
+  return whole ? (page && Array.isArray(page.story) ? page.story : []) : []
+}
+
+export const questionsOf = (page, known = new Set(), slug = asSlug, { whole = false } = {}) => {
+  const items = questionItems(page, whole)
   const out = []
-  for (const it of sec.items) {
+  for (const it of items) {
     if (!it || it.type !== 'markdown') continue
     for (const line of (it.text || '').split('\n')) {
       const m = line.match(TASK_LINE_RE)
@@ -310,6 +319,35 @@ export const namedDemo = page => {
   return ''
 }
 
+// ---------- the Open Questions page (Phase 7) ----------
+//
+// A research site (fedwiki-research-site) keeps its questions on a page of
+// their own, titled Open Questions and linked from the plan's See section, so
+// each can be dragged and each answer spoken through the Voice Tool. The plan
+// links it; that link is how the tool finds it: a [[link]] on the plan whose
+// slug is open-questions. Answers {title, slug} or null.
+export const OPEN_QUESTIONS_SLUG = 'open-questions'
+export const openQuestionsLink = (page, slug = asSlug) => {
+  for (const it of page && Array.isArray(page.story) ? page.story : []) {
+    for (const t of wikilinksIn(it && it.text)) if (slug(t) === OPEN_QUESTIONS_SLUG) return { title: t, slug: OPEN_QUESTIONS_SLUG }
+  }
+  return null
+}
+
+/** The plan's own questions, then the linked Open Questions page's, once each by slug; each says where it was read. */
+export const allQuestions = (page, linked = null, known = new Set(), slug = asSlug) => {
+  const out = questionsOf(page, known, slug).map(q => ({ ...q, on: 'plan' }))
+  const seen = new Set(out.map(q => q.slug))
+  if (linked) {
+    for (const q of questionsOf(linked, known, slug, { whole: true })) {
+      if (seen.has(q.slug)) continue
+      seen.add(q.slug)
+      out.push({ ...q, on: OPEN_QUESTIONS_SLUG })
+    }
+  }
+  return out
+}
+
 // ---------- the state view ----------
 //
 // planState(page, known) — everything the status and subject faces show.
@@ -322,13 +360,15 @@ export const namedDemo = page => {
 //   questions  every question line, answered by a page existing
 //   lints      short sentences, only those triggered (scatter is added by the
 //              caller, which has to fetch the other copies)
-export const planState = (page, known = new Set(), slug = asSlug) => {
+// linked: the page the plan links as [[Open Questions]] (Phase 7), when the
+// caller has read it; its questions join the plan's own, once each.
+export const planState = (page, known = new Set(), slug = asSlug, linked = null) => {
   const phases = sections(page)
     .filter(s => s.heading !== 'Open Questions')
     .map(s => ({ ...s, ...sectionTicks(s) }))
     .filter(s => s.total > 0)
   const next = phases.findIndex(p => p.done < p.total)
-  const questions = questionsOf(page, known, slug)
+  const questions = allQuestions(page, linked, known, slug)
   const unanswered = questions.filter(q => !q.answered)
 
   let redLinks = []
@@ -402,14 +442,14 @@ export const trashable = ({ site = null, host = '', ghost = false, local = false
 // text. One journal edit per item changed, shaped as the wiki itself journals
 // an edit: {type, id, item, date}, no site. Returns a new page; the one given
 // is not touched.
-export const tickAnswered = (page, known = new Set(), slug = asSlug, now = () => Date.now()) => {
+export const tickAnswered = (page, known = new Set(), slug = asSlug, now = () => Date.now(), { whole = false } = {}) => {
   const out = JSON.parse(JSON.stringify(page || {}))
   out.story = Array.isArray(out.story) ? out.story : []
   out.journal = Array.isArray(out.journal) ? out.journal : []
-  const sec = sections(out).find(s => s.heading === 'Open Questions')
+  const items = questionItems(out, whole)
   const ticked = []
-  if (sec) {
-    for (const it of sec.items) {
+  {
+    for (const it of items) {
       if (!it || it.type !== 'markdown' || !it.id) continue
       let changed = false
       const lines = String(it.text || '').split('\n').map(line => {
@@ -426,7 +466,7 @@ export const tickAnswered = (page, known = new Set(), slug = asSlug, now = () =>
       out.journal.push({ type: 'edit', id: it.id, item: { ...it }, date: now() })
     }
   }
-  const unanswered = questionsOf(out, known, slug)
+  const unanswered = questionsOf(out, known, slug, { whole })
     .filter(q => !q.answered)
     .map(({ title, slug }) => ({ title, slug }))
   return { page: out, ticked, unanswered }
@@ -931,3 +971,373 @@ export const compareIndex = ({ plans = [], refs = [] } = {}, live = [], slug = a
   const gone = [...onBoard.entries()].filter(([s]) => !seen.has(s)).map(([s, b]) => ({ title: b.title, slug: s, from: frac(b.done, b.total), board: b.board }))
   return { missing, gone, moved, complete, unreadable, unchanged: same, listed: plans.length, elsewhere: refs.length }
 }
+
+
+// ======================================================================
+// Phase 7 — Revise Site, the pure part. The farm handlers (api/handlers.js,
+// reviseSite and applyRevision) do the file IO, the WIP claim and the door
+// calls around these; the client opens the proposal as a ghost with them.
+// ======================================================================
+
+// ---------- whose page it is ----------
+
+/**
+ * The credit block wiki-client draws, COPIED from fedwiki-lib's
+ * credited_sites (itself a port of wiki-client lib/license.js authors()): the
+ * journal read backwards, a site or attribution re-pointing the credit for
+ * everything before it. Anything other than host in the answer is a site the
+ * page credits.
+ */
+export const creditedSites = (page, host) => {
+  let site = host
+  const done = new Set()
+  const out = []
+  const journal = page && Array.isArray(page.journal) ? page.journal : []
+  for (let i = journal.length - 1; i >= 0; i--) {
+    const a = journal[i]
+    if (!a || typeof a !== 'object') continue
+    if (a.site) site = a.site
+    if (a.attribution && a.attribution.site) site = a.attribution.site
+    if (a.type !== 'fork' && !done.has(site)) {
+      out.push(site)
+      done.add(site)
+    }
+  }
+  return out
+}
+
+/**
+ * Why Revise Site must leave a page alone, or null: forked from another site
+ * (a fork entry naming a site other than this one; the site-less fork a saved
+ * ghost carries is not one), or credited to another site by its journal.
+ */
+export const foreignOf = (page, host) => {
+  const forks = [...forkSites(page)].filter(s => s && s !== host)
+  if (forks.length) return `forked from ${forks.join(', ')}`
+  const others = creditedSites(page, host).filter(s => s && s !== host)
+  if (others.length) return `credited to ${others.join(', ')}`
+  return null
+}
+
+// ---------- tables ----------
+
+const PIPE_LINE_RE = /^\s*\|.*\|\s*$/
+const PIPE_RULE_RE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/
+
+/** A block that is a markdown pipe table: every line a |row|, the second the |---| rule. */
+export const isPipeTable = block => {
+  const lines = String(block || '').trim().split('\n')
+  return lines.length >= 2 && lines.every(l => PIPE_LINE_RE.test(l)) && PIPE_RULE_RE.test(lines[1])
+}
+
+const cells = line =>
+  line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map(c => c.trim())
+
+/** The rows of the first pipe table in a text (a table item's or a markdown item's), as {header: value} objects. */
+export const pipeRows = text => {
+  const lines = String(text || '').split('\n')
+  const at = lines.findIndex((l, i) => PIPE_LINE_RE.test(l) && i + 1 < lines.length && PIPE_RULE_RE.test(lines[i + 1]))
+  if (at === -1) return []
+  const head = cells(lines[at]).map(h => h.toLowerCase())
+  const rows = []
+  for (const line of lines.slice(at + 2)) {
+    if (!PIPE_LINE_RE.test(line)) break
+    const c = cells(line)
+    rows.push(Object.fromEntries(head.map((h, i) => [h, c[i] === undefined ? '' : c[i]])))
+  }
+  return rows
+}
+
+/** A pipe table as a Table Plugin item's text: CAPTION, LAYOUT table, the table. The form fortytwo.fish's proposal uses. */
+export const tableText = (table, caption = '') => [...(caption ? [`CAPTION ${caption}`] : []), 'LAYOUT table', '', String(table).trim()].join('\n')
+
+// ---------- the proposal ----------
+
+export const PROPOSAL_TITLE = 'Revision Proposal'
+export const ACTIONS = ['Keep', 'Amend', 'Rewrite', 'New']
+const bare = t => String(t || '').replace(/\*\*|__|`/g, '').replace(/^\[\[|\]\]$/g, '').trim()
+
+/** The table's action, normalised to one of ACTIONS, or the word as written when it is not one. */
+export const actionOf = word => {
+  const w = bare(word).toLowerCase()
+  return ACTIONS.find(a => a.toLowerCase() === w) || bare(word)
+}
+
+/**
+ * The proposal's ghost items: a provenance line, the model's markdown one item
+ * per paragraph, heading or bullet (reportItems' rule), every pipe table a
+ * Table Plugin item, and See back to the plan. Each - [ ] name its own item,
+ * so a name is ticked where it stands.
+ */
+export const proposalItems = ({ markdown, planTitle, site = '', model = '', date = today(), id = randomHex }) => {
+  const item = (text, type = 'markdown') => ({ type, id: id(), text })
+  const by = model ? ` by ${model.replace(/^claude-cli:/, '')}` : ''
+  const blocks = joinStraps(splitMarkdown(markdown))
+  return [
+    item(
+      `Written${by} through the [[Plan Tool]]'s Revise Site on [[${planTitle}]], ${date}, from the answered open questions. ` +
+        'Nothing has been written yet. Pause keeps this page and writes nothing else; Go Ahead rewrites the pages the table names, one at a time, the plan last. ' +
+        'A name under Names is copied to no other page until its box is ticked.',
+    ),
+    ...blocks.map(b => (isPipeTable(b) ? item(tableText(b, `Proposed revision of ${site || 'this site'}, ${date}`), 'table') : item(b))),
+    item(`# See\n\n- [[${planTitle}]]`),
+  ]
+}
+
+const sectionText = (page, test) => {
+  const sec = sections(page).find(s => test(s.heading.toLowerCase()))
+  if (!sec) return null
+  return sec.items
+    .slice(1)
+    .map(it => String((it && it.text) || ''))
+    .filter(Boolean)
+}
+
+const DASH_SPLIT_RE = /\s+[—–]\s+|\s+-\s+/
+
+/**
+ * Read a saved proposal page back: the tone shift, the table's rows in order
+ * (a table item's, or a pipe table in a markdown item), the Untouched titles
+ * and the Names with whether each box is ticked.
+ */
+export const parseProposal = page => {
+  const story = page && Array.isArray(page.story) ? page.story : []
+  const toneParts = sectionText(page, h => h.startsWith('the tone shift') || h === 'tone shift') || []
+  const tone = toneParts.filter(t => !/^\s*>/.test(t)).join('\n\n').trim()
+
+  let rows = []
+  for (const it of story) {
+    if (!it || (it.type !== 'table' && it.type !== 'markdown')) continue
+    const r = pipeRows(it.text)
+    if (r.length && 'page' in r[0] && 'action' in r[0]) {
+      rows = r.map(x => ({ page: bare(x.page), action: actionOf(x.action), reason: x.reason || '' }))
+      break
+    }
+  }
+
+  const untouched = []
+  for (const text of sectionText(page, h => h === 'untouched') || []) {
+    for (const line of text.split('\n')) {
+      const m = line.match(/^\s*[-*+]\s+(.*)$/)
+      if (!m) continue
+      const link = wikilinksIn(m[1])[0]
+      const title = link || bare(m[1].split(DASH_SPLIT_RE)[0])
+      if (title) untouched.push(title)
+    }
+  }
+
+  const names = []
+  for (const text of sectionText(page, h => h === 'names') || []) {
+    for (const line of text.split('\n')) {
+      const m = line.match(TASK_LINE_RE)
+      if (!m) continue
+      const [who, ...rest] = m[2].split(DASH_SPLIT_RE)
+      const name = bare(who)
+      if (!name) continue
+      names.push({ name, answer: bare(rest.join(' — ')), confirmed: m[1] !== ' ' })
+    }
+  }
+  return { tone, rows, untouched, names }
+}
+
+/** Whether a proposal page says it has been applied (applyRevision's closing line). */
+export const APPLIED_RE = /^Applied through the \[\[Plan Tool\]\]'s Go Ahead/
+export const proposalApplied = page => (page && Array.isArray(page.story) ? page.story : []).some(it => it && APPLIED_RE.test(String(it.text || '')))
+
+// ---------- names ----------
+
+const escapeRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** The names that occur in a text, whole words, any case. */
+export const namesIn = (text, names) =>
+  names.filter(n => n && new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(n)}(?![\\p{L}\\p{N}])`, 'iu').test(String(text || '')))
+
+const pageText = page => (page && Array.isArray(page.story) ? page.story : []).map(it => String((it && it.text) || '')).join('\n')
+
+/**
+ * The unconfirmed names a revised page would carry to it: in the new story,
+ * and not already on the page as it stood. A name already there was not
+ * copied by this revision.
+ */
+export const namesCopied = (before, after, names) => {
+  const was = pageText(before)
+  return namesIn(pageText(after), names).filter(n => !namesIn(was, [n]).length)
+}
+
+// ---------- one page through the door and back ----------
+
+// A non-markdown item is shown to the door as a keep line, its id inside, and
+// its text beneath in a fence for reading; the reply puts the keep line where
+// the item belongs and the item comes back whole. The door never rewrites a
+// table, a timeline, a diagram, an assets or an audio item.
+const KEEP_LINE_RE = /^\s*\{\{keep ([a-zA-Z0-9]+)\}\}\s*$/
+const keepLine = it => `{{keep ${it.id}}}`
+const TEXT_TYPES = new Set(['markdown', 'paragraph'])
+
+/** The page as the door reads it: markdown items as they are, every other item a keep line with its type and text fenced beneath. */
+export const doorMarkdown = page => {
+  const out = []
+  for (const it of page && Array.isArray(page.story) ? page.story : []) {
+    if (!it) continue
+    const text = String(it.text || '').trimEnd()
+    if (TEXT_TYPES.has(it.type)) {
+      if (text) out.push(text)
+    } else if (it.id) out.push(`${keepLine(it)}\n\`\`\`${it.type}\n${text}\n\`\`\``)
+  }
+  return out.join('\n\n')
+}
+
+const isSeeItem = it => it && it.type === 'markdown' && /^see$/i.test(headingOf(it) || '')
+
+/**
+ * The new story from the door's reply. Keep lines bring their old items back
+ * (and the fence the door may have copied beneath one is dropped). A heading
+ * repeating the title as the first block is dropped: no H1 opener. Every pipe
+ * table becomes a Table Plugin item. A non-markdown item the reply did not
+ * place is never dropped: it goes back after the nearest item before it that
+ * survived, else at its old index; never after See. See is moved last.
+ */
+export const storyFromReply = (old, reply, { id = randomHex } = {}) => {
+  const story = old && Array.isArray(old.story) ? old.story.filter(Boolean) : []
+  const byId = new Map(story.map(it => [it.id, it]))
+  const texts = new Map()
+  for (const it of story) if (TEXT_TYPES.has(it.type) && !texts.has(String(it.text || '').trim())) texts.set(String(it.text || '').trim(), it)
+
+  // Fences directly beneath a keep line are the door copying what it was shown.
+  const cleaned = []
+  const lines = String(reply || '').replace(/\r\n/g, '\n').split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    cleaned.push(lines[i])
+    if (KEEP_LINE_RE.test(lines[i]) && /^\s*```/.test(lines[i + 1] || '')) {
+      let j = i + 2
+      while (j < lines.length && !/^\s*```\s*$/.test(lines[j])) j++
+      i = j
+    }
+  }
+
+  let blocks = joinStraps(splitMarkdown(cleaned.join('\n')))
+  const title = String((old && old.title) || '').trim().toLowerCase()
+  if (blocks.length && /^#\s/.test(blocks[0]) && blocks[0].replace(/^#+\s*/, '').split('\n')[0].trim().toLowerCase() === title && !blocks[0].includes('\n')) blocks = blocks.slice(1)
+
+  // "# See" and the bullets beneath it are one item, the house See section,
+  // however the reply spaced them.
+  const joined = []
+  for (let i = 0; i < blocks.length; i++) {
+    if (/^#\s+See\s*$/i.test(blocks[i].split('\n')[0]) && !/^\s*[-*+]\s/m.test(blocks[i])) {
+      const list = []
+      while (i + 1 < blocks.length && /^\s*[-*+]\s/.test(blocks[i + 1])) list.push(blocks[++i])
+      joined.push(list.length ? `${blocks[i - list.length]}\n\n${list.join('\n')}` : blocks[i])
+    } else joined.push(blocks[i])
+  }
+  blocks = joined
+
+  const out = []
+  const used = new Set()
+  for (const b of blocks) {
+    const keep = b.split('\n').map(l => l.match(KEEP_LINE_RE))
+    if (keep.every(Boolean)) {
+      for (const m of keep) {
+        const it = byId.get(m[1])
+        if (it && !used.has(it.id)) {
+          used.add(it.id)
+          out.push(it)
+        }
+      }
+      continue
+    }
+    if (isPipeTable(b)) {
+      out.push({ type: 'table', id: id(), text: tableText(b) })
+      continue
+    }
+    const same = texts.get(b.trim())
+    if (same && !used.has(same.id)) {
+      used.add(same.id)
+      out.push(same)
+      continue
+    }
+    out.push({ type: 'markdown', id: id(), text: b })
+  }
+
+  const seeAt = out.findIndex(isSeeItem)
+  if (seeAt !== -1 && seeAt !== out.length - 1) out.push(...out.splice(seeAt, 1))
+
+  // Never drop a non-markdown item.
+  story.forEach((it, k) => {
+    if (TEXT_TYPES.has(it.type) || used.has(it.id)) return
+    used.add(it.id)
+    let at = -1
+    for (let b = k - 1; b >= 0 && at === -1; b--) at = out.findIndex(x => x.id === story[b].id)
+    let pos = at === -1 ? Math.min(k, out.length) : at + 1
+    const see = out.findIndex(isSeeItem)
+    if (see !== -1 && pos > see) pos = see
+    out.splice(pos, 0, it)
+  })
+  return out
+}
+
+/**
+ * The journal for a page written whole: remove for each old item gone, then
+ * for each new item in order an add after its predecessor, or an edit where
+ * it takes the place of an old item under the same heading line, and a move
+ * for each item replaying those would leave out of place. Each entry carries the
+ * provenance. The wiki's own shapes: {type, id, item, after, date}.
+ */
+export const reviseJournal = (oldStory, newStory, { provenance = '', date = Date.now() } = {}) => {
+  const old = (oldStory || []).filter(Boolean)
+  const next = (newStory || []).filter(Boolean)
+  const oldIds = new Set(old.map(it => it.id))
+  const newIds = new Set(next.map(it => it.id))
+  const stamp = e => (provenance ? { ...e, provenance } : e)
+  const actions = []
+
+  // A new markdown item that opens with the same heading line as an old one
+  // that is gone is that item edited: it keeps the old id.
+  const firstLine = it => String((it && it.text) || '').trim().split('\n')[0].trim()
+  const gone = old.filter(it => !newIds.has(it.id))
+  const goneHeadings = new Map()
+  for (const it of gone) if (it.type === 'markdown' && headingOf(it) !== null && !goneHeadings.has(firstLine(it))) goneHeadings.set(firstLine(it), it)
+  const story = next.map(it => {
+    if (oldIds.has(it.id) || it.type !== 'markdown' || headingOf(it) === null) return it
+    const was = goneHeadings.get(firstLine(it))
+    if (!was) return it
+    goneHeadings.delete(firstLine(it))
+    return { ...it, id: was.id }
+  })
+  const finalIds = new Set(story.map(it => it.id))
+
+  const replay = old.map(it => it.id)
+  for (const it of old) {
+    if (finalIds.has(it.id)) continue
+    actions.push(stamp({ type: 'remove', id: it.id, date }))
+    replay.splice(replay.indexOf(it.id), 1)
+  }
+  const oldText = new Map(old.map(it => [it.id, JSON.stringify(it)]))
+  story.forEach((it, i) => {
+    const after = i === 0 ? null : story[i - 1].id
+    if (!oldIds.has(it.id)) {
+      actions.push(stamp({ type: 'add', id: it.id, item: { ...it }, after, date }))
+      const at = after === null ? 0 : replay.indexOf(after) + 1
+      replay.splice(at, 0, it.id)
+    } else if (oldText.get(it.id) !== JSON.stringify(it)) {
+      actions.push(stamp({ type: 'edit', id: it.id, item: { ...it }, date }))
+    }
+  })
+  // The wiki's move takes one item to just after its predecessor in order
+  // (wiki-client lib/revision.js), so a reorder is one move per item out of place.
+  const order = story.map(it => it.id)
+  order.forEach((want, i) => {
+    if (replay[i] === want) return
+    actions.push(stamp({ type: 'move', id: want, order, date }))
+    replay.splice(replay.indexOf(want), 1)
+    replay.splice(i, 0, want)
+  })
+  return { story, actions }
+}
+
+/** Every [[link]] a page carries. */
+export const linksOf = page => [...new Set((page && Array.isArray(page.story) ? page.story : []).flatMap(it => wikilinksIn(it && it.text)))]

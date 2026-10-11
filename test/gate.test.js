@@ -31,3 +31,33 @@ test('the farm gate: 403 on a public site, 403 without the rights, through for t
   assert.match(anon.error, /needs the rights to edit it/)
   assert.equal(refuseWrite({ app: app(true), req, origin: 'demo.localhost', status, scope }), null)
 })
+
+test('the farm gate on Revise Site and Go Ahead: plan.reviseSite and plan.applyRevision are their scopes, opened on a public site only by name', { skip: !has }, () => {
+  const { refuseWrite } = createRequire(import.meta.url)(gatePath)
+  const app = owner => ({ securityhandler: { isAuthorized: () => owner } })
+  const req = { get: () => undefined, headers: {} }
+  const status = path.join(here, 'no-such-status')
+  const spec = JSON.parse(fs.readFileSync(path.join(here, '..', 'api', 'openapi.json'), 'utf8'))
+  const ops = Object.values(spec.paths).flatMap(p => Object.values(p))
+  for (const id of ['reviseSite', 'applyRevision']) {
+    const op = ops.find(o => o.operationId === id)
+    assert.ok(op, `${id} is declared`)
+    assert.equal(op['x-fedwiki-writes'], true)
+  }
+  try {
+    for (const scope of ['plan.reviseSite', 'plan.applyRevision']) {
+      delete process.env.FARM_API_PUBLIC_WRITES
+      assert.equal(refuseWrite({ app: app(true), req, origin: 'plan.fedwiki.club', status, scope }).status, 403)
+      assert.equal(refuseWrite({ app: app(false), req, origin: 'revise.localhost', status, scope }).status, 403)
+      assert.equal(refuseWrite({ app: app(true), req, origin: 'revise.localhost', status, scope }), null)
+      // The Pi5 drop-in's list: the public farm opens these two by name.
+      process.env.FARM_API_PUBLIC_WRITES = 'audionote.summarise,plan.update,plan.reviseSite,plan.applyRevision'
+      assert.equal(refuseWrite({ app: app(true), req, origin: 'plan.fedwiki.club', status, scope }), null)
+      assert.equal(refuseWrite({ app: app(false), req, origin: 'plan.fedwiki.club', status, scope }).status, 403)
+      process.env.FARM_API_PUBLIC_WRITES = 'plan.update'
+      assert.match(refuseWrite({ app: app(true), req, origin: 'plan.fedwiki.club', status, scope }).error, new RegExp(`list ${scope.replace('.', '\\.')} in it`))
+    }
+  } finally {
+    delete process.env.FARM_API_PUBLIC_WRITES
+  }
+})

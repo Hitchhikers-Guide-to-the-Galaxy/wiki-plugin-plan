@@ -13,7 +13,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -91,6 +91,9 @@ const STYLE = `
 .plan-tool .plan-agent{display:block;margin-top:4px}
 .plan-tool .plan-agent.plan-refused{color:#a00}
 .plan-tool .plan-agent .plan-save{margin-left:.4em}
+.plan-tool .plan-agent .plan-go{margin-left:.4em;font-weight:bold}
+.plan-tool .plan-agent .plan-pause{margin-left:.2em}
+.plan-tool .plan-agent ul{margin:2px 0 4px}
 .plan-tool a.plan-ask{font-size:80%;margin-left:.3em;color:#2a6;text-decoration:none;border:1px solid #9c9;border-radius:3px;padding:0 3px}
 .plan-tool .plan-finish{display:block;margin-top:6px}
 .plan-tool .plan-finish textarea{width:100%;box-sizing:border-box;font-size:inherit;margin:2px 0}
@@ -225,9 +228,21 @@ const stateHtml = (st, site, heading) => {
   return parts.join('')
 }
 
+// The page the plan links as [[Open Questions]], on the plan's own site (Phase 7).
+const linkedQuestions = async (page, site) => {
+  const link = openQuestionsLink(page, asSlug)
+  if (!link || link.slug === asSlug(page.title || '')) return null
+  try {
+    return await getJSON(`${baseFor(site)}/${link.slug}.json`)
+  } catch (_) {
+    return null
+  }
+}
+
 const showState = async ($item, opts, page, site, heading, $subject) => {
   const known = await knownSlugs(site)
-  const st = planState(page, known, asSlug)
+  const linked = await linkedQuestions(page, site)
+  const st = planState(page, known, asSlug, linked)
   let scatter = null
   try {
     scatter = await scatterLint(page, site)
@@ -270,6 +285,9 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
     `<div class="plan-update"><button class="plan-update-go" title="Tick the questions whose pages now exist, re-render the plan's markdown asset">Update Plan</button>` +
       (next ? ` <button class="plan-next-go" title="Ask the Claude door for a report on ${escapeHtml(next)}: it opens as a ghost page, nothing is written to the plan">Do Next Phase</button>` : '') +
       ` <button class="plan-revise-go" title="Ask the Claude door to redraft the plan given its answered questions: it opens as a ghost page, the plan is never overwritten">Revise Plan</button>` +
+      (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
+        ? ` <button class="plan-site-go" title="Ask the Claude door for a Revision Proposal for the whole site from the answered questions: it opens as a ghost page with Go Ahead and Pause, and nothing is written until Go Ahead">Revise Site</button>`
+        : '') +
       (st && st.complete ? ` <button class="plan-finish-go" title="Every checkpoint is ticked: write the plan's Conclusion section and its demo link">Finish Plan</button>` : '') +
       `<span class="plan-answer"></span><span class="plan-agent"></span><span class="plan-finish"></span></div>`,
   )
@@ -288,11 +306,20 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
     e.preventDefault()
     runAgent($item, $subject, slug, 'revise')
   })
-  $box.on('click', '.plan-save', e => {
+  $box.on('click', '.plan-site-go', e => {
+    e.preventDefault()
+    runAgent($item, $subject, slug, 'site')
+  })
+  $box.on('click', '.plan-save, .plan-pause', e => {
     e.preventDefault()
     saveAndLink($item, $subject)
   })
+  $box.on('click', '.plan-go', e => {
+    e.preventDefault()
+    goAhead($item, $subject, slug, e.currentTarget.getAttribute('data-proposal'))
+  })
   paintAgent($item)
+  if (page) offerSavedProposal($item, $subject, page)
   if (st && st.complete) attachFinish($item, $subject, slug, $box, page)
 }
 
@@ -438,11 +465,12 @@ async function runFinish($item, $subject, slug, page) {
 // The run's state lives on the element ($item[0].planAgent), so a re-render
 // (a neighbour's sitemap landing, Update Plan's re-emit) repaints it.
 
-const AGENT_NAME = { next: 'Do Next Phase', revise: 'Revise Plan' }
+const AGENT_NAME = { next: 'Do Next Phase', revise: 'Revise Plan', site: 'Revise Site' }
+const AGENT_PATH = { next: 'next', revise: 'revise', site: 'revise-site' }
 const POLL_MS = 3000
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const agentOf = $item => ($item[0] && $item[0].planAgent) || null
-const busy = A => !!A && (A.state === 'posting' || A.state === 'running' || A.state === 'saving')
+const busy = A => !!A && (A.state === 'posting' || A.state === 'running' || A.state === 'saving' || A.state === 'applying')
 const secs = ms => {
   const s = Math.round(ms / 1000)
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`
@@ -453,7 +481,7 @@ const ghostIsOpen = A => !!(A && A.$ghost && A.$ghost.hasClass('ghost') && docum
 function paintAgent($item) {
   const A = agentOf($item)
   const $line = $item.find('.plan-agent')
-  $item.find('.plan-next-go, .plan-revise-go').prop('disabled', busy(A))
+  $item.find('.plan-next-go, .plan-revise-go, .plan-site-go').prop('disabled', busy(A))
   if (!A || !$line.length) return
   const name = AGENT_NAME[A.kind]
   const what = A.phase ? ` on ${escapeHtml(A.phase.label)}` : ''
@@ -462,6 +490,23 @@ function paintAgent($item) {
   if (A.state === 'posting') html = `${name}: asking the farm…`
   else if (A.state === 'running') html = `${name}${what}${model}: the model is reading the plan… ${secs(Date.now() - A.started)}`
   else if (A.state === 'refused' || A.state === 'failed') html = escapeHtml(A.line)
+  else if (A.kind === 'site' && (A.state === 'done' || A.state === 'saving')) {
+    const open = ghostIsOpen(A)
+    const s = A.result.proposal || {}
+    const rows = Object.entries(s.actions || {})
+      .map(([k, n]) => `${n} ${escapeHtml(k)}`)
+      .join(', ')
+    html =
+      `Revise Site: ${escapeHtml(A.reportTitle)} by ${escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))} in ${secs(A.result.ms || 0)}` +
+      (rows ? `, ${s.rows} pages (${rows}), ${s.untouched || 0} untouched, ${s.names || 0} names to confirm` : '') +
+      (open ? `; open as a ghost page, nothing written.` : `; its ghost page is closed.`) +
+      ` <button class="plan-go" ${A.state === 'saving' ? 'disabled' : ''} title="Save the proposal as a page, then rewrite the pages it names one at a time through the door, the plan last">Go Ahead</button>` +
+      ` <button class="plan-pause" ${A.state === 'saving' ? 'disabled' : ''} title="Save the proposal as a page and link it from the plan; nothing else is written">Pause</button>` +
+      (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
+  } else if (A.state === 'applying') {
+    const P = A.progress || {}
+    html = `Go Ahead from ${escapeHtml(A.proposalTitle)}` + (P.of ? `: page ${P.n || 0} of ${P.of}${P.title ? `, ${escapeHtml(P.title)}` : ''}` : ': starting') + `… ${secs(Date.now() - A.applyStarted)}`
+  } else if (A.state === 'applied') html = A.html
   else if (A.state === 'done' || A.state === 'saving') {
     const open = ghostIsOpen(A)
     html =
@@ -470,7 +515,7 @@ function paintAgent($item) {
       (A.ticks ? ` ${escapeHtml(A.ticks)}` : '') +
       ` <button class="plan-save" ${A.state === 'saving' ? 'disabled' : ''} title="Save the ghost as a page on this site and link it from the plan">Save and link it</button>` +
       (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
-  } else if (A.state === 'saved') html = A.html
+  } else if (A.state === 'saved') html = A.html + (A.kind === 'site' && A.savedSlug ? ` <button class="plan-go" data-proposal="${escapeHtml(A.savedSlug)}" title="Rewrite the pages the saved proposal names, one at a time through the door, the plan last; names still unticked on it are not copied">Go Ahead</button>` : '')
   $line.toggleClass('plan-refused', A.state === 'refused' || A.state === 'failed').html(html)
 }
 
@@ -484,7 +529,7 @@ async function runAgent($item, $subject, slug, kind) {
   let res
   let body = null
   try {
-    res = await fetch(`/system/api/plan/${kind}.json`, {
+    res = await fetch(`/system/api/plan/${AGENT_PATH[kind]}.json`, {
       method: 'POST',
       credentials: 'include',
       cache: 'no-cache',
@@ -539,7 +584,10 @@ async function runAgent($item, $subject, slug, kind) {
 // The report's items, once: the ghost reopens with the same ids.
 const itemsOf = A =>
   A.items ||
-  (A.items = reportItems({ kind: A.kind, markdown: A.result.markdown, planTitle: A.title, phaseLabel: A.phase ? A.phase.label : '', model: A.result.model }))
+  (A.items =
+    A.kind === 'site'
+      ? proposalItems({ markdown: A.result.markdown, planTitle: A.title, site: location.host, model: A.result.model })
+      : reportItems({ kind: A.kind, markdown: A.result.markdown, planTitle: A.title, phaseLabel: A.phase ? A.phase.label : '', model: A.result.model }))
 
 function openReport($item, A) {
   const $from = $item.parents('.page').first()
@@ -637,11 +685,12 @@ async function addItem($page, afterId, item) {
 // the report; nothing on the plan is ticked.
 async function saveAndLink($item, $subject) {
   const A = agentOf($item)
-  if (!A || !A.result || A.state === 'saving') return
+  if (!A || !A.result || A.state === 'saving') return null
   const fail = message => {
     A.state = 'done'
     A.line = message
     paintAgent($item)
+    return null
   }
   if (ownerHere() === false) return fail(`log in to ${location.host} as its owner to save a page here`)
   if (!ghostIsOpen(A)) openReport($item, A)
@@ -654,15 +703,155 @@ async function saveAndLink($item, $subject) {
     await saveGhost(A.$ghost)
     const plan = $subject.data('data') || (await getJSON(`/${slugOf($subject)}.json`))
     const phase = A.phase ? (A.phase.number !== null && A.phase.number !== undefined ? A.phase.number : A.phase.heading) : null
-    const after = linkAfter(plan, { kind: A.kind, phase })
-    const text = A.kind === 'revise' ? `- [[${title}]]` : `[[${title}]]`
+    const asList = A.kind === 'revise' || A.kind === 'site'
+    const after = linkAfter(plan, { kind: asList ? 'revise' : A.kind, phase })
+    const text = asList ? `- [[${title}]]` : `[[${title}]]`
     await addItem($subject, after, { type: 'markdown', id: randomId(), text })
-    const where = A.kind === 'revise' ? 'at the end of its See section' : `after the last checkpoint of ${A.phase.label}`
+    const where = asList ? 'at the end of its See section' : `after the last checkpoint of ${A.phase.label}`
     A.state = 'saved'
-    A.html = `Saved ${internal(title, asSlug(title), location.host)} and linked it from the plan, ${escapeHtml(where)}. Nothing was ticked.`
+    A.savedSlug = asSlug(title)
+    A.savedTitle = title
+    A.html =
+      A.kind === 'site'
+        ? `Paused: saved ${internal(title, asSlug(title), location.host)} and linked it from the plan, ${escapeHtml(where)}. Nothing else was written. Tick the names that may travel on it, then Go Ahead.`
+        : `Saved ${internal(title, asSlug(title), location.host)} and linked it from the plan, ${escapeHtml(where)}. Nothing was ticked.`
   } catch (err) {
     return fail(`Could not save it: ${err.message}`)
   }
+  paintAgent($item)
+  return title
+}
+
+// ---------- Go Ahead (Phase 7) ----------
+//
+// From the ghost: save it first, as Pause does, then go ahead. From a saved
+// proposal (after Pause, or one the plan links that has not been applied):
+// go ahead on that page. Either way the button POSTs the proposal's slug and
+// the plan's to apply-revision.json, and the tool polls the job, its line
+// saying which page of how many is with the door. The pages are written on
+// the farm, whole and journaled; the account comes back with each page's
+// bytes before and after, and each refusal and why. The plan in the lineup
+// takes the fresh file as its data; the other pages open fresh from their links.
+async function goAhead($item, $subject, planSlug, proposalSlug) {
+  let A = agentOf($item)
+  if (busy(A)) return
+  let slug = proposalSlug
+  let title = null
+  if (!slug) {
+    if (!A || A.kind !== 'site' || !A.result) return
+    title = await saveAndLink($item, $subject)
+    if (!title) return
+    slug = asSlug(title)
+  }
+  if (!A || A.kind !== 'site') {
+    A = { kind: 'site', slug: planSlug, state: 'saved', started: Date.now(), line: '' }
+    $item[0].planAgent = A
+  }
+  title = title || A.savedTitle || (A.offered && A.offered.title) || slug
+  Object.assign(A, { state: 'applying', proposalTitle: title, applyStarted: Date.now(), progress: null, line: '' })
+  paintAgent($item)
+  const fail = line => {
+    Object.assign(A, { state: 'saved', html: `<span class="plan-refused">${escapeHtml(line)}</span>`, savedSlug: slug, savedTitle: title })
+    paintAgent($item)
+  }
+  let res
+  let body = null
+  try {
+    res = await fetch('/system/api/plan/apply-revision.json', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-cache',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ slug, plan: planSlug }),
+    })
+    body = await res.json().catch(() => null)
+  } catch (err) {
+    return fail(`Could not reach the farm: ${err.message}`)
+  }
+  if (!res.ok) return fail(apiError(res, body))
+  A.applyJob = body.job
+  A.progress = { n: 0, of: body.pages.length, title: '' }
+  paintAgent($item)
+  const timer = setInterval(() => A.state === 'applying' && paintAgent($item), 1000)
+  let misses = 0
+  let j = null
+  while (A.state === 'applying') {
+    await sleep(POLL_MS)
+    try {
+      const r = await fetch(`/system/api/plan/job.json?id=${encodeURIComponent(A.applyJob)}`, { credentials: 'include', cache: 'no-cache', headers: { Accept: 'application/json' } })
+      const b = await r.json().catch(() => null)
+      if (!r.ok) {
+        clearInterval(timer)
+        return fail(apiError(r, b))
+      }
+      j = b
+      misses = 0
+    } catch (err) {
+      if (++misses > 5) {
+        clearInterval(timer)
+        return fail(`Lost the farm while waiting: ${err.message}`)
+      }
+      continue
+    }
+    A.progress = j.progress
+    if (j.status !== 'running') break
+    paintAgent($item)
+  }
+  clearInterval(timer)
+  A.state = 'applied'
+  A.html = appliedHtml(j, title, slug)
+  // The plan in the lineup takes the fresh file as its data.
+  try {
+    const fresh = await getJSON(`/${planSlug}.json`)
+    const raw = $subject.data('data')
+    if (raw && typeof raw === 'object') {
+      raw.story = fresh.story
+      raw.journal = fresh.journal
+    } else $subject.data('data', fresh)
+  } catch (_) {}
+  paintAgent($item)
+}
+
+const kb = n => (n >= 1024 ? `${(n / 1024).toFixed(1)} kB` : `${n} B`)
+
+function appliedHtml(j, title, slug) {
+  const a = (j && j.account) || {}
+  const link = (t, s) => internal(t, s || asSlug(t), location.host)
+  const parts = []
+  if (j.status === 'failed') parts.push(`<span class="plan-refused">Go Ahead failed: ${escapeHtml(j.error || 'unknown')}</span>`)
+  const w = a.written || []
+  parts.push(`Go Ahead from ${link(title, slug)}: ${w.length} page${w.length === 1 ? '' : 's'} written, ${(a.refused || []).length} refused, ${(a.failed || []).length} failed, ${(a.kept || []).length} kept.`)
+  if (w.length)
+    parts.push(
+      `<ul>${w
+        .map(x => `<li>${link(x.title, x.slug)} ${escapeHtml(x.action)} · ${kb(x.before)} → ${kb(x.after)}` + (x.linksDropped ? ` · links dropped: ${escapeHtml(x.linksDropped.join(', '))}` : '') + '</li>')
+        .join('')}</ul>`,
+    )
+  if ((a.refused || []).length) parts.push(`Refused: <ul>${a.refused.map(x => `<li>${escapeHtml(x.title)} — ${escapeHtml(x.why)}</li>`).join('')}</ul>`)
+  if ((a.failed || []).length) parts.push(`Failed: <ul>${a.failed.map(x => `<li>${escapeHtml(x.title)} — ${escapeHtml(x.error)}</li>`).join('')}</ul>`)
+  parts.push('Each page was written whole with a journal edit naming the answers; open it from its link to see it fresh.')
+  return parts.join(' ')
+}
+
+// A proposal the plan links in See, saved and not yet applied, offers Go
+// Ahead after a reload: Pause is a pause, not an end.
+async function offerSavedProposal($item, $subject, page) {
+  const A = agentOf($item)
+  if (busy(A) || (A && (A.state === 'saved' || A.state === 'applied'))) return
+  const titles = []
+  for (const it of page.story || []) for (const t of wikilinksIn(it && it.text)) if (t.startsWith(PROPOSAL_TITLE)) titles.push(t)
+  const title = titles[titles.length - 1]
+  if (!title) return
+  let p
+  try {
+    p = await getJSON(`/${asSlug(title)}.json`)
+  } catch (_) {
+    return
+  }
+  if (proposalApplied(p) || !parseProposal(p).rows.length) return
+  const $line = $item.find('.plan-agent')
+  if (!$line.length || $line.children().length || $line.text().trim()) return
+  $item[0].planAgent = { kind: 'site', slug: slugOf($subject), state: 'saved', savedSlug: asSlug(title), savedTitle: title, offered: { title }, html: `${internal(title, asSlug(title), location.host)} is saved and not yet applied.` }
   paintAgent($item)
 }
 

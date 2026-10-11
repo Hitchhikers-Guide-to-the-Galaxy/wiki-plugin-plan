@@ -2,15 +2,15 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.1.0",
-    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
+    "version": "0.2.0",
+    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
   },
   "paths": {
     "/update.json": {
       "post": {
         "operationId": "update",
         "summary": "Update Plan: tick the questions whose pages now exist and re-render the plan's markdown asset",
-        "description": "Reads the plan page on this site. Every unticked Open Questions line, - [ ] [[Question?]] gloss, whose question now has a page on this site or on a sibling site of this farm is ticked, with one journal edit per item ticked, and the page is written whole (temp file and rename). The site's sitemap.json, site-index.json and sitemap.xml are then removed together so it reindexes on the next request. The plan's markdown is re-rendered to assets/<slug>/<slug>.md either way. The write holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) and releases it; a live claim by anyone else is answered with 409 and nothing is written. The status line on the page is the plan item, which re-renders from the page JSON, so it needs no write of its own.",
+        "description": "Reads the plan page on this site. Every unticked Open Questions line, - [ ] [[Question?]] gloss, whose question now has a page on this site or on a sibling site of this farm is ticked, with one journal edit per item ticked, and the page is written whole (temp file and rename). When the plan links a page titled Open Questions on this site (a research site keeps its questions there, linked from the plan's See section), that page is read whole and ticked by the same rule, journaled on that page, not the plan. The site's sitemap.json, site-index.json and sitemap.xml are then removed together so it reindexes on the next request. The plan's markdown is re-rendered to assets/<slug>/<slug>.md either way. The write holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) and releases it; a live claim by anyone else is answered with 409 and nothing is written. The status line on the page is the plan item, which re-renders from the page JSON, so it needs no write of its own.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -59,7 +59,7 @@
       "post": {
         "operationId": "next",
         "summary": "Do Next Phase: ask the Claude door for a report on the plan's next phase, as a job",
-        "description": "Reads the plan page on this site and chooses its next phase, the first with an unticked checkpoint, or the phase named. The content is the plan rendered as markdown, the phase's heading and checkpoints marked out, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked for a fixed shape: a one-paragraph summary; one section per checkpoint of the phase saying what to do, how to verify it and whether the pages already show it done; and a closing # Proposed Ticks section listing verbatim the checkpoints it judges done, or none. The result is kept in the job; nothing is written to the plan or any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Do Next Phase <site>/<slug> phase N) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "description": "Reads the plan page on this site and chooses its next phase, the first with an unticked checkpoint, or the phase named. The content is the plan rendered as markdown, the phase's heading and checkpoints marked out, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked for a fixed shape: a one-paragraph summary; one section per checkpoint of the phase saying what to do, how to verify it and whether the pages already show it done; and a closing # Proposed Ticks section listing verbatim the checkpoints it judges done, or none. The result is kept in the job; nothing is written to the plan or any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Do Next Phase <site>/<slug> phase N) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -112,7 +112,7 @@
       "post": {
         "operationId": "revise",
         "summary": "Revise Plan: ask the Claude door to redraft the plan given its answered questions, as a job",
-        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job; the plan is never overwritten. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job; the plan is never overwritten. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -157,11 +157,113 @@
         }
       }
     },
+    "/revise-site.json": {
+      "post": {
+        "operationId": "reviseSite",
+        "summary": "Revise Site: ask the Claude door for a Revision Proposal for the whole site, given the answered questions, as a job",
+        "description": "Reads the plan page on this site and its open questions, from the plan and from the page it links as Open Questions, and refuses with 400 until at least one has an answer page. The content is every answered question's page first, then every page on the site in sitemap order, the plan among them, each rendered as markdown, up to 120 kB; a page past the budget goes in as its title and first paragraph, and the account says which. Answer pages lead and are not repeated; the Open Questions page, pages whose journal forks from or credits another site, and earlier revision proposals are left out and named to the model as untouched. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door as Do Next Phase reaches it. It is asked for a Revision Proposal in exactly four parts: # The tone shift, two or three sentences; # Pages, one table Page | Action | Reason with Action one of Keep, Amend, Rewrite or New, in the order the revision should run, the plan last; # Untouched, each page it will not touch and why; and # Names, every personal name, place name or venue in the answer pages as an unticked - [ ] Name — Answer Page line, meaning not confirmed to travel. The proposal is kept in the job, titled Revision Proposal (dated when that page exists); the client opens it as a ghost page with Go Ahead and Pause, and nothing is written to any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Site <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. rain-garden-plan."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind: 'site', slug, title, reportTitle, model, session, started } at once; poll job.json with the job id. The finished job's result carries the proposal's markdown and a summary: rows by action, untouched, names."
+          },
+          "400": {
+            "description": "Not a slug, not a plan, or no open question has an answer page yet."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
+    "/apply-revision.json": {
+      "post": {
+        "operationId": "applyRevision",
+        "summary": "Go Ahead: rewrite the pages a saved Revision Proposal names, one at a time through the Claude door, the plan last, as a job",
+        "description": "Reads the saved proposal page on this site and refuses with 400 if it has no Page | Action | Reason table or says it has been applied. The plan is the one given, else the first plan the proposal links. Under the farm WIP marker, held for the whole run with the note plan: revise site <site> and a heartbeat every minute, each row is decided: Keep is skipped; Amend, Rewrite and New are done in the table's order, the plan last; and, whatever the table says, a page is never deleted and these are never written, each refusal named in the account: an answer page, the Open Questions page, a page whose journal forks from or credits another site, a page listed under Untouched, a revision proposal, a row whose page does not exist unless it asks for New. For each page the door is given the proposal's tone shift and that page's row, the answer pages, the page as it stands with each item that is not markdown shown as a keep line, the house rules (headings # with a > strap, no title heading, every wikilink kept, # See last) and the names not yet confirmed. The reply becomes the page's story: markdown items one per paragraph, heading or bullet, pipe tables as table items, and every item that is not markdown (table, timeline, diagram, assets, audio, the plan's status line) brought back whole by its id, never dropped. A page whose reply carries a name still unticked under # Names on the proposal, and that the page did not carry before, is not written: name not confirmed. Each page is written whole (temp file and rename) with journal entries as the wiki shapes them, remove, add, edit and move, each with the provenance Revised by the Plan Tool (Revise Site) from <proposal>, drawing on: <answer pages>; a New page gets a create. The plan's markdown asset is re-rendered after the plan. The proposal gains a closing line saying it was applied, and the site's index is reset. The account lists each page written with its bytes before and after and its journal entries, each refused with why, each failed, and each kept.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The saved proposal page on this site, by slug, e.g. revision-proposal."
+                  },
+                  "plan": {
+                    "type": "string",
+                    "description": "Optional: the plan's slug; by default the first plan the proposal links."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind: 'apply', slug, title, proposal, pages, refused, kept, model, session, started } at once: pages are the rows it will run, in order; poll job.json for progress { n, of, title } and the account."
+          },
+          "400": {
+            "description": "Not a slug, not a proposal, already applied, or no plan named or linked."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
     "/job.json": {
       "get": {
         "operationId": "job",
-        "summary": "How a Do Next Phase or Revise Plan run is getting on, and its report when done",
-        "description": "Answers { status: 'running' | 'done' | 'failed', result?, error?, started, finished } with the run's kind, plan, phase, report title, model, the account of what went to the model (skills loaded and skipped, pages, bytes) and the WIP claim's times. result is { markdown, model, ms, reportTitle, proposedTicks? }. Jobs are kept in the farm's handler process and mirrored to status/farm-tmp/plan-jobs/<id>.json; one found only on disk and still marked running is answered as failed, since the process that ran it is gone. Declared as a write so only someone who may edit the site reads a report on its plan. Another site's job is not found.",
+        "summary": "How a Do Next Phase, Revise Plan, Revise Site or Go Ahead run is getting on, and its report when done",
+        "description": "Answers { status: 'running' | 'done' | 'failed', result?, error?, started, finished } with the run's kind, plan, phase, report title, model, the account of what went to the model (skills loaded and skipped, pages, bytes) and the WIP claim's times. result is { markdown, model, ms, reportTitle, proposedTicks?, proposal? }. A Go Ahead run (kind apply) answers progress { n, of, title } while it runs and an account of every page written (bytes before and after, the journal entries), refused (and why), failed and kept; its result is the counts. Jobs are kept in the farm's handler process and mirrored to status/farm-tmp/plan-jobs/<id>.json; one found only on disk and still marked running is answered as failed, since the process that ran it is gone. Declared as a write so only someone who may edit the site reads a report on its plan. Another site's job is not found.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -176,7 +278,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The job id next.json or revise.json answered."
+            "description": "The job id next.json, revise.json, revise-site.json or apply-revision.json answered."
           }
         ],
         "responses": {

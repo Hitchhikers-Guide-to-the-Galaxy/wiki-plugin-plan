@@ -153,6 +153,31 @@
     },
     {
       "type": "markdown",
+      "id": "a067ca3813e8385f",
+      "text": "# Revise Site\n> Phase 7: the answers change the whole wiki, with a pause before they do."
+    },
+    {
+      "type": "markdown",
+      "id": "893ef63e3c38518a",
+      "text": "A research site keeps its questions on a page of their own, Open Questions, linked from the plan's See section. Since 0.2.0 the tool and every service read that page too: the state view counts its questions, Do Next Phase and Revise Plan put its answer pages first in what the door is given, and Update Plan ticks its answered lines, journaling the edit on that page, not on the plan."
+    },
+    {
+      "type": "markdown",
+      "id": "3d39719931da1738",
+      "text": "**Revise Site** appears beside Revise Plan when the plan links an Open Questions page or has an answered question. It calls `POST /system/api/plan/revise-site.json` with the plan's slug, a job like the others: the door is given every answer page first, then every page on the site in sitemap order up to 120 kB, a page past the budget as its title and first paragraph only, and is asked for a Revision Proposal in four parts: the tone shift in two or three sentences; a table of pages, Page, Action and Reason, the action Keep, Amend, Rewrite or New; the pages it will not touch and why; and every name of a person, place or venue in the answers, each an unticked box. It opens as a ghost page titled Revision Proposal, the table a Table Plugin item, with two buttons in the tool: **Pause** saves it as a page and links it from the plan, nothing else written; **Go Ahead** saves it the same way, then runs it."
+    },
+    {
+      "type": "markdown",
+      "id": "8a01d1ff79d74cae",
+      "text": "Go Ahead calls `POST /system/api/plan/apply-revision.json` with the saved proposal's slug. The farm reads the page back, so the boxes ticked on it are the ones that count, and asks the door for each Amend, Rewrite and New page in the table's order, one at a time, the plan last, the tool's line saying which page of how many. Each page comes back whole and is written whole, journaled as the wiki journals edits, each entry naming the proposal and the answer pages it drew on, so a page can be rolled back from its journal. Items that are not markdown, a table, a timeline, a diagram, the assets list, the plan's status line, are shown to the door by id and come back whole; none is ever dropped. The plan's markdown asset is re-rendered after the plan, and the proposal gains a line saying it was applied, so Go Ahead is offered once."
+    },
+    {
+      "type": "markdown",
+      "id": "6c0f38003040c3e7",
+      "text": "Whatever the table says, Go Ahead never deletes a page and never writes an answer page, the Open Questions page, which stays the record of what was asked, a page forked from or credited to another site, or a page listed under Untouched; each refusal is named in the account. A page that would carry a name whose box is still unticked, and did not carry it before, is not written: name not confirmed. The run holds the farm WIP marker throughout as plan: revise site and the site's name. On a public farm both operations stay shut until the farm's operator lists plan.reviseSite and plan.applyRevision in FARM_API_PUBLIC_WRITES."
+    },
+    {
+      "type": "markdown",
       "id": "3d73cc7bfe1f2bd9",
       "text": "# Next\n> Phase 6: ship it and show it."
     },
@@ -659,6 +684,66 @@
       },
       "date": 1791671776893,
       "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 5, 2026-10-11"
+    },
+    {
+      "type": "add",
+      "id": "a067ca3813e8385f",
+      "item": {
+        "type": "markdown",
+        "id": "a067ca3813e8385f",
+        "text": "# Revise Site\n> Phase 7: the answers change the whole wiki, with a pause before they do."
+      },
+      "after": "fc079ef5dfec3d41",
+      "date": 1791752001586,
+      "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 7 (Revise Site), 2026-10-11"
+    },
+    {
+      "type": "add",
+      "id": "893ef63e3c38518a",
+      "item": {
+        "type": "markdown",
+        "id": "893ef63e3c38518a",
+        "text": "A research site keeps its questions on a page of their own, Open Questions, linked from the plan's See section. Since 0.2.0 the tool and every service read that page too: the state view counts its questions, Do Next Phase and Revise Plan put its answer pages first in what the door is given, and Update Plan ticks its answered lines, journaling the edit on that page, not on the plan."
+      },
+      "after": "a067ca3813e8385f",
+      "date": 1791752001586,
+      "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 7 (Revise Site), 2026-10-11"
+    },
+    {
+      "type": "add",
+      "id": "3d39719931da1738",
+      "item": {
+        "type": "markdown",
+        "id": "3d39719931da1738",
+        "text": "**Revise Site** appears beside Revise Plan when the plan links an Open Questions page or has an answered question. It calls `POST /system/api/plan/revise-site.json` with the plan's slug, a job like the others: the door is given every answer page first, then every page on the site in sitemap order up to 120 kB, a page past the budget as its title and first paragraph only, and is asked for a Revision Proposal in four parts: the tone shift in two or three sentences; a table of pages, Page, Action and Reason, the action Keep, Amend, Rewrite or New; the pages it will not touch and why; and every name of a person, place or venue in the answers, each an unticked box. It opens as a ghost page titled Revision Proposal, the table a Table Plugin item, with two buttons in the tool: **Pause** saves it as a page and links it from the plan, nothing else written; **Go Ahead** saves it the same way, then runs it."
+      },
+      "after": "893ef63e3c38518a",
+      "date": 1791752001586,
+      "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 7 (Revise Site), 2026-10-11"
+    },
+    {
+      "type": "add",
+      "id": "8a01d1ff79d74cae",
+      "item": {
+        "type": "markdown",
+        "id": "8a01d1ff79d74cae",
+        "text": "Go Ahead calls `POST /system/api/plan/apply-revision.json` with the saved proposal's slug. The farm reads the page back, so the boxes ticked on it are the ones that count, and asks the door for each Amend, Rewrite and New page in the table's order, one at a time, the plan last, the tool's line saying which page of how many. Each page comes back whole and is written whole, journaled as the wiki journals edits, each entry naming the proposal and the answer pages it drew on, so a page can be rolled back from its journal. Items that are not markdown, a table, a timeline, a diagram, the assets list, the plan's status line, are shown to the door by id and come back whole; none is ever dropped. The plan's markdown asset is re-rendered after the plan, and the proposal gains a line saying it was applied, so Go Ahead is offered once."
+      },
+      "after": "3d39719931da1738",
+      "date": 1791752001586,
+      "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 7 (Revise Site), 2026-10-11"
+    },
+    {
+      "type": "add",
+      "id": "6c0f38003040c3e7",
+      "item": {
+        "type": "markdown",
+        "id": "6c0f38003040c3e7",
+        "text": "Whatever the table says, Go Ahead never deletes a page and never writes an answer page, the Open Questions page, which stays the record of what was asked, a page forked from or credited to another site, or a page listed under Untouched; each refusal is named in the account. A page that would carry a name whose box is still unticked, and did not carry it before, is not written: name not confirmed. The run holds the farm WIP marker throughout as plan: revise site and the site's name. On a public farm both operations stay shut until the farm's operator lists plan.reviseSite and plan.applyRevision in FARM_API_PUBLIC_WRITES."
+      },
+      "after": "8a01d1ff79d74cae",
+      "date": 1791752001586,
+      "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 7 (Revise Site), 2026-10-11"
     }
   ],
   "plugin": "plan"

@@ -4,7 +4,7 @@
     {
       "type": "paragraph",
       "id": "b59a4ac997e33d00",
-      "text": "Opened beside a plan, the state of that plan: its phases with their ticks, the next phase and what blocks it, its open questions and its lints. Opened beside anything else, every plan on this site, newest edit first, each a link that opens the plan beside this page. Beside any page it ends with a Trash Page button, which moves that page to the recycler, and a link to the [[Recycled Pages]]."
+      "text": "Opened beside a plan, the state of that plan: its phases with their ticks, the next phase and what blocks it, its open questions and its lints. Opened beside anything else, every plan on this site, newest edit first, each a link that opens the plan beside this page. Beside any page it ends with a Trash Page button, which moves that page to the recycler, and a link to the [[Recycled Pages]]. Beside a research site's plan it offers Revise Site too: a Revision Proposal for the whole wiki from the answered questions, with Pause to keep it and Go Ahead to rewrite the pages it names, one at a time, the plan last."
     },
     {
       "type": "plan",
@@ -63,6 +63,17 @@
         "text": "Opened beside a plan, the state of that plan: its phases with their ticks, the next phase and what blocks it, its open questions and its lints. Opened beside anything else, every plan on this site, newest edit first, each a link that opens the plan beside this page. Beside any page it ends with a Trash Page button, which moves that page to the recycler, and a link to the [[Recycled Pages]]."
       },
       "date": 1791665550896
+    },
+    {
+      "type": "edit",
+      "id": "b59a4ac997e33d00",
+      "item": {
+        "type": "paragraph",
+        "id": "b59a4ac997e33d00",
+        "text": "Opened beside a plan, the state of that plan: its phases with their ticks, the next phase and what blocks it, its open questions and its lints. Opened beside anything else, every plan on this site, newest edit first, each a link that opens the plan beside this page. Beside any page it ends with a Trash Page button, which moves that page to the recycler, and a link to the [[Recycled Pages]]. Beside a research site's plan it offers Revise Site too: a Revision Proposal for the whole wiki from the answered questions, with Pause to keep it and Go Ahead to rewrite the pages it names, one at a time, the plan last."
+      },
+      "date": 1791752001588,
+      "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 7 (Revise Site), 2026-10-11"
     }
   ]
 }
