@@ -74,6 +74,8 @@ const STYLE = `
 .plan-tool .plan-error{color:#a00}
 .plan-tool .plan-subject{font-weight:bold;margin:0 0 4px}
 .plan-tool .plan-summary{margin:0 0 6px}
+.plan-tool a.plan-fold{color:#777;text-decoration:none;margin-right:.35em;font-size:90%;cursor:pointer}
+.plan-tool.plan-folded .plan-detail{display:none}
 .plan-tool li.plan-done{color:#888}
 .plan-tool li.plan-next{font-weight:bold}
 .plan-tool .plan-next-tag{background:#f6d6c4;border-radius:3px;font-size:75%;font-weight:normal;margin-left:.4em;padding:0 4px}
@@ -116,7 +118,7 @@ const shell = (opts, body) =>
 const internal = (title, slug, site) =>
   `<a class="internal" href="/${escapeHtml(slug)}.html" data-page-name="${escapeHtml(slug)}" title="${escapeHtml(site)}">${escapeHtml(title)}</a>`
 
-const asSlug = title => (window.wiki && typeof window.wiki.asSlug === 'function' ? window.wiki.asSlug(title) : asSlugCopy(title))
+const asSlug = title => (typeof window !== 'undefined' && window.wiki && typeof window.wiki.asSlug === 'function' ? window.wiki.asSlug(title) : asSlugCopy(title))
 
 // ---------- look left ----------
 //
@@ -193,13 +195,26 @@ const askVoiceTool = ($item, title) => {
   wiki.doInternalLink('Voice Tool', $from.length ? $from : null)
 }
 
-const stateHtml = (st, site, heading) => {
+// The view folds (Phase 8): the summary line stays, with a toggle at its
+// head, and the middle, phases, questions and lints, sits in .plan-detail,
+// hidden while the shell carries .plan-folded. The status face starts folded,
+// so a plan's status line is one line plus its buttons; the subject face, on
+// the Plan Tool's own page, starts open. A click on the toggle is remembered
+// per item id in FOLD for the session, across re-emits.
+const FOLD = new Map()
+const foldGlyph = folded => (folded ? '▸' : '▾')
+
+const stateHtml = (st, site, heading, folded = false) => {
   const parts = []
   if (heading) parts.push(`<p class="plan-subject">${internal(st.title, asSlug(st.title), site)}</p>`)
 
   const q = st.questions.length ? ` · ${st.answered} of ${st.questions.length} questions answered` : ''
   const where = st.complete ? 'complete' : st.next === -1 ? 'no checkpoints' : `next: ${escapeHtml(st.phases[st.next].line)}`
-  parts.push(`<p class="plan-summary">${st.done}/${st.total} checkpoints · ${where}${q}</p>`)
+  const blocks = st.next === -1 ? 0 : st.blockers.questions.length + st.blockers.redLinks.length
+  const extra = (blocks ? ` · ${blocks} blocker${blocks === 1 ? '' : 's'}` : '') + (st.lints.length ? ` · ${st.lints.length} lint${st.lints.length === 1 ? '' : 's'}` : '')
+  const toggle = `<a href="#" class="plan-fold" title="Show or hide the phases, questions and lints">${foldGlyph(folded)}</a>`
+  parts.push(`<p class="plan-summary">${toggle}${st.done}/${st.total} checkpoints · ${where}${q}${extra}</p>`)
+  parts.push('<div class="plan-detail">')
 
   if (st.phases.length) {
     const items = st.phases.map((p, i) => {
@@ -225,8 +240,11 @@ const stateHtml = (st, site, heading) => {
   }
 
   if (st.lints.length) parts.push(`<ul class="plan-lints">${st.lints.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`)
+  parts.push('</div>')
   return parts.join('')
 }
+
+export { stateHtml }
 
 // The page the plan links as [[Open Questions]], on the plan's own site (Phase 7).
 const linkedQuestions = async (page, site) => {
@@ -239,7 +257,7 @@ const linkedQuestions = async (page, site) => {
   }
 }
 
-const showState = async ($item, opts, page, site, heading, $subject) => {
+const showState = async ($item, opts, page, site, heading, $subject, key = null) => {
   const known = await knownSlugs(site)
   const linked = await linkedQuestions(page, site)
   const st = planState(page, known, asSlug, linked)
@@ -248,7 +266,9 @@ const showState = async ($item, opts, page, site, heading, $subject) => {
     scatter = await scatterLint(page, site)
   } catch (_) {}
   if (scatter) st.lints.push(scatter)
-  $item.html(shell(opts, stateHtml(st, site, heading)))
+  const folded = FOLD.has(key) ? FOLD.get(key) : !heading
+  $item.html(shell(opts, stateHtml(st, site, heading, folded)))
+  $item.find('.plan-tool').toggleClass('plan-folded', folded)
   attachUpdate($item, opts, $subject, st, page)
 }
 
@@ -1123,7 +1143,7 @@ const render = ($item, item) => {
   }
   const site = siteOfPage($subject)
   return pageJson($subject)
-    .then(page => showState($item, opts, page, site, which === 'subject', $subject))
+    .then(page => showState($item, opts, page, site, which === 'subject', $subject, item.id))
     .catch(err => $item.html(shell(opts, `<p class="plan-error">Could not read ${escapeHtml(titleOfPage($subject))}: ${escapeHtml(err.message)}</p>`)))
     .then(() => attachActions($item, opts))
 }
@@ -1135,6 +1155,16 @@ export const bind = ($item, item) => {
     e.preventDefault()
     e.stopPropagation()
     askVoiceTool($item, e.currentTarget.getAttribute('data-title'))
+  })
+  // The fold toggle: flip the shell's class, remember the choice for this item.
+  $item.off('click.planfold').on('click.planfold', '.plan-fold', e => {
+    e.preventDefault()
+    e.stopPropagation()
+    const $tool = $item.find('.plan-tool')
+    const folded = !$tool.hasClass('plan-folded')
+    $tool.toggleClass('plan-folded', folded)
+    $(e.currentTarget).text(foldGlyph(folded))
+    FOLD.set(item.id, folded)
   })
   render($item, item)
   // The neighbourhood's sitemaps arrive after the page renders, and a page

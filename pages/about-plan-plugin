@@ -39,7 +39,7 @@
     {
       "type": "markdown",
       "id": "4741ccff87e2083d",
-      "text": "The status face is a bare item on a plan page: it shows that page's own state, and one at the top of every plan is the plan's status line. The subject face is SUBJECT with a plan to the left: the item looks past ghost pages and tool pages (Selected Plugin Pages, Voice Tool, Plan Tool) to the nearest real page, and when that page is a plan it shows its state headed by its title. The list face is everything else: SITE, SUBJECT with no plan to the left, or a bare item on a page that is not a plan."
+      "text": "The status face is a bare item on a plan page: it shows that page's own state, and one at the top of every plan is the plan's status line. The subject face is SUBJECT with a plan to the left: the item looks past ghost pages and tool pages (Selected Plugin Pages, Voice Tool, Plan Tool) to the nearest real page, and when that page is a plan it shows its state headed by its title. The list face is everything else: SITE, SUBJECT with no plan to the left, or a bare item on a page that is not a plan. Since 0.3.0 the state view folds: the summary line stays, with the next phase, the counts of blockers and lints, and a toggle at its head, and the phases, questions and lints beneath it are hidden until the toggle is clicked. The status line on a plan page starts folded, so it is one line plus its buttons; the Plan Tool's own page starts open. The choice is remembered per item for the session."
     },
     {
       "type": "markdown",
@@ -772,6 +772,16 @@
       },
       "date": 1791780967348,
       "provenance": "Edited by Claude Code (claude-fable-5-1) in dialogue with David Bovill, 2026-10-12, for the 0.2.0 release: Repositories section and release note."
+    },
+    {
+      "type": "edit",
+      "id": "4741ccff87e2083d",
+      "item": {
+        "type": "markdown",
+        "id": "4741ccff87e2083d",
+        "text": "The status face is a bare item on a plan page: it shows that page's own state, and one at the top of every plan is the plan's status line. The subject face is SUBJECT with a plan to the left: the item looks past ghost pages and tool pages (Selected Plugin Pages, Voice Tool, Plan Tool) to the nearest real page, and when that page is a plan it shows its state headed by its title. The list face is everything else: SITE, SUBJECT with no plan to the left, or a bare item on a page that is not a plan. Since 0.3.0 the state view folds: the summary line stays, with the next phase, the counts of blockers and lints, and a toggle at its head, and the phases, questions and lints beneath it are hidden until the toggle is clicked. The status line on a plan page starts folded, so it is one line plus its buttons; the Plan Tool's own page starts open. The choice is remembered per item for the session."
+      },
+      "date": 1791808660898
     }
   ],
   "plugin": "plan"
