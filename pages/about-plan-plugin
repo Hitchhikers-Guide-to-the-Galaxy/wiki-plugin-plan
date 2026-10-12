@@ -7,6 +7,11 @@
       "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the \u2630 menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
     },
     {
+      "type": "markdown",
+      "id": "28d2927462811fe0",
+      "text": "## Repositories\n\n- GitHub \u2014 https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm \u2014 https://www.npmjs.com/package/wiki-plugin-plan"
+    },
+    {
       "type": "plan",
       "id": "519eb697d1919efd",
       "text": "The five most recently edited plans on this site.\nLIMIT 5"
@@ -184,7 +189,7 @@
     {
       "type": "markdown",
       "id": "f80c178da6af3127",
-      "text": "Phase 6 publishes wiki-plugin-plan 0.1.0 to GitHub and npm, installs it on the Pi5 so the \u2630 menu shows the Plan Tool there, writes the public help page on plugin.fedwiki.club, builds the Plan Tool Demo page, and writes the Conclusion of the [[Plan Tool Plan]] itself."
+      "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where \u2630 shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
     },
     {
       "type": "markdown",
@@ -744,6 +749,29 @@
       "after": "8a01d1ff79d74cae",
       "date": 1791752001586,
       "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 7 (Revise Site), 2026-10-11"
+    },
+    {
+      "type": "add",
+      "id": "28d2927462811fe0",
+      "item": {
+        "type": "markdown",
+        "id": "28d2927462811fe0",
+        "text": "## Repositories\n\n- GitHub \u2014 https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm \u2014 https://www.npmjs.com/package/wiki-plugin-plan"
+      },
+      "after": "452360c0e34e1124",
+      "date": 1791780967348,
+      "provenance": "Edited by Claude Code (claude-fable-5-1) in dialogue with David Bovill, 2026-10-12, for the 0.2.0 release: Repositories section and release note."
+    },
+    {
+      "type": "edit",
+      "id": "f80c178da6af3127",
+      "item": {
+        "type": "markdown",
+        "id": "f80c178da6af3127",
+        "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where \u2630 shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
+      },
+      "date": 1791780967348,
+      "provenance": "Edited by Claude Code (claude-fable-5-1) in dialogue with David Bovill, 2026-10-12, for the 0.2.0 release: Repositories section and release note."
     }
   ],
   "plugin": "plan"
