@@ -23,8 +23,8 @@
 //   saveRevision — Save over the plan: the ghost's story written over the
 //             plan in place, through its journal (reviseJournal), a recycler
 //             copy first; the version it replaces is the plan's _rev<N>.
-//   rewind  — Rewind: a _rev<N> of the plan written back the same way, so the
-//             journal only grows and a rewind can itself be rewound.
+//             Rewind writes nothing: the client opens the journal's _rev<N>
+//             as a ghost beside the plan, and forking it is the rewind.
 //   job     — how a next or revise run is getting on, and its report when done.
 //   finish  — Finish Plan (Phase 5), mechanical like update: when every phase
 //             checkpoint is ticked, writes the Conclusion section above # See
@@ -41,7 +41,7 @@ import crypto from 'node:crypto'
 
 import { ask, defaultModel } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, storyAt, reconcileJournal, revLabel, revSlug } from '../src/client/core.js'
+import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
 import { buildContent, buildSiteContent, buildPageContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
 
@@ -765,17 +765,19 @@ export async function applyRevision({ slug, plan, origin, status } = {}) {
 
 
 // ======================================================================
-// Phase 8 — Save over the plan, and Rewind.
+// Phase 8 — Save over the plan.
 // ======================================================================
 //
-// Mechanical, like update: no model. Both write one page, the plan, whole and
+// Mechanical, like update: no model. It writes one page, the plan, whole and
 // journaled (writeRevision in core.js: the journal reconciled first when a
 // script wrote the page without entries, then reviseJournal), so the version
-// replaced is /view/<slug>_rev<N>, drawn by the wiki from the journal. Each
+// replaced is /view/<slug>_rev<N>, drawn by the wiki from the journal. It
 // writes the page as it was to the site's recycler first (where the wiki's
 // own fork puts the page it replaces), re-renders the plan's markdown asset
 // as Update Plan does and resets the index. Refused: a page forked from or
-// credited to another site (foreignOf), and a held WIP marker (409).
+// credited to another site (foreignOf), and a held WIP marker (409). Rewind
+// has no write here at all: the client opens the rev the journal holds as a
+// ghost, and the wiki's own fork of it is the rewind.
 
 const ITEM_ID = /^[A-Za-z0-9_-]{1,64}$/
 
@@ -860,26 +862,23 @@ export async function saveRevision({ slug, story, model, origin, status } = {}) 
     slug: p.slug,
     session: `Plan Tool: Save over the plan ${origin}/${p.slug}`,
     holdOff: `Save over the plan is writing ${origin}/${p.slug}`,
-    make: page => writeRevision(page, want, { kind: 'revise', model: model || '' }),
+    make: page => writeRevision(page, want, { model: model || '' }),
   })
 }
 
-/** Rewind: the plan's _rev<N> written back as one more revision, so the journal only grows. */
-export async function rewind({ slug, rev, origin, status } = {}) {
+/**
+ * Re-render the plan's markdown asset from the page as it stands, as Update
+ * Plan does, and nothing else: the tool calls it after the wiki's own fork of
+ * a Rewind ghost lands, since that fork is the wiki's write, not the tool's.
+ */
+export async function render({ slug, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
-  const n = Number(rev)
-  if (!Number.isInteger(n) || n < 0) throw problem(400, `not a revision number: ${rev}`)
-  return writeOver({
-    origin,
-    status,
-    slug: p.slug,
-    session: `Plan Tool: Rewind ${origin}/${p.slug} to rev ${n}`,
-    holdOff: `Rewind is writing ${origin}/${p.slug}`,
-    make: page => {
-      const journal = [...(page.journal || []), ...reconcileJournal(page)]
-      if (n >= journal.length) throw problem(400, `${page.title} has no rev ${n}: its journal has ${journal.length} entries`)
-      const target = storyAt({ ...page, journal }, n)
-      return writeRevision(page, target, { kind: 'rewind', to: n, keepIds: true })
-    },
-  })
+  const md = planMarkdown(p.page)
+  const assetFile = path.join(p.site, 'assets', p.slug, `${p.slug}.md`)
+  let before = null
+  try {
+    before = fs.readFileSync(assetFile, 'utf8')
+  } catch {}
+  writeAtomic(status, assetFile, md)
+  return { slug: p.slug, title: p.page.title, asset: { rendered: true, path: `/assets/${p.slug}/${p.slug}.md`, changed: before !== md, lines: md.split('\n').length - 1 } }
 }

@@ -3,7 +3,7 @@
   "info": {
     "title": "Plan",
     "version": "0.4.0",
-    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>, and Rewind writes a _rev back the same way. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
+    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
   },
   "paths": {
     "/update.json": {
@@ -420,11 +420,11 @@
         }
       }
     },
-    "/rewind.json": {
+    "/render.json": {
       "post": {
-        "operationId": "rewind",
-        "summary": "Rewind: write the plan's _rev<N> back over it, as one more journaled revision",
-        "description": "Replays the plan's journal up to entry N, the story /view/<slug>_rev<N> draws, and writes that story over the plan with reviseJournal, ids and all, so the story is the old one byte for byte and the journal only grows: a rewind can itself be rewound. Under the farm WIP marker the plan is read again; a page forked from or credited to another site is refused. When a script wrote the page without journal entries, entries that bring the journal level with the story it holds are appended first, so the previous rev is exactly the page as it was. The page as it was is written to the site's recycler (recycle/<slug>, where the wiki's own fork saves a page it replaces), the plan is written whole (temp file and rename), every entry carrying a provenance and a planTool field the status line reads, the plan's markdown asset is re-rendered to assets/<slug>/<slug>.md and the site's index files are removed so it reindexes. Before writing, the journal is replayed: it must give back the old story at the previous rev and the new story at the end, or nothing is written.",
+        "operationId": "render",
+        "summary": "Re-render the plan's markdown asset from the page as it stands",
+        "description": "Writes assets/<slug>/<slug>.md from the plan page as Update Plan renders it (temp file and rename), and nothing else: no page is written. The Plan Tool calls it after the wiki's own fork of a Rewind ghost lands, so the markdown follows the rewound plan.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -438,17 +438,12 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "slug",
-                  "rev"
+                  "slug"
                 ],
                 "properties": {
                   "slug": {
                     "type": "string",
                     "description": "The plan page on this site, by slug."
-                  },
-                  "rev": {
-                    "type": "integer",
-                    "description": "The journal entry to rewind to, as in /view/<slug>_rev<N>."
                   }
                 }
               }
@@ -457,22 +452,16 @@
         },
         "responses": {
           "200": {
-            "description": "{ slug, title, written, previous: { rev, title, slug, path }, journal, recycled, index, asset, wip }."
+            "description": "{ slug, title, asset: { rendered, path, changed, lines } }."
           },
           "400": {
-            "description": "Not a slug, not a plan, no such rev, or a page forked from or credited to another site."
+            "description": "Not a slug, or the page is not a plan."
           },
           "403": {
             "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
-          },
-          "409": {
-            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was written."
-          },
-          "500": {
-            "description": "Replaying the journal would not give back the old story at the previous rev, or the new story at the end; nothing was written."
           }
         }
       }

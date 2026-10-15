@@ -14,7 +14,7 @@
     {
       "type": "markdown",
       "id": "9101f3208b7b4818",
-      "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** brings it back."
+      "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
     },
     {
       "type": "paragraph",
@@ -90,6 +90,16 @@
       },
       "after": "8da40e8a41ccb137",
       "date": 1792093595885
+    },
+    {
+      "type": "edit",
+      "id": "9101f3208b7b4818",
+      "item": {
+        "type": "markdown",
+        "id": "9101f3208b7b4818",
+        "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
+      },
+      "date": 1792096168404
     }
   ]
 }

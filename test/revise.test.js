@@ -512,11 +512,13 @@ test('reviseSite and applyRevision refuse before any claim', async () => {
 
 // ======================================================================
 // Phase 8 — Revise Plan revises the same page: the ghost with the plan's own
-// title, Save over the plan through reviseJournal, the _rev, and Rewind.
+// title, Save over the plan through reviseJournal, the _rev, and Rewind as a
+// ghost from the journal that the wiki's own fork applies.
 // ======================================================================
 
-import { reportTitle, reviseItems, revisedStory, REVISE_LINE_RE, storyAt, writeRevision, reconcileJournal, lastRevision, revLabel } from '../src/client/core.js'
-const { saveRevision, rewind } = await import('../api/handlers.js')
+import { reportTitle, reviseItems, revisedStory, REVISE_LINE_RE, storyAt, writeRevision, reconcileJournal, lastRevision, revLabel, rewindPage } from '../src/client/core.js'
+const handlers8 = await import('../api/handlers.js')
+const { saveRevision } = handlers8
 
 const plan8 = () => ({
   title: 'Toy Plan',
@@ -614,21 +616,27 @@ test('8: a page whose journal does not give its story is reconciled first, so th
   assert.equal(JSON.stringify(storyAt(out.page)), JSON.stringify(story))
 })
 
-test('8: Rewind restores the old story byte for byte, as one more revision, and can itself be rewound', () => {
+test('8: Rewind opens the journal\'s rev as a ghost with the plan\'s title, the old story byte for byte, and writes nothing; the wiki\'s fork of it is the rewind', () => {
   const page = journaled()
   let n = 0
   const saved = writeRevision(page, revisedStory(reviseItems({ page, markdown: REDRAFT, id: () => `g${n++}` })), { model: 'm', date: 60 }).page
-  const back = writeRevision(saved, storyAt(saved, 0), { kind: 'rewind', to: 0, keepIds: true, date: 70 })
-  assert.equal(JSON.stringify(back.page.story), JSON.stringify(page.story))
-  assert.ok(back.page.journal.length > saved.journal.length, 'the journal only grows')
-  assert.deepEqual(back.page.journal.slice(0, saved.journal.length), saved.journal)
-  assert.deepEqual(lastRevision(back.page), { kind: 'rewind', previous: saved.journal.length - 1, to: 0, date: 70 })
-  // Rewind the rewind: the revised story again, byte for byte.
-  const again = writeRevision(back.page, storyAt(back.page, back.previous), { kind: 'rewind', to: back.previous, keepIds: true, date: 80 })
-  assert.equal(JSON.stringify(again.page.story), JSON.stringify(saved.story))
+  const frozen = JSON.stringify(saved)
+  const ghost = rewindPage(saved, 0)
+  assert.equal(ghost.title, 'Toy Plan')
+  assert.equal(JSON.stringify(ghost.story), JSON.stringify(page.story), 'the old story byte for byte')
+  assert.deepEqual(ghost.journal, saved.journal.slice(0, 1))
+  if (revision) assert.equal(JSON.stringify(revision.create(0, saved).story), JSON.stringify(ghost.story), 'what /view/<slug>_rev0 draws')
+  assert.equal(JSON.stringify(saved), frozen, 'nothing written')
+  assert.equal(rewindPage(saved, saved.journal.length), null)
+  assert.equal(rewindPage(saved, -1), null)
+  assert.equal(handlers8.rewind, undefined, 'no rewind write on the farm')
+  // The wiki's fork of the ghost, as wiki-server applies one: the page sent, the fork action appended.
+  const forked = { ...JSON.parse(JSON.stringify(ghost)), journal: [...ghost.journal, { type: 'fork', date: 70 }] }
+  assert.equal(JSON.stringify(forked.story), JSON.stringify(page.story))
+  assert.equal(JSON.stringify(storyAt(forked)), JSON.stringify(forked.story), 'its journal replays to it')
 })
 
-test('8: saveRevision and rewind on the farm: recycler copy, one page journaled, markdown re-rendered, refusals', async () => {
+test('8: saveRevision on the farm: recycler copy, one page journaled, markdown re-rendered, refusals', async () => {
   process.env.WIKI_WIP_DIR = scratch()
   const f = farm()
   const page = journaled()
@@ -670,17 +678,15 @@ test('8: saveRevision and rewind on the farm: recycler copy, one page journaled,
   const same = await saveRevision({ slug: 'toy-plan', story: ghost, ...f.ctx })
   assert.equal(same.written, false)
 
-  // Rewind to rev 0: the old story byte for byte; the journal grows.
-  await assert.rejects(rewind({ slug: 'toy-plan', rev: 999, ...f.ctx }), e => e.status === 400 && /no rev 999/.test(e.message))
-  const w = await rewind({ slug: 'toy-plan', rev: 0, ...f.ctx })
-  assert.equal(w.written, true)
-  const back = read(f.site, 'toy-plan')
-  assert.equal(JSON.stringify(back.story), JSON.stringify(page.story))
-  assert.ok(back.journal.length > saved.journal.length)
-  assert.equal(w.previous.rev, saved.journal.length - 1)
-  assert.equal(fs.readFileSync(path.join(f.site, 'recycle', 'toy-plan'), 'utf8'), JSON.stringify(saved, null, 2))
+  // Rewind writes nothing: the ghost is built in the browser from the journal on the page.
+  const disk = fs.readFileSync(path.join(f.site, 'pages', 'toy-plan'), 'utf8')
+  assert.equal(JSON.stringify(rewindPage(JSON.parse(disk), r.previous.rev).story), JSON.stringify(page.story))
+  assert.equal(fs.readFileSync(path.join(f.site, 'pages', 'toy-plan'), 'utf8'), disk)
+  // After the wiki's fork of the Rewind ghost: render re-renders the markdown from the page, and writes no page.
+  put(f.site, 'toy-plan', { ...rewindPage(JSON.parse(disk), r.previous.rev), journal: [...JSON.parse(disk).journal.slice(0, r.previous.rev + 1), { type: 'fork', date: 9 }] })
+  const forked = fs.readFileSync(path.join(f.site, 'pages', 'toy-plan'), 'utf8')
+  const md = await handlers8.render({ slug: 'toy-plan', ...f.ctx })
+  assert.equal(md.asset.changed, true)
   assert.doesNotMatch(fs.readFileSync(path.join(f.site, 'assets', 'toy-plan', 'toy-plan.md'), 'utf8'), /forty centimetres/)
-  // Rewinding the rewind brings the revision back.
-  await rewind({ slug: 'toy-plan', rev: w.previous.rev, ...f.ctx })
-  assert.equal(JSON.stringify(read(f.site, 'toy-plan').story), JSON.stringify(saved.story))
+  assert.equal(fs.readFileSync(path.join(f.site, 'pages', 'toy-plan'), 'utf8'), forked)
 })

@@ -1291,7 +1291,7 @@ export const storyFromReply = (old, reply, { id = randomHex } = {}) => {
  * for each item replaying those would leave out of place. Each entry carries the
  * provenance (and `extra`'s fields). The wiki's own shapes: {type, id, item,
  * after, date}. keepIds writes newStory exactly as given, ids and all: a
- * rewind, a reconcile.
+ * reconcile.
  */
 export const reviseJournal = (oldStory, newStory, { provenance = '', date = Date.now(), keepIds = false, extra = null } = {}) => {
   const old = (oldStory || []).filter(Boolean)
@@ -1353,9 +1353,10 @@ export const linksOf = page => [...new Set((page && Array.isArray(page.story) ? 
 // Phase 8 — Revise Plan revises the same page. The redraft opens as a ghost
 // with the plan's own title carrying the whole page; Save over the plan
 // writes it with reviseJournal, so the version it replaces is the plan's
-// _rev<N>, one click back, and Rewind writes that rev back as one more
-// revision: the journal only grows. The farm handlers (saveRevision, rewind
-// in api/handlers.js) do the IO and the WIP claim around these.
+// _rev<N>, one click back. Rewind writes nothing: it opens that rev, as the
+// journal holds it, as a ghost beside the plan, and the wiki's own fork of
+// the ghost is the rewind. The farm handler (saveRevision in
+// api/handlers.js) does the IO and the WIP claim around the save.
 // ======================================================================
 
 /** The ghost's first line, which Save drops: it says what the ghost is. */
@@ -1449,7 +1450,7 @@ export const reviseItems = ({ page, markdown, model = '', date = today(), id = r
   const line = {
     type: 'markdown',
     id: id(),
-    text: `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${by}, ${date}. Save over the plan writes this page, less this line, over [[${title}]] in place through its journal: the version it replaces stays one click back as its _rev, and Rewind brings that back.`,
+    text: `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${by}, ${date}. Save over the plan writes this page, less this line, over [[${title}]] in place through its journal: the version it replaces stays in the journal as its _rev, and Rewind opens that beside the plan to fork back.`,
   }
   const opener = out.length && TEXT_TYPES.has(out[0].type) && !isHeadingItem(out[0]) ? [out.shift()] : []
   return [line, ...opener, ...plans.map(it => ({ ...it })), ...out, ...tail.map(it => ({ ...it }))]
@@ -1529,25 +1530,22 @@ export const revLabel = (title, n) => `${title}_rev${n}`
 export const revSlug = (title, n, slug = asSlug) => `${slug(title)}_rev${n}`
 
 /**
- * The page after a revision written whole: reconciled first, then the new
- * story journaled with reviseJournal. `previous` is the rev that is the page
- * as it was; every entry carries `planTool` so the status line can say which
- * revision it was and link that rev. Throws when replaying would not give
+ * The page after Save over the plan: reconciled first, then the new story
+ * journaled with reviseJournal. `previous` is the rev that is the page as it
+ * was; every entry carries `planTool` so the status line can say when it was
+ * revised and link that rev. Throws when replaying would not give
  * back the old story at `previous` and the new story at the end: nothing to
  * write then.
  */
-export const writeRevision = (page, story, { kind = 'revise', model = '', to = null, date = Date.now(), keepIds = false } = {}) => {
+export const writeRevision = (page, story, { model = '', date = Date.now() } = {}) => {
   const before = page && Array.isArray(page.story) ? page.story.filter(Boolean) : []
   const reconcile = reconcileJournal(page, { date })
   const journal = [...((page && page.journal) || []), ...reconcile]
   const previous = journal.length - 1
   const who = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
-  const provenance =
-    kind === 'rewind'
-      ? `Rewound through the Plan Tool to ${revLabel(page.title, to)}; the version it replaces is ${revLabel(page.title, previous)}.`
-      : `Revised through the Plan Tool's Revise Plan${who}, saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
-  const extra = { planTool: { kind, previous, ...(model ? { model: String(model).replace(/^claude-cli:/, '') } : {}), ...(to !== null ? { to } : {}) } }
-  const r = reviseJournal(before, story, { provenance, date, keepIds, extra })
+  const provenance = `Revised through the Plan Tool's Revise Plan${who}, saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
+  const extra = { planTool: { kind: 'revise', previous, ...(model ? { model: String(model).replace(/^claude-cli:/, '') } : {}) } }
+  const r = reviseJournal(before, story, { provenance, date, extra })
   if (!r.actions.length) return { page, actions: [], reconcile, previous, changed: false }
   const out = { ...page, story: r.story, journal: [...journal, ...r.actions] }
   if (!same(storyAt(out, previous), before)) throw new Error(`the journal would not give back the plan as it was at ${revLabel(page.title, previous)}`)
@@ -1555,7 +1553,20 @@ export const writeRevision = (page, story, { kind = 'revise', model = '', to = n
   return { page: out, actions: r.actions, reconcile, previous, changed: true }
 }
 
-/** The last revision or rewind the Plan Tool wrote: {kind, date, model, previous, to}, or null. */
+/**
+ * Rewind's ghost: the plan as the journal holds it at entry n, what
+ * /view/<slug>_rev<n> draws (storyAt is wiki-client's revision.js create),
+ * with the journal up to that entry, under the plan's own title. Nothing is
+ * written: the wiki's own fork of this ghost is the rewind, as forking a
+ * revision opened from the journal is.
+ */
+export const rewindPage = (page, n) => {
+  const journal = page && Array.isArray(page.journal) ? page.journal : []
+  if (!Number.isInteger(n) || n < 0 || n >= journal.length) return null
+  return { title: page.title, story: storyAt(page, n), journal: journal.slice(0, n + 1) }
+}
+
+/** The last revision the Plan Tool saved over the plan: {kind, date, model, previous}, or null. */
 export const lastRevision = page => {
   const journal = page && Array.isArray(page.journal) ? page.journal : []
   for (let i = journal.length - 1; i >= 0; i--) {
