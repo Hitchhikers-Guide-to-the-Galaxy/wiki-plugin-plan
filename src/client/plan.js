@@ -13,7 +13,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, storyAt } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -96,6 +96,8 @@ const STYLE = `
 .plan-tool .plan-agent .plan-go{margin-left:.4em;font-weight:bold}
 .plan-tool .plan-agent .plan-pause{margin-left:.2em}
 .plan-tool .plan-agent ul{margin:2px 0 4px}
+.plan-tool .plan-revised{color:#555;font-size:85%;margin:0 0 6px}
+.plan-tool .plan-revised button{font-size:inherit;margin-left:.4em}
 .plan-tool a.plan-ask{font-size:80%;margin-left:.3em;color:#2a6;text-decoration:none;border:1px solid #9c9;border-radius:3px;padding:0 3px}
 .plan-tool .plan-finish{display:block;margin-top:6px}
 .plan-tool .plan-finish textarea{width:100%;box-sizing:border-box;font-size:inherit;margin:2px 0}
@@ -204,7 +206,18 @@ const askVoiceTool = ($item, title) => {
 const FOLD = new Map()
 const foldGlyph = folded => (folded ? '▸' : '▾')
 
-const stateHtml = (st, site, heading, folded = false) => {
+// The last revision the Plan Tool wrote over the plan (Phase 8): when, by
+// which model, and the version it replaced, its _rev, a click away. Rewind
+// sits beside it for the owner (attachUpdate).
+const revisedHtml = (rev, title) => {
+  if (!rev) return ''
+  const day = rev.date ? new Date(rev.date).toISOString().slice(0, 10) : ''
+  const what = rev.kind === 'rewind' ? `Rewound ${day} to ${escapeHtml(revLabel(title, rev.to))}` : `Revised ${day}${rev.model ? ` by ${escapeHtml(rev.model)}` : ''}`
+  const link = `<a href="/view/${escapeHtml(revSlug(title, rev.previous, asSlug))}" class="plan-rev" data-rev="${rev.previous}" title="Open the plan as it was before, drawn from its journal">${escapeHtml(revLabel(title, rev.previous))}</a>`
+  return `<p class="plan-revised">${what} · the version it replaced: ${link}</p>`
+}
+
+const stateHtml = (st, site, heading, folded = false, rev = null) => {
   const parts = []
   if (heading) parts.push(`<p class="plan-subject">${internal(st.title, asSlug(st.title), site)}</p>`)
 
@@ -214,6 +227,7 @@ const stateHtml = (st, site, heading, folded = false) => {
   const extra = (blocks ? ` · ${blocks} blocker${blocks === 1 ? '' : 's'}` : '') + (st.lints.length ? ` · ${st.lints.length} lint${st.lints.length === 1 ? '' : 's'}` : '')
   const toggle = `<a href="#" class="plan-fold" title="Show or hide the phases, questions and lints">${foldGlyph(folded)}</a>`
   parts.push(`<p class="plan-summary">${toggle}${st.done}/${st.total} checkpoints · ${where}${q}${extra}</p>`)
+  parts.push(revisedHtml(rev, st.title))
   parts.push('<div class="plan-detail">')
 
   if (st.phases.length) {
@@ -267,7 +281,7 @@ const showState = async ($item, opts, page, site, heading, $subject, key = null)
   } catch (_) {}
   if (scatter) st.lints.push(scatter)
   const folded = FOLD.has(key) ? FOLD.get(key) : !heading
-  $item.html(shell(opts, stateHtml(st, site, heading, folded)))
+  $item.html(shell(opts, stateHtml(st, site, heading, folded, lastRevision(page))))
   $item.find('.plan-tool').toggleClass('plan-folded', folded)
   attachUpdate($item, opts, $subject, st, page)
 }
@@ -302,9 +316,9 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   const slug = slugOf($subject)
   const next = st && st.next !== -1 ? st.phases[st.next].line : ''
   const $box = $(
-    `<div class="plan-update"><button class="plan-update-go" title="Tick the questions whose pages now exist, re-render the plan's markdown asset">Update Plan</button>` +
+    `<div class="plan-update"><button class="plan-update-go" title="Update Plan ticks what the answers settled and re-renders the plan's markdown asset; no model, written on the page">Update Plan</button>` +
       (next ? ` <button class="plan-next-go" title="Ask the Claude door for a report on ${escapeHtml(next)}: it opens as a ghost page, nothing is written to the plan">Do Next Phase</button>` : '') +
-      ` <button class="plan-revise-go" title="Ask the Claude door to redraft the plan given its answered questions: it opens as a ghost page, the plan is never overwritten">Revise Plan</button>` +
+      ` <button class="plan-revise-go" title="Revise Plan asks the model to redraft the plan from its answers, on a ghost with the plan's own title; Save overwrites the plan with a rewindable journal">Revise Plan</button>` +
       (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
         ? ` <button class="plan-site-go" title="Ask the Claude door for a Revision Proposal for the whole site from the answered questions: it opens as a ghost page with Go Ahead and Pause, and nothing is written until Go Ahead">Revise Site</button>`
         : '') +
@@ -313,7 +327,10 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   )
   const last = answerOf($item)
   if (last) $box.find('.plan-answer').toggleClass('plan-refused', !!last.refused).html(last.html)
+  else if (SAVED.has(slug)) $box.find('.plan-answer').toggleClass('plan-refused', !!SAVED.get(slug).refused).html(SAVED.get(slug).html)
   $item.find('.plan-tool').append($box)
+  const rev = page ? lastRevision(page) : null
+  if (rev) $item.find('.plan-revised').append(` <button class="plan-rewind" data-rev="${rev.previous}" title="Write ${escapeHtml(revLabel(page.title, rev.previous))} back over the plan as one more journaled revision: the journal only grows, so a rewind can itself be rewound">Rewind</button>`)
   $box.on('click', '.plan-update-go', e => {
     e.preventDefault()
     runUpdate($item, $subject, slug, $box)
@@ -333,6 +350,10 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   $box.on('click', '.plan-save, .plan-pause', e => {
     e.preventDefault()
     saveAndLink($item, $subject)
+  })
+  $box.on('click', '.plan-save-over', e => {
+    e.preventDefault()
+    saveOver($item, $subject)
   })
   $box.on('click', '.plan-go', e => {
     e.preventDefault()
@@ -527,7 +548,14 @@ function paintAgent($item) {
     const P = A.progress || {}
     html = `Go Ahead from ${escapeHtml(A.proposalTitle)}` + (P.of ? `: page ${P.n || 0} of ${P.of}${P.title ? `, ${escapeHtml(P.title)}` : ''}` : ': starting') + `… ${secs(Date.now() - A.applyStarted)}`
   } else if (A.state === 'applied') html = A.html
-  else if (A.state === 'done' || A.state === 'saving') {
+  else if (A.kind === 'revise' && (A.state === 'done' || A.state === 'saving')) {
+    const open = ghostIsOpen(A)
+    html =
+      `Revise Plan: a redraft of ${escapeHtml(A.title)} by ${escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))} in ${secs(A.result.ms || 0)}, ` +
+      (open ? `open as a ghost with the plan's own title; nothing is written until Save.` : `its ghost is closed; Save still writes it.`) +
+      ` <button class="plan-save-over" ${A.state === 'saving' ? 'disabled' : ''} title="Save overwrites the plan in place with a rewindable journal: the version it replaces stays one click back as its _rev, and Rewind brings it back">Save over the plan</button>` +
+      (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
+  } else if (A.state === 'done' || A.state === 'saving') {
     const open = ghostIsOpen(A)
     html =
       `${name}${what}: ${escapeHtml(A.title)} report by ${escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))} in ${secs(A.result.ms || 0)}, ` +
@@ -543,7 +571,8 @@ const apiError = (res, body) => `${res.status}: ${(body && body.error) || `the f
 
 async function runAgent($item, $subject, slug, kind) {
   if (busy(agentOf($item))) return
-  const A = { kind, slug, state: 'posting', started: Date.now(), line: '' }
+  SAVED.delete(slug)
+  const A = { kind, slug, state: 'posting', started: Date.now(), line: '', $subject }
   $item[0].planAgent = A
   paintAgent($item)
   let res
@@ -593,6 +622,13 @@ async function runAgent($item, $subject, slug, kind) {
       A.reportTitle = j.result.reportTitle || A.reportTitle
       const t = j.result.proposedTicks
       if (t) A.ticks = !t.found ? 'The report has no Proposed Ticks section.' : t.none ? 'It proposes no ticks.' : `It proposes ${t.listed.length} tick${t.listed.length === 1 ? '' : 's'}, listed on the report; none was made.`
+      if (kind === 'revise') {
+        try {
+          A.plan = await getJSON(`/${slug}.json`)
+        } catch (_) {
+          A.plan = $subject.data('data')
+        }
+      }
       A.state = 'done'
       openReport($item, A)
     }
@@ -607,11 +643,47 @@ const itemsOf = A =>
   (A.items =
     A.kind === 'site'
       ? proposalItems({ markdown: A.result.markdown, planTitle: A.title, site: location.host, model: A.result.model })
-      : reportItems({ kind: A.kind, markdown: A.result.markdown, planTitle: A.title, phaseLabel: A.phase ? A.phase.label : '', model: A.result.model }))
+      : A.kind === 'revise'
+        ? reviseItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model })
+        : reportItems({ kind: A.kind, markdown: A.result.markdown, planTitle: A.title, phaseLabel: A.phase ? A.phase.label : '', model: A.result.model }))
 
 function openReport($item, A) {
   const $from = $item.parents('.page').first()
   A.$ghost = openGhost($from, A.reportTitle, itemsOf(A))
+  if (A.kind === 'revise') guardGhost(A.$ghost, 'Save over the plan: overwrite it in place with a rewindable journal', () => saveOver($item, A.$subject))
+}
+
+// A ghost with the plan's own slug (the revision) or a _rev of it is never
+// saved the wiki's way: its fork flag would replace the plan with the ghost
+// and a fresh journal. The flag runs the tool's journaled write instead, and
+// the ghost's items and title are not edited in place (edit the plan after
+// Save). Capturing listeners on the ghost run before wiki-client's own,
+// which are delegated from .main.
+function guardGhost($ghost, title, onSave) {
+  const el = $ghost && $ghost[0]
+  if (!el || el.planGuarded) return
+  el.planGuarded = true
+  el.addEventListener(
+    'click',
+    e => {
+      if (!e.target.closest('.fork-page')) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      onSave()
+    },
+    true,
+  )
+  el.addEventListener(
+    'dblclick',
+    e => {
+      if (!e.target.closest('.item') && !e.target.closest('h1')) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    },
+    true,
+  )
+  $ghost.find('h1 .title').removeAttr('contenteditable')
+  $ghost.find('.fork-page').attr('title', title)
 }
 
 // COPIED from wiki-plugin-audionote client/voice.js (openGhost, ghostTitle,
@@ -740,6 +812,136 @@ async function saveAndLink($item, $subject) {
   }
   paintAgent($item)
   return title
+}
+
+// ---------- Save over the plan, the _rev and Rewind (Phase 8) ----------
+//
+// Save over the plan POSTs the ghost's story to save-revision.json, where the
+// farm writes it over the plan through the journal; Rewind POSTs a rev number
+// to rewind.json, which writes that rev back the same way. Either way the
+// plan is then opened fresh in its place in the lineup, its status line
+// saying when it was revised and linking the version replaced, its _rev.
+
+// What the last Save or Rewind said, by plan slug: the plan reopens as a new
+// element, so the line is kept here, not on the element.
+const SAVED = new Map()
+
+const savedHtml = (verb, body) => {
+  const c = body.journal.count || {}
+  const counts = Object.entries(c)
+    .map(([k, n]) => `${n} ${k}`)
+    .join(', ')
+  return (
+    `${verb}: ${body.journal.entries} journal entries${counts ? ` (${escapeHtml(counts)})` : ''}` +
+    (body.journal.reconciled ? `, after ${body.journal.reconciled} that bring the journal level with the page` : '') +
+    ` · the version it replaced: <a href="${escapeHtml(body.previous.path)}" class="plan-rev" data-rev="${body.previous.rev}">${escapeHtml(body.previous.title)}</a>` +
+    (body.asset && body.asset.rendered ? ` · <a href="${escapeHtml(body.asset.path)}" target="_blank">markdown</a> ${body.asset.changed ? 're-rendered' : 'unchanged'}` : '')
+  )
+}
+
+const postJSON = async (path, payload) => {
+  const res = await fetch(`/system/api/plan/${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-cache',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const body = await res.json().catch(() => null)
+  return { res, body }
+}
+
+// The plan opened fresh where it stands: everything from it on closes, and it
+// opens again from the farm; the Plan Tool after it too, when that is where
+// the button was.
+function reopenPlan($item, $subject) {
+  const title = titleOfPage($subject)
+  const $tool = $item.parents('.page').first()
+  const toolAfter = $tool.length && $tool[0] !== $subject[0]
+  const $prev = $subject.prev('.page')
+  if (window.wiki && wiki.pageHandler) wiki.pageHandler.context = ['view']
+  if ($prev.length) wiki.doInternalLink(title, $prev)
+  else {
+    const key = $subject.data('key')
+    $subject.nextAll('.page').remove()
+    if (wiki.lineup) {
+      wiki.lineup.removeAllAfterKey(key)
+      wiki.lineup.removeKey(key)
+    }
+    $subject.remove()
+    wiki.doInternalLink(title, null)
+  }
+  if (toolAfter) setTimeout(() => wiki.doInternalLink('Plan Tool', $('.page').last()), 600)
+}
+
+const closeGhost = $ghost => {
+  if (!$ghost || !$ghost.length) return
+  try {
+    if (wiki.lineup) wiki.lineup.removeKey($ghost.data('key'))
+  } catch (_) {}
+  $ghost.remove()
+}
+
+async function saveOver($item, $subject) {
+  const A = agentOf($item)
+  if (!A || A.kind !== 'revise' || !A.result || A.state === 'saving') return
+  const fail = line => {
+    A.state = 'done'
+    A.line = line
+    paintAgent($item)
+  }
+  if (ownerHere() === false) return fail(`log in to ${location.host} as its owner to save over the plan`)
+  A.state = 'saving'
+  A.line = ''
+  paintAgent($item)
+  let out
+  try {
+    out = await postJSON('save-revision.json', { slug: A.slug, story: itemsOf(A), model: A.result.model })
+  } catch (err) {
+    return fail(`Could not reach the farm: ${err.message}`)
+  }
+  if (!out.res.ok) return fail(apiError(out.res, out.body))
+  if (!out.body.written) return fail(`Nothing written: ${out.body.why}`)
+  SAVED.set(A.slug, { html: savedHtml('Saved over the plan', out.body) })
+  $item[0].planAgent = null
+  closeGhost(A.$ghost)
+  reopenPlan($item, $subject)
+}
+
+async function rewindTo($item, $subject, n) {
+  const slug = slugOf($subject)
+  const $line = $item.find('.plan-answer')
+  $item.find('.plan-rewind').prop('disabled', true)
+  $line.removeClass('plan-refused').text(`Rewinding to rev ${n}…`)
+  let out
+  try {
+    out = await postJSON('rewind.json', { slug, rev: n })
+  } catch (err) {
+    $item.find('.plan-rewind').prop('disabled', false)
+    return $line.addClass('plan-refused').text(`Could not reach the farm: ${err.message}`)
+  }
+  if (!out.res.ok || !out.body.written) {
+    $item.find('.plan-rewind').prop('disabled', false)
+    return $line.addClass('plan-refused').text(out.res.ok ? `Nothing written: ${out.body.why}` : apiError(out.res, out.body))
+  }
+  SAVED.set(slug, { html: savedHtml(`Rewound to ${revLabel(out.body.title, n)}`, out.body) })
+  // A _rev ghost of this plan in the lineup is now out of date.
+  $(`.page.ghost[id^="${slug}_rev"]`).each((_i, p) => closeGhost($(p)))
+  reopenPlan($item, $subject)
+}
+
+// The _rev drawn as wiki-client draws one from a journal click: the journal
+// replayed to entry n (storyAt, revision.js's create), shown as a ghost with
+// the id <slug>_rev<n>, to the right of the page this item sits on. Its fork
+// flag rewinds, journaled, rather than replacing the plan with the rev.
+async function openRev($item, $subject, n) {
+  const page = await getJSON(`${baseFor(siteOfPage($subject))}/${slugOf($subject)}.json`)
+  const journal = (page.journal || []).slice(0, n + 1)
+  const rev = { title: page.title, story: storyAt(page, n), journal }
+  const $from = $item.parents('.page').first()
+  wiki.showResult(wiki.newPage(rev), { $page: $from, rev: n })
+  const $rev = $from.nextAll('.page').first()
+  if (isHere($subject) && ownerHere() !== false) guardGhost($rev, `Rewind: write ${revLabel(page.title, n)} back over the plan, journaled`, () => rewindTo($item, $subject, n))
 }
 
 // ---------- Go Ahead (Phase 7) ----------
@@ -886,6 +1088,7 @@ const answerHtml = (r, site) => {
 }
 
 const runUpdate = async ($item, $subject, slug, $box) => {
+  SAVED.delete(slug)
   const $answer = $box.find('.plan-answer').removeClass('plan-refused').text('Updating…')
   $box.find('.plan-update-go').prop('disabled', true)
   const site = siteOfPage($subject)
@@ -1165,6 +1368,19 @@ export const bind = ($item, item) => {
     $tool.toggleClass('plan-folded', folded)
     $(e.currentTarget).text(foldGlyph(folded))
     FOLD.set(item.id, folded)
+  })
+  // The version a revision replaced, and Rewind (Phase 8).
+  $item.off('click.planrev').on('click.planrev', '.plan-rev', e => {
+    e.preventDefault()
+    e.stopPropagation()
+    const { $subject } = resolve($item, parse(item.text))
+    if ($subject) openRev($item, $subject, parseInt(e.currentTarget.getAttribute('data-rev'), 10)).catch(err => $item.find('.plan-answer').addClass('plan-refused').text(`Could not open it: ${err.message}`))
+  })
+  $item.off('click.planrewind').on('click.planrewind', '.plan-rewind', e => {
+    e.preventDefault()
+    e.stopPropagation()
+    const { $subject } = resolve($item, parse(item.text))
+    if ($subject) rewindTo($item, $subject, parseInt(e.currentTarget.getAttribute('data-rev'), 10))
   })
   render($item, item)
   // The neighbourhood's sitemaps arrive after the page renders, and a page

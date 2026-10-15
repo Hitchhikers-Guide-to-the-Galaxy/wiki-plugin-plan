@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.2.0",
-    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
+    "version": "0.4.0",
+    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>, and Rewind writes a _rev back the same way. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
   },
   "paths": {
     "/update.json": {
@@ -112,7 +112,7 @@
       "post": {
         "operationId": "revise",
         "summary": "Revise Plan: ask the Claude door to redraft the plan given its answered questions, as a job",
-        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job; the plan is never overwritten. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job and nothing is written: the tool opens it as a ghost with the plan's own title, carrying the plan's opener, its plan item second, the redrafted body and the plan's own timeline, Assets and See unchanged, and Save over the plan (save-revision.json) writes it. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -352,6 +352,127 @@
           },
           "409": {
             "description": "The farm WIP marker is held live by someone else; it is named, and nothing was written."
+          }
+        }
+      }
+    },
+    "/save-revision.json": {
+      "post": {
+        "operationId": "saveRevision",
+        "summary": "Save over the plan: write the Revise Plan ghost's story over the plan in place, journaled, the old version its _rev",
+        "description": "Takes the story of the ghost Revise Plan opened, with the plan's own title. Its first item, the line saying it is a proposed revision, is dropped; the rest must carry a plan item. The story is written over the plan with reviseJournal: a remove for each item gone, an add or edit for each new or changed one, a move for each out of place, so the version it replaces is /view/<slug>_rev<N>. Under the farm WIP marker the plan is read again; a page forked from or credited to another site is refused. When a script wrote the page without journal entries, entries that bring the journal level with the story it holds are appended first, so the previous rev is exactly the page as it was. The page as it was is written to the site's recycler (recycle/<slug>, where the wiki's own fork saves a page it replaces), the plan is written whole (temp file and rename), every entry carrying a provenance and a planTool field the status line reads, the plan's markdown asset is re-rendered to assets/<slug>/<slug>.md and the site's index files are removed so it reindexes. Before writing, the journal is replayed: it must give back the old story at the previous rev and the new story at the end, or nothing is written.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "story"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug."
+                  },
+                  "story": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "The ghost page's story, items with type and id."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model that wrote the redraft, for the status line."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ slug, title, written, previous: { rev, title, slug, path }, journal: { reconciled, entries, count, length }, recycled, index, asset, wip }; written false, with why, when the story would change nothing."
+          },
+          "400": {
+            "description": "Not a slug, not a plan, no story, an item without a type or id or twice, no plan item, or a page forked from or credited to another site."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was written."
+          },
+          "500": {
+            "description": "Replaying the journal would not give back the old story at the previous rev, or the new story at the end; nothing was written."
+          }
+        }
+      }
+    },
+    "/rewind.json": {
+      "post": {
+        "operationId": "rewind",
+        "summary": "Rewind: write the plan's _rev<N> back over it, as one more journaled revision",
+        "description": "Replays the plan's journal up to entry N, the story /view/<slug>_rev<N> draws, and writes that story over the plan with reviseJournal, ids and all, so the story is the old one byte for byte and the journal only grows: a rewind can itself be rewound. Under the farm WIP marker the plan is read again; a page forked from or credited to another site is refused. When a script wrote the page without journal entries, entries that bring the journal level with the story it holds are appended first, so the previous rev is exactly the page as it was. The page as it was is written to the site's recycler (recycle/<slug>, where the wiki's own fork saves a page it replaces), the plan is written whole (temp file and rename), every entry carrying a provenance and a planTool field the status line reads, the plan's markdown asset is re-rendered to assets/<slug>/<slug>.md and the site's index files are removed so it reindexes. Before writing, the journal is replayed: it must give back the old story at the previous rev and the new story at the end, or nothing is written.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "rev"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug."
+                  },
+                  "rev": {
+                    "type": "integer",
+                    "description": "The journal entry to rewind to, as in /view/<slug>_rev<N>."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ slug, title, written, previous: { rev, title, slug, path }, journal, recycled, index, asset, wip }."
+          },
+          "400": {
+            "description": "Not a slug, not a plan, no such rev, or a page forked from or credited to another site."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was written."
+          },
+          "500": {
+            "description": "Replaying the journal would not give back the old story at the previous rev, or the new story at the end; nothing was written."
           }
         }
       }

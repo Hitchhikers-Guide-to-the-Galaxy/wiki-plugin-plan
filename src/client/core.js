@@ -616,9 +616,13 @@ export const choosePhase = (page, phase) => {
 
 export const today = (now = Date.now()) => new Date(now).toISOString().slice(0, 10)
 
-/** "<Plan Title> Phase N Report" for Do Next Phase; "<Plan Title> Revision <YYYY-MM-DD>" for Revise Plan. */
+/**
+ * "<Plan Title> Phase N Report" for Do Next Phase. Revise Plan answers the
+ * plan's own title (Phase 8): the revision is a ghost of the same page, and
+ * Save writes it over the plan, journaled.
+ */
 export const reportTitle = ({ kind, planTitle, phaseLabel = '', date = today() }) =>
-  kind === 'revise' ? `${planTitle} Revision ${date}` : `${planTitle} ${phaseLabel} Report`
+  kind === 'revise' ? planTitle : `${planTitle} ${phaseLabel} Report`
 
 /**
  * Markdown as separately draggable items: each paragraph its own item, each
@@ -1285,14 +1289,16 @@ export const storyFromReply = (old, reply, { id = randomHex } = {}) => {
  * for each new item in order an add after its predecessor, or an edit where
  * it takes the place of an old item under the same heading line, and a move
  * for each item replaying those would leave out of place. Each entry carries the
- * provenance. The wiki's own shapes: {type, id, item, after, date}.
+ * provenance (and `extra`'s fields). The wiki's own shapes: {type, id, item,
+ * after, date}. keepIds writes newStory exactly as given, ids and all: a
+ * rewind, a reconcile.
  */
-export const reviseJournal = (oldStory, newStory, { provenance = '', date = Date.now() } = {}) => {
+export const reviseJournal = (oldStory, newStory, { provenance = '', date = Date.now(), keepIds = false, extra = null } = {}) => {
   const old = (oldStory || []).filter(Boolean)
   const next = (newStory || []).filter(Boolean)
   const oldIds = new Set(old.map(it => it.id))
   const newIds = new Set(next.map(it => it.id))
-  const stamp = e => (provenance ? { ...e, provenance } : e)
+  const stamp = e => ({ ...e, ...(provenance ? { provenance } : {}), ...(extra ? { ...extra } : {}) })
   const actions = []
 
   // A new markdown item that opens with the same heading line as an old one
@@ -1302,7 +1308,7 @@ export const reviseJournal = (oldStory, newStory, { provenance = '', date = Date
   const goneHeadings = new Map()
   for (const it of gone) if (it.type === 'markdown' && headingOf(it) !== null && !goneHeadings.has(firstLine(it))) goneHeadings.set(firstLine(it), it)
   const story = next.map(it => {
-    if (oldIds.has(it.id) || it.type !== 'markdown' || headingOf(it) === null) return it
+    if (keepIds || oldIds.has(it.id) || it.type !== 'markdown' || headingOf(it) === null) return it
     const was = goneHeadings.get(firstLine(it))
     if (!was) return it
     goneHeadings.delete(firstLine(it))
@@ -1341,3 +1347,220 @@ export const reviseJournal = (oldStory, newStory, { provenance = '', date = Date
 
 /** Every [[link]] a page carries. */
 export const linksOf = page => [...new Set((page && Array.isArray(page.story) ? page.story : []).flatMap(it => wikilinksIn(it && it.text)))]
+
+
+// ======================================================================
+// Phase 8 — Revise Plan revises the same page. The redraft opens as a ghost
+// with the plan's own title carrying the whole page; Save over the plan
+// writes it with reviseJournal, so the version it replaces is the plan's
+// _rev<N>, one click back, and Rewind writes that rev back as one more
+// revision: the journal only grows. The farm handlers (saveRevision, rewind
+// in api/handlers.js) do the IO and the WIP claim around these.
+// ======================================================================
+
+/** The ghost's first line, which Save drops: it says what the ghost is. */
+export const REVISE_LINE_RE = /^Proposed revision of \[\[[^\]]+\]\] through the \[\[Plan Tool\]\]'s Revise Plan/
+
+const firstLineOf = it => String((it && it.text) || '').trim().split('\n')[0].trim()
+const isHeadingItem = it => !!it && TEXT_TYPES.has(it.type) && headingOf({ ...it, type: 'markdown' }) !== null
+const TAIL_RE = /^(assets|see)$/i
+
+/**
+ * A plan's story in three: its `plan` items (the status line), the tail the
+ * tool keeps as it is (the Assets and See sections, and any assets item), and
+ * the body the model redrafts, everything else in order.
+ */
+export const planParts = page => {
+  const story = page && Array.isArray(page.story) ? page.story.filter(Boolean) : []
+  const plans = []
+  const body = []
+  const tail = []
+  let inTail = false
+  for (const it of story) {
+    if (it.type === 'plan') {
+      plans.push(it)
+      continue
+    }
+    if (isHeadingItem(it)) inTail = TAIL_RE.test(headingOf({ ...it, type: 'markdown' }))
+    ;(inTail || it.type === 'assets' ? tail : body).push(it)
+  }
+  return { plans, body, tail }
+}
+
+// What the model was told to leave out and may write anyway: the status line
+// as planMarkdown renders it, a fenced copy of a kept item, an Assets or See
+// section. The tool keeps the plan's own.
+const PLACEHOLDER_RE = /^\*\[[\w-]+ item\]\*$/
+const FENCE_TYPES = new Set(Object.values(FENCED).filter(Boolean))
+const modelExtra = (it, oldIds) => {
+  if (oldIds.has(it.id) || !TEXT_TYPES.has(it.type)) return false
+  const text = String(it.text || '').trim()
+  if (PLACEHOLDER_RE.test(text)) return true
+  const fence = text.match(/^```(\w+)/)
+  if (fence && FENCE_TYPES.has(fence[1])) return true
+  return isHeadingItem(it) && TAIL_RE.test(headingOf({ ...it, type: 'markdown' }))
+}
+
+/**
+ * The revise ghost's story: the line saying what it is, then the plan as it
+ * would be after Save — the redraft's opener, the plan's own `plan` item
+ * second, the rest of the redraft (storyFromReply, as Revise Site builds a
+ * page) with the plan's timeline and other non-text items back in their
+ * sections, and the plan's Assets and See sections unchanged at the end.
+ */
+export const reviseItems = ({ page, markdown, model = '', date = today(), id = randomHex }) => {
+  const title = String((page && page.title) || '')
+  const { plans, body, tail } = planParts(page)
+  const oldIds = new Set(body.map(it => it.id))
+  const out = storyFromReply({ title, story: body }, markdown, { id }).filter(it => !modelExtra(it, oldIds))
+
+  // A non-text item goes back into the section it was in, as many text items
+  // in as it was.
+  let heading = null
+  let since = 0
+  const where = new Map()
+  for (const it of body) {
+    if (isHeadingItem(it)) {
+      heading = firstLineOf(it)
+      since = 0
+    } else if (!TEXT_TYPES.has(it.type)) where.set(it.id, { heading, since })
+    else since++
+  }
+  for (const [iid, w] of where) {
+    if (w.heading === null) continue
+    const from = out.findIndex(x => x.id === iid)
+    if (from === -1) continue
+    const [moved] = out.splice(from, 1)
+    const at = out.findIndex(x => isHeadingItem(x) && firstLineOf(x) === w.heading)
+    if (at === -1) {
+      out.splice(from, 0, moved)
+      continue
+    }
+    let pos = at + 1
+    let n = 0
+    while (pos < out.length && !isHeadingItem(out[pos]) && (n < w.since || !TEXT_TYPES.has(out[pos].type))) {
+      if (TEXT_TYPES.has(out[pos].type)) n++
+      pos++
+    }
+    out.splice(pos, 0, moved)
+  }
+
+  const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
+  const line = {
+    type: 'markdown',
+    id: id(),
+    text: `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${by}, ${date}. Save over the plan writes this page, less this line, over [[${title}]] in place through its journal: the version it replaces stays one click back as its _rev, and Rewind brings that back.`,
+  }
+  const opener = out.length && TEXT_TYPES.has(out[0].type) && !isHeadingItem(out[0]) ? [out.shift()] : []
+  return [line, ...opener, ...plans.map(it => ({ ...it })), ...out, ...tail.map(it => ({ ...it }))]
+}
+
+/** The story Save writes: the ghost's, less its first line. */
+export const revisedStory = story => (Array.isArray(story) ? story : []).filter((it, i) => !(i === 0 && it && REVISE_LINE_RE.test(String(it.text || ''))))
+
+// ---------- the journal, replayed ----------
+//
+// COPIED from wiki-client lib/revision.js (apply, create): the story a
+// journal gives, up to and including entry `upto`, as /view/<slug>_rev<N>
+// draws it.
+const applyAction = (story, action) => {
+  const order = () => story.map(it => it && it.id)
+  const add = (after, item) => story.splice(order().indexOf(after) + 1, 0, item)
+  const remove = () => {
+    const i = order().indexOf(action.id)
+    if (i !== -1) story.splice(i, 1)
+  }
+  switch (action.type) {
+    case 'create':
+      if (action.item && action.item.story) return action.item.story.slice()
+      return story
+    case 'add':
+      add(action.after, action.item)
+      return story
+    case 'edit': {
+      const i = order().indexOf(action.id)
+      if (i !== -1) story.splice(i, 1, action.item)
+      else story.push(action.item)
+      return story
+    }
+    case 'move': {
+      const at = action.order.indexOf(action.id)
+      const after = action.order[at - 1]
+      const item = story[order().indexOf(action.id)]
+      remove()
+      add(after, item)
+      return story
+    }
+    case 'remove':
+      remove()
+      return story
+    default:
+      return story
+  }
+}
+
+/** The story the journal gives up to entry `upto` (all of it by default). */
+export const storyAt = (page, upto = Infinity) => {
+  const journal = page && Array.isArray(page.journal) ? page.journal : []
+  let story = []
+  for (const a of journal.slice(0, upto === Infinity ? undefined : upto + 1)) story = applyAction(story, a || {})
+  return story
+}
+
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
+export const RECONCILE_NOTE = 'Journal reconciled by the Plan Tool before a revision: the page had been written without journal entries, so these bring the journal level with the story it holds.'
+
+/**
+ * A journal that replays to the story the page holds. A page written by a
+ * script may hold a story its journal does not give; its _rev would then not
+ * be the page as it was. The entries that bring it level (keepIds, so the
+ * story is exactly the page's), or none when it is level already.
+ */
+export const reconcileJournal = (page, { date = Date.now() } = {}) => {
+  const story = page && Array.isArray(page.story) ? page.story.filter(Boolean) : []
+  const replay = storyAt(page)
+  if (same(replay, story)) return []
+  return reviseJournal(replay, story, { provenance: RECONCILE_NOTE, date, keepIds: true }).actions
+}
+
+/** The rev label and its slug: "<Plan Title>_rev<N>", "<slug>_rev<N>". */
+export const revLabel = (title, n) => `${title}_rev${n}`
+export const revSlug = (title, n, slug = asSlug) => `${slug(title)}_rev${n}`
+
+/**
+ * The page after a revision written whole: reconciled first, then the new
+ * story journaled with reviseJournal. `previous` is the rev that is the page
+ * as it was; every entry carries `planTool` so the status line can say which
+ * revision it was and link that rev. Throws when replaying would not give
+ * back the old story at `previous` and the new story at the end: nothing to
+ * write then.
+ */
+export const writeRevision = (page, story, { kind = 'revise', model = '', to = null, date = Date.now(), keepIds = false } = {}) => {
+  const before = page && Array.isArray(page.story) ? page.story.filter(Boolean) : []
+  const reconcile = reconcileJournal(page, { date })
+  const journal = [...((page && page.journal) || []), ...reconcile]
+  const previous = journal.length - 1
+  const who = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
+  const provenance =
+    kind === 'rewind'
+      ? `Rewound through the Plan Tool to ${revLabel(page.title, to)}; the version it replaces is ${revLabel(page.title, previous)}.`
+      : `Revised through the Plan Tool's Revise Plan${who}, saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
+  const extra = { planTool: { kind, previous, ...(model ? { model: String(model).replace(/^claude-cli:/, '') } : {}), ...(to !== null ? { to } : {}) } }
+  const r = reviseJournal(before, story, { provenance, date, keepIds, extra })
+  if (!r.actions.length) return { page, actions: [], reconcile, previous, changed: false }
+  const out = { ...page, story: r.story, journal: [...journal, ...r.actions] }
+  if (!same(storyAt(out, previous), before)) throw new Error(`the journal would not give back the plan as it was at ${revLabel(page.title, previous)}`)
+  if (!same(storyAt(out), out.story)) throw new Error('the journal would not replay to the revised story')
+  return { page: out, actions: r.actions, reconcile, previous, changed: true }
+}
+
+/** The last revision or rewind the Plan Tool wrote: {kind, date, model, previous, to}, or null. */
+export const lastRevision = page => {
+  const journal = page && Array.isArray(page.journal) ? page.journal : []
+  for (let i = journal.length - 1; i >= 0; i--) {
+    const a = journal[i]
+    if (a && a.planTool && Number.isInteger(a.planTool.previous) && a.planTool.previous < i) return { ...a.planTool, date: a.date }
+  }
+  return null
+}

@@ -509,3 +509,178 @@ test('reviseSite and applyRevision refuse before any claim', async () => {
   await assert.rejects(reviseSite({ slug: 'toy-plan', ...f.ctx }), e => e.status === 409 && /another session/.test(e.message))
   release(c.token)
 })
+
+// ======================================================================
+// Phase 8 — Revise Plan revises the same page: the ghost with the plan's own
+// title, Save over the plan through reviseJournal, the _rev, and Rewind.
+// ======================================================================
+
+import { reportTitle, reviseItems, revisedStory, REVISE_LINE_RE, storyAt, writeRevision, reconcileJournal, lastRevision, revLabel } from '../src/client/core.js'
+const { saveRevision, rewind } = await import('../api/handlers.js')
+
+const plan8 = () => ({
+  title: 'Toy Plan',
+  story: [
+    md('a', 'A plan for the toy garden.'),
+    { type: 'plan', id: 'p', text: '' },
+    md('h1', '# Phase 1\n> Begin.'),
+    md('c1', '- [x] Write the pages'),
+    md('c2', '- [ ] Build the bed'),
+    md('r', '# Roadmap\n> Two weeks.'),
+    { type: 'timeline', id: 't', text: 'section Phase 1\n2026-10-13..2026-10-17 Build' },
+    md('r2', 'The bed waits for the rota.'),
+    md('q', '# Open Questions\n> For the humans.'),
+    md('q1', '- [ ] [[Is the bed raised?]] or sunk'),
+    md('as', '# Assets\n> The markdown.'),
+    { type: 'assets', id: 'ai', text: 'toy-plan' },
+    md('s', '# See\n\n- [[Open Questions]]\n- [[Where It Breaks]]'),
+  ],
+  journal: [{ type: 'create', date: 1, item: { title: 'Toy Plan', story: [] } }],
+})
+// A plan whose journal replays to its story, as one the wiki wrote.
+const journaled = () => {
+  const p = plan8()
+  p.journal = [{ type: 'create', date: 1, item: { title: p.title, story: p.story.map(i => ({ ...i })) } }]
+  return p
+}
+const REDRAFT = [
+  'A plan for the toy garden, the bed raised.',
+  '*[plan item]*',
+  '# Phase 1\n> Begin.',
+  '- [x] Write the pages',
+  '- [ ] Build the raised bed, forty centimetres',
+  '# Roadmap\n> Two weeks.',
+  '```timeline\nsection Phase 1\n```',
+  'The bed waits for the rota of four.',
+  '# Open Questions\n> For the humans.',
+  '- [x] [[Is the bed raised?]] or sunk',
+  '# What Changed\n> Against the plan as it stands.',
+  '- The bed is raised: [[Is the bed raised?]]',
+  '# See\n\n- [[Toy Plan Revision 2026-10-15]]',
+].join('\n\n')
+
+test('8: Revise Plan\'s ghost has the plan\'s own title and carries the whole page: line, opener, plan item second, timeline in its section, Assets and See unchanged', () => {
+  const page = plan8()
+  assert.equal(reportTitle({ kind: 'revise', planTitle: page.title }), page.title)
+  let n = 0
+  const ghost = reviseItems({ page, markdown: REDRAFT, model: 'claude-cli:claude-opus-5-5', date: '2026-10-15', id: () => `g${n++}` })
+  assert.match(ghost[0].text, REVISE_LINE_RE)
+  assert.match(ghost[0].text, /^Proposed revision of \[\[Toy Plan\]\] through the \[\[Plan Tool\]\]'s Revise Plan by claude-opus-5-5, 2026-10-15\. Save over the plan writes this page/)
+  const story = revisedStory(ghost)
+  assert.equal(story.length, ghost.length - 1)
+  assert.equal(story[0].text, 'A plan for the toy garden, the bed raised.')
+  assert.deepEqual(story[1], { type: 'plan', id: 'p', text: '' }, 'the plan item second')
+  // The timeline: the plan's own item, back in the Roadmap section where it was.
+  const r = story.findIndex(i => i.text === '# Roadmap\n> Two weeks.')
+  assert.deepEqual(story[r + 1], page.story[6])
+  assert.equal(story[r + 2].text, 'The bed waits for the rota of four.')
+  // The model's status placeholder, fenced timeline and See are dropped; the plan's Assets and See end the page, unchanged.
+  assert.ok(!story.some(i => /\*\[plan item\]\*|```timeline|Revision 2026-10-15/.test(i.text || '')))
+  assert.deepEqual(story.slice(-3), page.story.slice(-3))
+  assert.equal(story.filter(i => i.type === 'timeline').length, 1)
+  assert.ok(story.some(i => i.text === '- [ ] Build the raised bed, forty centimetres'))
+  assert.ok(story.some(i => /^# What Changed/.test(i.text)))
+})
+
+test('8: writeRevision journals the ghost with reviseJournal; replayed it gives the ghost story, and the _rev gives the plan as it was', () => {
+  const page = journaled()
+  let n = 0
+  const story = revisedStory(reviseItems({ page, markdown: REDRAFT, model: 'claude-opus-5-5', id: () => `g${n++}` }))
+  const out = writeRevision(page, story, { kind: 'revise', model: 'claude-cli:claude-opus-5-5', date: 50 })
+  assert.equal(out.changed, true)
+  assert.equal(out.reconcile.length, 0, 'a wiki-written journal needs no reconcile')
+  assert.equal(out.previous, 0)
+  assert.equal(JSON.stringify(storyAt(out.page)), JSON.stringify(out.page.story))
+  assert.deepEqual(out.page.story.map(i => i.text), story.map(i => i.text))
+  assert.equal(JSON.stringify(storyAt(out.page, out.previous)), JSON.stringify(page.story))
+  assert.ok(out.actions.every(a => a.date === 50 && /Revise Plan by claude-opus-5-5, saved over the plan; the version it replaces is Toy Plan_rev0/.test(a.provenance) && a.planTool.previous === 0))
+  if (revision) {
+    assert.deepEqual(revision.create(out.previous, out.page).story, page.story)
+    assert.deepEqual(revision.create(out.page.journal.length - 1, out.page).story.map(i => i.text), out.page.story.map(i => i.text))
+  }
+  assert.deepEqual(lastRevision(out.page), { kind: 'revise', previous: 0, model: 'claude-opus-5-5', date: 50 })
+  assert.equal(revLabel('Toy Plan', 0), 'Toy Plan_rev0')
+})
+
+test('8: a page whose journal does not give its story is reconciled first, so the _rev is the page as it was', () => {
+  const page = plan8() // the create carries an empty story: the journal gives nothing
+  const reconcile = reconcileJournal(page, { date: 7 })
+  assert.ok(reconcile.length > 0)
+  assert.equal(JSON.stringify(storyAt({ ...page, journal: [...page.journal, ...reconcile] })), JSON.stringify(page.story))
+  const story = page.story.map(i => (i.id === 'c2' ? { ...i, text: '- [ ] Build the raised bed' } : i))
+  const out = writeRevision(page, story, { model: 'm', date: 8 })
+  assert.equal(out.previous, page.journal.length + reconcile.length - 1)
+  assert.equal(JSON.stringify(storyAt(out.page, out.previous)), JSON.stringify(page.story))
+  assert.equal(JSON.stringify(storyAt(out.page)), JSON.stringify(story))
+})
+
+test('8: Rewind restores the old story byte for byte, as one more revision, and can itself be rewound', () => {
+  const page = journaled()
+  let n = 0
+  const saved = writeRevision(page, revisedStory(reviseItems({ page, markdown: REDRAFT, id: () => `g${n++}` })), { model: 'm', date: 60 }).page
+  const back = writeRevision(saved, storyAt(saved, 0), { kind: 'rewind', to: 0, keepIds: true, date: 70 })
+  assert.equal(JSON.stringify(back.page.story), JSON.stringify(page.story))
+  assert.ok(back.page.journal.length > saved.journal.length, 'the journal only grows')
+  assert.deepEqual(back.page.journal.slice(0, saved.journal.length), saved.journal)
+  assert.deepEqual(lastRevision(back.page), { kind: 'rewind', previous: saved.journal.length - 1, to: 0, date: 70 })
+  // Rewind the rewind: the revised story again, byte for byte.
+  const again = writeRevision(back.page, storyAt(back.page, back.previous), { kind: 'rewind', to: back.previous, keepIds: true, date: 80 })
+  assert.equal(JSON.stringify(again.page.story), JSON.stringify(saved.story))
+})
+
+test('8: saveRevision and rewind on the farm: recycler copy, one page journaled, markdown re-rendered, refusals', async () => {
+  process.env.WIKI_WIP_DIR = scratch()
+  const f = farm()
+  const page = journaled()
+  put(f.site, 'toy-plan', page)
+  const original = fs.readFileSync(path.join(f.site, 'pages', 'toy-plan'), 'utf8')
+  const others = Object.fromEntries(fs.readdirSync(path.join(f.site, 'pages')).filter(s => s !== 'toy-plan').map(s => [s, fs.readFileSync(path.join(f.site, 'pages', s), 'utf8')]))
+  fs.writeFileSync(path.join(f.status, 'sitemap.json'), '[]')
+  let n = 0
+  const ghost = reviseItems({ page, markdown: REDRAFT, model: 'claude-opus-5-5', id: () => `g${n++}` })
+
+  // Refused: no plan item; another site's page; the WIP marker held.
+  await assert.rejects(saveRevision({ slug: 'toy-plan', story: ghost.filter(i => i.type !== 'plan'), ...f.ctx }), e => e.status === 400 && /no plan item/.test(e.message))
+  await assert.rejects(saveRevision({ slug: 'toy-plan', story: [{ type: 'markdown', text: 'x' }], ...f.ctx }), e => e.status === 400)
+  const c = claim({ session: 'another session' })
+  await assert.rejects(saveRevision({ slug: 'toy-plan', story: ghost, ...f.ctx }), e => e.status === 409 && /another session/.test(e.message))
+  release(c.token)
+  put(f.site, 'toy-plan', { ...page, journal: [...page.journal, { type: 'fork', site: 'other.fish', date: 2 }] })
+  await assert.rejects(saveRevision({ slug: 'toy-plan', story: ghost, ...f.ctx }), e => e.status === 400 && /forked from other\.fish/.test(e.message))
+  fs.writeFileSync(path.join(f.site, 'pages', 'toy-plan'), original)
+  assert.equal(fs.readFileSync(path.join(f.site, 'pages', 'toy-plan'), 'utf8'), original)
+
+  const r = await saveRevision({ slug: 'toy-plan', story: ghost, model: 'claude-cli:claude-opus-5-5', ...f.ctx })
+  assert.equal(r.written, true)
+  assert.deepEqual(r.previous, { rev: 0, title: 'Toy Plan_rev0', slug: 'toy-plan_rev0', path: '/view/toy-plan_rev0' })
+  assert.equal(r.recycled, 'recycle/toy-plan')
+  assert.equal(fs.readFileSync(path.join(f.site, 'recycle', 'toy-plan'), 'utf8'), original)
+  const saved = read(f.site, 'toy-plan')
+  assert.equal(saved.title, 'Toy Plan')
+  assert.deepEqual(saved.story.map(i => i.text), revisedStory(ghost).map(i => i.text), 'the ghost, less its first line')
+  assert.equal(saved.story[1].type, 'plan')
+  assert.equal(JSON.stringify(storyAt(saved, 0)), JSON.stringify(page.story))
+  assert.equal(r.journal.length, saved.journal.length)
+  assert.match(fs.readFileSync(path.join(f.site, 'assets', 'toy-plan', 'toy-plan.md'), 'utf8'), /Build the raised bed, forty centimetres/)
+  assert.equal(r.index.reset, true)
+  assert.ok(!fs.existsSync(path.join(f.status, 'sitemap.json')))
+  for (const [s, text] of Object.entries(others)) assert.equal(fs.readFileSync(path.join(f.site, 'pages', s), 'utf8'), text, `${s} untouched`)
+  assert.equal(JSON.parse(fs.readFileSync(path.join(process.env.WIKI_WIP_DIR, 'AGENT-WIP.json'), 'utf8')).status, 'DONE')
+  // The same story again changes nothing, and writes nothing.
+  const same = await saveRevision({ slug: 'toy-plan', story: ghost, ...f.ctx })
+  assert.equal(same.written, false)
+
+  // Rewind to rev 0: the old story byte for byte; the journal grows.
+  await assert.rejects(rewind({ slug: 'toy-plan', rev: 999, ...f.ctx }), e => e.status === 400 && /no rev 999/.test(e.message))
+  const w = await rewind({ slug: 'toy-plan', rev: 0, ...f.ctx })
+  assert.equal(w.written, true)
+  const back = read(f.site, 'toy-plan')
+  assert.equal(JSON.stringify(back.story), JSON.stringify(page.story))
+  assert.ok(back.journal.length > saved.journal.length)
+  assert.equal(w.previous.rev, saved.journal.length - 1)
+  assert.equal(fs.readFileSync(path.join(f.site, 'recycle', 'toy-plan'), 'utf8'), JSON.stringify(saved, null, 2))
+  assert.doesNotMatch(fs.readFileSync(path.join(f.site, 'assets', 'toy-plan', 'toy-plan.md'), 'utf8'), /forty centimetres/)
+  // Rewinding the rewind brings the revision back.
+  await rewind({ slug: 'toy-plan', rev: w.previous.rev, ...f.ctx })
+  assert.equal(JSON.stringify(read(f.site, 'toy-plan').story), JSON.stringify(saved.story))
+})

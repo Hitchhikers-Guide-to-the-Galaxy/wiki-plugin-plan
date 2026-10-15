@@ -69,9 +69,9 @@ test('phasesOf and choosePhase: the next by default, by number or heading, null 
   assert.equal(choosePhase(done), null)
 })
 
-test('reportTitle: a phase report, a dated revision', () => {
+test('reportTitle: a phase report; a revision has the plan\'s own title', () => {
   assert.equal(reportTitle({ kind: 'next', planTitle: 'Toy Plan', phaseLabel: 'Phase 2' }), 'Toy Plan Phase 2 Report')
-  assert.equal(reportTitle({ kind: 'revise', planTitle: 'Toy Plan', date: '2026-10-10' }), 'Toy Plan Revision 2026-10-10')
+  assert.equal(reportTitle({ kind: 'revise', planTitle: 'Toy Plan', date: '2026-10-10' }), 'Toy Plan')
 })
 
 const REPORT = [
@@ -255,7 +255,7 @@ test('revise, a failing door, refusals before any claim, and a job orphaned on d
   process.env.CLAUDE_DOOR_BIN = path.join(f.root, 'no-such-claude')
   const ctx = { origin: 'toy.localhost', status: f.status, farmRoot: f.root }
   const r = await revise({ slug: 'toy-plan', ...ctx })
-  assert.equal(r.reportTitle, `Toy Plan Revision ${new Date().toISOString().slice(0, 10)}`)
+  assert.equal(r.reportTitle, 'Toy Plan')
   assert.equal(JSON.parse(fs.readFileSync(path.join(process.env.WIKI_WIP_DIR, 'AGENT-WIP.json'), 'utf8')).session, 'Plan Tool: Revise Plan toy.localhost/toy-plan')
   const failed = await until(async () => {
     const j = await job({ id: r.job, ...ctx })

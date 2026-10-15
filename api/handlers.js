@@ -18,7 +18,13 @@
 //             Tool); the answer is a phase report, kept in a job. Nothing is
 //             written to any page: the client opens the report as a ghost.
 //   revise  — Revise Plan: the same door, asked to redraft the plan given the
-//             answered questions. A job too; nothing written.
+//             answered questions. A job too; nothing written: the client opens
+//             the redraft as a ghost with the plan's own title (Phase 8).
+//   saveRevision — Save over the plan: the ghost's story written over the
+//             plan in place, through its journal (reviseJournal), a recycler
+//             copy first; the version it replaces is the plan's _rev<N>.
+//   rewind  — Rewind: a _rev<N> of the plan written back the same way, so the
+//             journal only grows and a rewind can itself be rewound.
 //   job     — how a next or revise run is getting on, and its report when done.
 //   finish  — Finish Plan (Phase 5), mechanical like update: when every phase
 //             checkpoint is ticked, writes the Conclusion section above # See
@@ -35,7 +41,7 @@ import crypto from 'node:crypto'
 
 import { ask, defaultModel } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf } from '../src/client/core.js'
+import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, storyAt, reconcileJournal, revLabel, revSlug } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
 import { buildContent, buildSiteContent, buildPageContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
 
@@ -755,4 +761,125 @@ export async function applyRevision({ slug, plan, origin, status } = {}) {
   })()
 
   return { job: id, status: j.status, kind: 'apply', slug: p.slug, title: p.page.title, proposal: j.proposal, pages: work.todo.map(w => ({ title: w.title, action: w.action })), refused: work.refused, kept: work.kept, model, session, started: j.started }
+}
+
+
+// ======================================================================
+// Phase 8 — Save over the plan, and Rewind.
+// ======================================================================
+//
+// Mechanical, like update: no model. Both write one page, the plan, whole and
+// journaled (writeRevision in core.js: the journal reconciled first when a
+// script wrote the page without entries, then reviseJournal), so the version
+// replaced is /view/<slug>_rev<N>, drawn by the wiki from the journal. Each
+// writes the page as it was to the site's recycler first (where the wiki's
+// own fork puts the page it replaces), re-renders the plan's markdown asset
+// as Update Plan does and resets the index. Refused: a page forked from or
+// credited to another site (foreignOf), and a held WIP marker (409).
+
+const ITEM_ID = /^[A-Za-z0-9_-]{1,64}$/
+
+/** The story a client sent: an array of items, each with a type and an id, the ids distinct. */
+const checkStory = story => {
+  if (!Array.isArray(story) || !story.length) throw problem(400, 'no story: send the ghost page\'s story to write over the plan')
+  const ids = new Set()
+  for (const it of story) {
+    if (!it || typeof it !== 'object' || typeof it.type !== 'string' || !it.type || typeof it.id !== 'string' || !ITEM_ID.test(it.id)) throw problem(400, 'every item needs a type and an id')
+    if (ids.has(it.id)) throw problem(400, `item id ${it.id} is there twice`)
+    ids.add(it.id)
+  }
+  return story
+}
+
+/** The plan as it was, to {site}/recycle/<slug>, as the wiki's fork saves it to its recycler. */
+const recycle = (status, site, slug, text) => {
+  const file = path.join(site, 'recycle', slug)
+  writeAtomic(status, file, text)
+  return `recycle/${slug}`
+}
+
+/** Read under the claim, refuse a foreign page, recycle, write, re-render, reset. */
+const writeOver = ({ origin, status, slug, session, holdOff, make }) => {
+  const site = siteDir(status)
+  const pageFile = path.join(site, 'pages', slug)
+  const wip = claim({ session, scope: `${origin}/${slug}`, holdOff })
+  try {
+    const text = fs.readFileSync(pageFile, 'utf8')
+    const page = JSON.parse(text)
+    const foreign = foreignOf(page, origin)
+    if (foreign) throw problem(400, `${page.title} is ${foreign}: another site's page is never written over; fork it here first`)
+    let out
+    try {
+      out = make(page)
+    } catch (e) {
+      throw e.status ? e : problem(500, `${e.message}; nothing was written`)
+    }
+    if (!out.changed) {
+      const released = release(wip.token)
+      return { slug, title: page.title, written: false, why: 'it would change nothing', wip: { token: wip.token, session, released } }
+    }
+    const recycled = recycle(status, site, slug, text)
+    writeAtomic(status, pageFile, JSON.stringify(out.page, null, 2))
+    const indexReset = resetIndex(status)
+    const md = planMarkdown(out.page)
+    const assetFile = path.join(site, 'assets', slug, `${slug}.md`)
+    let before = null
+    try {
+      before = fs.readFileSync(assetFile, 'utf8')
+    } catch {}
+    writeAtomic(status, assetFile, md)
+    const released = release(wip.token)
+    const n = out.previous
+    return {
+      slug,
+      title: page.title,
+      written: true,
+      previous: { rev: n, title: revLabel(page.title, n), slug: revSlug(page.title, n), path: `/view/${revSlug(page.title, n)}` },
+      journal: { reconciled: out.reconcile.length, entries: out.actions.length, count: count(out.actions), length: out.page.journal.length },
+      recycled,
+      index: { reset: indexReset },
+      asset: { rendered: true, path: `/assets/${slug}/${slug}.md`, changed: before !== md, lines: md.split('\n').length - 1 },
+      wip: { token: wip.token, session, claimed: wip.claimed, released, ...(wip.took ? { tookStaleClaim: wip.took } : {}) },
+    }
+  } catch (e) {
+    try {
+      release(wip.token)
+    } catch {}
+    throw e
+  }
+}
+
+/** Save over the plan: the revise ghost's story written over the plan, journaled, the old version its _rev. */
+export async function saveRevision({ slug, story, model, origin, status } = {}) {
+  const p = readPlan(status, origin, slug)
+  const want = checkStory(revisedStory(checkStory(story)))
+  if (!want.some(it => it.type === 'plan')) throw problem(400, `the revision carries no plan item: a plan keeps its status line`)
+  return writeOver({
+    origin,
+    status,
+    slug: p.slug,
+    session: `Plan Tool: Save over the plan ${origin}/${p.slug}`,
+    holdOff: `Save over the plan is writing ${origin}/${p.slug}`,
+    make: page => writeRevision(page, want, { kind: 'revise', model: model || '' }),
+  })
+}
+
+/** Rewind: the plan's _rev<N> written back as one more revision, so the journal only grows. */
+export async function rewind({ slug, rev, origin, status } = {}) {
+  const p = readPlan(status, origin, slug)
+  const n = Number(rev)
+  if (!Number.isInteger(n) || n < 0) throw problem(400, `not a revision number: ${rev}`)
+  return writeOver({
+    origin,
+    status,
+    slug: p.slug,
+    session: `Plan Tool: Rewind ${origin}/${p.slug} to rev ${n}`,
+    holdOff: `Rewind is writing ${origin}/${p.slug}`,
+    make: page => {
+      const journal = [...(page.journal || []), ...reconcileJournal(page)]
+      if (n >= journal.length) throw problem(400, `${page.title} has no rev ${n}: its journal has ${journal.length} entries`)
+      const target = storyAt({ ...page, journal }, n)
+      return writeRevision(page, target, { kind: 'rewind', to: n, keepIds: true })
+    },
+  })
 }
