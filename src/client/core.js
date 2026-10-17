@@ -1707,6 +1707,25 @@ export const parseResearch = (markdown, link, slug = asSlug) => {
   return { title, body: lines.slice(start).join('\n').trim() }
 }
 
+// A reference page keeps a list together: paragraphs split on blank lines, a
+// run of list blocks is one item, a heading and its strap one item, and a
+// heading with no strap (# Links) takes the list that follows it. Unlike a
+// report or a checklist, where each point is its own draggable item.
+const LIST_BLOCK_RE = /^\s*([-*+]|\d+[.)])\s/
+const isListBlock = b => b.split('\n').every(l => LIST_BLOCK_RE.test(l) || /^\s+\S/.test(l))
+export const pageBlocks = text => {
+  const out = []
+  for (const raw of String(text || '').trim().split(/\n\s*\n/)) {
+    const b = raw.trim()
+    if (!b) continue
+    const prev = out[out.length - 1]
+    const headedList = prev !== undefined && /^#{1,6}\s/.test(prev) && !prev.split('\n').slice(1).some(l => !LIST_BLOCK_RE.test(l) && !/^\s+\S/.test(l))
+    if (prev !== undefined && isListBlock(b) && (isListBlock(prev) || headedList) && !/^#{1,6}\s[^\n]*\n>/.test(prev)) out[out.length - 1] = `${prev}\n${b}`
+    else out.push(b)
+  }
+  return joinStraps(out)
+}
+
 /** The page's story, built from the model's body. */
 export const researchedStory = ({ title, body, planTitle, model = '', date = today(), id = randomHex }) => {
   const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
@@ -1716,7 +1735,7 @@ export const researchedStory = ({ title, body, planTitle, model = '', date = tod
   const text = String(body || '').replace(GFM_LINK_RE, (_, label, url) => `[${url} ${label}]`)
   for (const piece of text.split(/(^```[\w-]*\n[\s\S]*?\n```$)/m)) {
     if (FENCE_RE.test(piece.trim())) blocks.push(piece.trim())
-    else blocks.push(...joinStraps(splitMarkdown(piece)))
+    else blocks.push(...pageBlocks(piece))
   }
   let cut = blocks.findIndex(b => SEE_HEADING_RE.test(b.split('\n')[0].trim()))
   const kept = cut === -1 ? blocks : blocks.slice(0, cut)

@@ -66,6 +66,8 @@ test('researchedStory: the opening line, the body as items, commands as terminal
   const st = researchedStory({ title: 'fx', body, planTitle: 'Hook Plan', model: 'claude-cli:claude-opus-5', date: '2026-10-17', id })
   assert.equal(st[0].text, "This page is AI generated: researched on the web by claude-opus-5 through the [[Plan Tool]]'s Red-link, 2026-10-17, for a link on [[Hook Plan]].")
   assert.deepEqual(st.map(i => i.type), ['markdown', 'markdown', 'markdown', 'markdown', 'markdown', 'terminal', 'code', 'markdown', 'markdown'])
+  const listed = researchedStory({ title: 'fx', body: 'fx is a viewer.\n\n# What It Does\n> Shows JSON.\n\n- folds\n\n- searches\n- streams\n\n# Links\n\n- [https://a.org a]\n\n- [https://b.org b]', planTitle: 'Hook Plan', id })
+  assert.deepEqual(listed.slice(1, -1).map(i => i.text), ['fx is a viewer.', '# What It Does\n> Shows JSON.', '- folds\n- searches\n- streams', '# Links\n- [https://a.org a]\n- [https://b.org b]'], 'a list is one item; Links takes its list')
   assert.equal(st[2].text, '# fx\n> Not a page heading, a section.', 'a heading with a strap is a section, kept')
   assert.equal(st[5].text, 'brew install fx\n\nfx --version', 'the fence kept whole, prompts dropped')
   assert.equal(st[6].text, '{"a": 1}')
