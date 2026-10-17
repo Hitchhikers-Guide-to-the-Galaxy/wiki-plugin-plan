@@ -138,33 +138,18 @@
     },
     {
       "type": "markdown",
-      "id": "3ecd8e56b4bf2a4e",
-      "text": "# Create Red Links\n> Terms a reader may not know, made links."
-    },
-    {
-      "type": "markdown",
-      "id": "3c668e2c60307621",
-      "text": "Often the first step on a plan is to link the words that are not understood. **Create Red Links** (called Red-link in 0.5.0), beside Red-link on the status line and on the Plan Tool, calls `POST /system/api/plan/link-terms.json` with the plan's slug. The door is given only the text Create Red Links may write in and asked for a list of terms a reader new to the work may not understand, copied as written. The tool then links the first plain mention of each term, once per page, and opens the plan as a ghost with its own title, the line at its top naming the terms linked. The links are red where no page exists yet, ready for a [[Stub]] or for the [[Voice Tool]]. Save over the plan writes it through the journal as a revision is written, so its _rev and Rewind work the same way, and the status line says Linked terms with the date and the model."
-    },
-    {
-      "type": "markdown",
-      "id": "5980af67eba88800",
-      "text": "The model only names the terms; the plugin decides where they go (linkTerms in core.js), so the rule holds whatever the model says. Create Red Links writes only in markdown items, never in code, terminal, timeline, html, paragraph or plan items. It never writes under the # Open Questions heading, whose red question links, - [ ] [[Question?]] gloss, are made by hand, and never in the Assets and See sections. It skips heading items, fenced blocks, a task line holding a question link anywhere on the page, and anything inside an existing [[link]], `code`, a [text](url) link, an html tag or a url. A term already linked on the page is left alone, and a shorter term never splits a mention of a longer one."
-    },
-    {
-      "type": "markdown",
       "id": "5ccd129a683db5f3",
-      "text": "# Red-link\n> The links that go nowhere, given pages."
+      "text": "# Red-link\n> The links that go nowhere, researched and written."
     },
     {
       "type": "markdown",
       "id": "53c500d4dbfdf66b",
-      "text": "Red-link does what the house has always meant by red-linking a page: it finds the links on the plan that have no page behind them and writes their pages. A link is red when no page with its slug is on any site of the farm, or of the farms named in WIKI_EXTRA_FARMS. Links are read from markdown, paragraph and html items, outside fenced blocks, and from timeline event labels. Question links, any title ending in a question mark, and everything under the # Open Questions heading are never stubbed. A page behind a question marks it answered, and answering is a person's act, by hand or through the [[Voice Tool]]."
+      "text": "Red-link does what the house has always meant by red-linking a page: it finds the links on the plan that have no page behind them and writes their pages. A link is red when no page with its slug is on any site of the farm, or of the farms named in WIKI_EXTRA_FARMS, and it is not one of the installed plugins' own pages. Links are read from markdown, paragraph and html items, outside fenced blocks, and from timeline event labels. Question links, any title ending in a question mark, and everything under the # Open Questions heading are never written. A page behind a question marks it answered, and answering is a person's act, by hand or through the [[Voice Tool]]."
     },
     {
       "type": "markdown",
       "id": "b2f5d5d328424364",
-      "text": "The button calls `POST /system/api/plan/redlink.json`. Up to 20 red links a run go to the Claude door, with the plan, the titles of the site's pages and the line each link was coined in. The model drafts a stub for each, the [[Fedwiki Stub Page Skill]] rules inlined. Each stub opens \"This page is an AI generated [[Stub]].\" with a short, confident definition, and its See section starts with [[Stub]] and links back to the plan. Nothing is written yet. The tool lists the drafts, and each title opens its stub as a ghost to read; the ghost's own fork flag writes just that one. Create the N stubs calls `POST /system/api/plan/write-stubs.json`, which writes each as a new page, one journaled create each, never over a page that exists by now. It also writes the site's Stub page if the site lacks one, and resets the index."
+      "text": "The button calls `POST /system/api/plan/redlink.json`, which starts a job and takes up to six red links a run, one at a time. For each, the Claude door researches the term on the web from its primary sources: the CLI is given WebSearch and WebFetch and no other tool, in its own memory scope. The page is written at once, under the name as its makers write it (fx, jless, ChatHackers). It opens with a line saying it is AI generated and researched on the web for this plan. Sections follow as the subject needs, with commands as terminal items and a Links section of the sources read; a See section links back to the plan. Each page is new, with one journaled create, and never written over a page that exists by then. The tool's line names the page being researched, then links every page written, with any that were skipped or failed."
     },
     {
       "type": "markdown",
@@ -928,6 +913,51 @@
       },
       "after": "53c500d4dbfdf66b",
       "date": 1792244056913
+    },
+    {
+      "type": "remove",
+      "id": "3ecd8e56b4bf2a4e",
+      "date": 1792245408989
+    },
+    {
+      "type": "remove",
+      "id": "3c668e2c60307621",
+      "date": 1792245408989
+    },
+    {
+      "type": "remove",
+      "id": "5980af67eba88800",
+      "date": 1792245408989
+    },
+    {
+      "type": "edit",
+      "id": "5ccd129a683db5f3",
+      "item": {
+        "type": "markdown",
+        "id": "5ccd129a683db5f3",
+        "text": "# Red-link\n> The links that go nowhere, researched and written."
+      },
+      "date": 1792245408989
+    },
+    {
+      "type": "edit",
+      "id": "53c500d4dbfdf66b",
+      "item": {
+        "type": "markdown",
+        "id": "53c500d4dbfdf66b",
+        "text": "Red-link does what the house has always meant by red-linking a page: it finds the links on the plan that have no page behind them and writes their pages. A link is red when no page with its slug is on any site of the farm, or of the farms named in WIKI_EXTRA_FARMS, and it is not one of the installed plugins' own pages. Links are read from markdown, paragraph and html items, outside fenced blocks, and from timeline event labels. Question links, any title ending in a question mark, and everything under the # Open Questions heading are never written. A page behind a question marks it answered, and answering is a person's act, by hand or through the [[Voice Tool]]."
+      },
+      "date": 1792245408989
+    },
+    {
+      "type": "edit",
+      "id": "b2f5d5d328424364",
+      "item": {
+        "type": "markdown",
+        "id": "b2f5d5d328424364",
+        "text": "The button calls `POST /system/api/plan/redlink.json`, which starts a job and takes up to six red links a run, one at a time. For each, the Claude door researches the term on the web from its primary sources: the CLI is given WebSearch and WebFetch and no other tool, in its own memory scope. The page is written at once, under the name as its makers write it (fx, jless, ChatHackers). It opens with a line saying it is AI generated and researched on the web for this plan. Sections follow as the subject needs, with commands as terminal items and a Links section of the sources read; a See section links back to the plan. Each page is new, with one journaled create, and never written over a page that exists by then. The tool's line names the page being researched, then links every page written, with any that were skipped or failed."
+      },
+      "date": 1792245408989
     }
   ],
   "plugin": "plan"

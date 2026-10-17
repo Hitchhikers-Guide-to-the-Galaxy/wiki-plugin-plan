@@ -1,19 +1,20 @@
-// 0.6.0 — Red-link: find the plan's links with no page behind them and stub
-// them, the house meaning of "red-link this page" (fedwiki-stub-page).
-// Question links and the Open Questions section are never stubbed. End to end
-// on a throwaway farm with a stand-in `claude` behind the real shared door.
+// Red-link: find the plan's links with no page behind them and write their
+// pages, the house meaning of "red-link this page". Since 0.7.0 each page is
+// researched on the web through the door and written in full. Question links
+// and the Open Questions section are never written. End to end on a throwaway
+// farm with a stand-in `claude` behind the real shared door.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { planLinks, redLinksOf, titleCase, parseStubs, matchStubs, stubStory, stubPage, stubOfStubs, STUB_LINE, asSlug } from '../src/client/core.js'
+import { planLinks, redLinksOf, parseResearch, researchedStory, researchedPage, asSlug } from '../src/client/core.js'
 
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'plan-stubs-'))
 process.env.WIKI_WIP_DIR = scratch()
-const { buildStubsContent } = await import('../api/prompt.js')
-const { redlink, writeStubs, job } = await import('../api/handlers.js')
+const { buildResearchContent } = await import('../api/prompt.js')
+const { redlink, job } = await import('../api/handlers.js')
 
 const md = (id, text) => ({ type: 'markdown', id, text })
 const plan = () => ({
@@ -52,56 +53,47 @@ test('redLinksOf: red once each; questions, Open Questions, own title and known 
   assert.equal(r.red[1].section, 'Phase 1')
 })
 
-test('titleCase: the link words capitalised; capitals and small words kept', () => {
-  assert.equal(titleCase('capability URL'), 'Capability URL')
-  assert.equal(titleCase('state of the art'), 'State of the Art')
-  assert.equal(titleCase('deSEC zone'), 'deSEC Zone')
-  assert.equal(asSlug(titleCase('machine-free name')), asSlug('machine-free name'), 'same slug, so the link resolves')
+test('parseResearch: the TITLE line names the page when it is the same page as the link', () => {
+  assert.deepEqual(parseResearch('TITLE: fx\n\nfx is a JSON viewer.', 'Fx'), { title: 'fx', body: 'fx is a JSON viewer.' })
+  assert.deepEqual(parseResearch('TITLE: Something Else\n\nBody.', 'fx'), { title: 'fx', body: 'Body.' }, 'another page: the link words stand')
+  assert.deepEqual(parseResearch('No title line.', 'fx'), { title: 'fx', body: 'No title line.' })
 })
 
-test('parseStubs and matchStubs: drafts by heading, matched to what was asked by slug', () => {
-  const drafts = parseStubs('=== Webhook relay\nThis page is an AI generated [[Stub]]. A relay.\n\n=== [[Caddy]] ===\nA web server.\n\n=== Stray\nNot asked for.\n=== Empty\n')
-  assert.deepEqual(drafts.map(d => d.title), ['Webhook relay', 'Caddy', 'Stray'])
-  const red = [{ title: 'Webhook relay', slug: 'webhook-relay' }, { title: 'caddy', slug: 'caddy' }, { title: 'Synapse', slug: 'synapse' }]
-  const m = matchStubs(drafts, red)
-  assert.deepEqual(m.stubs.map(s => [s.title, s.slug]), [['Webhook Relay', 'webhook-relay'], ['Caddy', 'caddy']])
-  assert.deepEqual(m.missing, ['Synapse'])
-})
-
-test('stubStory: the accreditation line first, a title heading and a model See dropped, See = Stub + plan', () => {
+test('researchedStory: the opening line, the body as items, commands as terminal items, wiki links, the See', () => {
   let n = 0
   const id = () => `i${n++}`
-  const plain = stubStory({ title: 'Caddy', markdown: '# Caddy\n\nA web server that fronts the farm.\n\n# See\n\n- [[Elsewhere]]', planTitle: 'Hook Plan', id })
-  assert.equal(plain[0].text, `${STUB_LINE} A web server that fronts the farm.`)
-  assert.equal(plain.at(-1).text, '# See\n\n- [[Stub]]\n- [[Hook Plan]]')
-  assert.equal(plain.length, 2)
-  const opened = stubStory({ title: 'Relay', markdown: `${STUB_LINE} A relay.\n\n# How It Runs\n> Behind Caddy.\n\nOne process.`, planTitle: 'Hook Plan', id })
-  assert.deepEqual(opened.map(i => i.text.split('\n')[0]), [`${STUB_LINE} A relay.`, '# How It Runs', 'One process.', '# See'])
-  const page = stubPage({ title: 'Relay', markdown: 'A relay.', planTitle: 'Hook Plan', model: 'claude-cli:claude-opus-5', date: 7, id })
+  const body = 'fx is a terminal JSON viewer by Anton Medvedev.\n\n# fx\n> Not a page heading, a section.\n\nIt folds.\n\n# Install\n> One command.\n\n```bash\n$ brew install fx\n\n$ fx --version\n```\n\n```json\n{"a": 1}\n```\n\n# Links\n- [the repository](https://github.com/antonmedv/fx)\n- [https://fx.wtf fx.wtf]\n\n# See\n\n- [[Elsewhere]]'
+  const st = researchedStory({ title: 'fx', body, planTitle: 'Hook Plan', model: 'claude-cli:claude-opus-5', date: '2026-10-17', id })
+  assert.equal(st[0].text, "This page is AI generated: researched on the web by claude-opus-5 through the [[Plan Tool]]'s Red-link, 2026-10-17, for a link on [[Hook Plan]].")
+  assert.deepEqual(st.map(i => i.type), ['markdown', 'markdown', 'markdown', 'markdown', 'markdown', 'terminal', 'code', 'markdown', 'markdown'])
+  assert.equal(st[2].text, '# fx\n> Not a page heading, a section.', 'a heading with a strap is a section, kept')
+  assert.equal(st[5].text, 'brew install fx\n\nfx --version', 'the fence kept whole, prompts dropped')
+  assert.equal(st[6].text, '{"a": 1}')
+  assert.equal(st[7].text, '# Links\n- [https://github.com/antonmedv/fx the repository]\n- [https://fx.wtf fx.wtf]')
+  assert.equal(st.at(-1).text, '# See\n\n- [[Hook Plan]]')
+  const page = researchedPage({ title: 'fx', body: 'fx is a viewer.', planTitle: 'Hook Plan', model: 'claude-cli:claude-opus-5', date: Date.UTC(2026, 9, 17), id })
   assert.equal(page.journal.length, 1)
-  assert.equal(page.journal[0].type, 'create')
-  assert.match(page.journal[0].provenance, /^AI generated stub for a red link on Hook Plan, through the Plan Tool's Red-link by claude-opus-5\.$/)
+  assert.match(page.journal[0].provenance, /^Researched on the web by claude-opus-5 through the Plan Tool's Red-link, for a red link on Hook Plan\.$/)
   assert.deepEqual(page.journal[0].item.story, page.story)
-  assert.equal(stubOfStubs().title, 'Stub')
 })
 
-test('buildStubsContent: the plan, the site titles, each red link with its line', () => {
-  const r = redLinksOf(plan(), new Set(['pi5', 'welcome-visitors', 'about-hook-plugin']))
-  const { content, account } = buildStubsContent({ page: plan(), red: r.red, origin: 'hooks.localhost', titles: ['Welcome Visitors', 'Pi5'] })
-  assert.match(content, /<red-links count="5">/)
-  assert.match(content, /- capability URL \(under "Phase 1"\): - \[ \] Point the \[\[capability URL\]\] at \[\[Caddy\]\]/)
-  assert.match(content, /This page is an AI generated \[\[Stub\]\]\./)
-  assert.match(content, /=== Title/)
-  assert.equal(account.red, 5)
+test('buildResearchContent: the plan, the link and its line, the site titles, the ask with tools named', () => {
+  const r = redLinksOf(plan(), new Set(['pi5', 'welcome-visitors']))
+  const link = r.red.find(x => x.title === 'capability URL')
+  const { content } = buildResearchContent({ page: plan(), link, titles: ['Welcome Visitors'], origin: 'hooks.localhost' })
+  assert.match(content, /<red-link title="capability URL" section="Phase 1">\n- \[ \] Point the \[\[capability URL\]\] at \[\[Caddy\]\]\n<\/red-link>/)
+  assert.match(content, /Use WebSearch and WebFetch/)
+  assert.match(content, /TITLE: /)
+  assert.match(content, /\[https:\/\/example\.org\/page label\]/)
 })
 
-const standIn = (dir, answer) => {
+// A stand-in claude: records its arguments, answers for the link it was asked about.
+const standIn = dir => {
   const bin = path.join(dir, 'claude')
-  fs.writeFileSync(path.join(dir, 'answer.md'), answer)
-  fs.writeFileSync(bin, `#!/bin/sh\ncat > "${dir}/asked.txt"\nsleep 1\ncat "${dir}/answer.md"\n`, { mode: 0o755 })
+  fs.writeFileSync(bin, `#!/bin/sh\necho "$*" >> "${dir}/args.log"\ncat > "${dir}/asked.txt"\nt=$(grep -o '<red-link title="[^"]*"' "${dir}/asked.txt" | head -1 | sed 's/.*title="//;s/"$//')\n[ "$t" = "Caddy" ] && { echo "nope" >&2; exit 3; }\nprintf 'TITLE: %s\\n\\n%s is a thing the plan uses, read from its site.\\n\\n# Links\\n- [https://example.org/%s %s]\\n' "$t" "$t" "$t" "$t"\n`, { mode: 0o755 })
   return bin
 }
-const until = async (fn, ms = 10000) => {
+const until = async (fn, ms = 20000) => {
   const end = Date.now() + ms
   while (Date.now() < end) {
     const v = await fn()
@@ -111,7 +103,7 @@ const until = async (fn, ms = 10000) => {
   throw new Error('timed out')
 }
 
-test('redlink and writeStubs on a farm: drafts in a job, then new pages, the Stub page, never an overwrite', async () => {
+test('redlink on a farm: each red link researched and written, one at a time; questions, existing pages and failures reported', async () => {
   const root = scratch()
   const extra = scratch()
   const site = path.join(root, 'hooks.localhost')
@@ -121,14 +113,14 @@ test('redlink and writeStubs on a farm: drafts in a job, then new pages, the Stu
   fs.writeFileSync(path.join(root, 'sister.localhost', 'pages', 'pi5'), '{}') // on a sibling site: not red
   fs.writeFileSync(path.join(extra, 'public.fish', 'pages', 'synapse'), '{}') // on an extra farm: not red
   process.env.WIKI_EXTRA_FARMS = extra
-  // A plugin page (About Hook Plugin) is served by the farm, not stored on a site: not red.
-  const pkg = scratch()
+  const pkg = scratch() // an installed plugin's own page: not red
   fs.mkdirSync(path.join(pkg, 'wiki-plugin-hook', 'pages'), { recursive: true })
   fs.writeFileSync(path.join(pkg, 'wiki-plugin-hook', 'pages', 'about-hook-plugin'), '{}')
   process.env.WIKI_PACKAGE_DIR = pkg
   const ctx = { origin: 'hooks.localhost', status: path.join(site, 'status'), farmRoot: root }
   process.env.CLAUDE_DOOR_KEY_FILE = path.join(root, 'no-key')
-  process.env.CLAUDE_DOOR_BIN = standIn(root, '=== Webhook relay\nThis page is an AI generated [[Stub]]. The relay takes the bot\'s posts.\n\n=== capability URL\nA URL that is its own key.\n\n=== Caddy\nThe web server in front of the farm.\n')
+  process.env.CLAUDE_DOOR_BIN = standIn(root)
+  process.env.CLAUDE_DOOR_SCOPE_MEMORY = 'off'
   delete process.env.CLAUDE_DOOR_MODEL
 
   const started = await redlink({ slug: 'hook-plan', ...ctx })
@@ -139,36 +131,30 @@ test('redlink and writeStubs on a farm: drafts in a job, then new pages, the Stu
   assert.equal(done.status, 'done', done.error)
   assert.deepEqual(done.meta.red, ['Webhook relay', 'capability URL', 'Caddy', 'Relay Build'])
   assert.deepEqual(done.meta.questions, ['Is it safe?', 'Which relay?'])
-  assert.deepEqual(done.result.stubs.map(s => s.title), ['Webhook Relay', 'Capability URL', 'Caddy'])
-  assert.deepEqual(done.result.missing, ['Relay Build'])
-  const asked = fs.readFileSync(path.join(root, 'asked.txt'), 'utf8')
-  assert.ok(!asked.includes('- Which relay?'), 'a question was never asked for')
-  assert.deepEqual(fs.readdirSync(path.join(site, 'pages')).sort(), ['hook-plan', 'welcome-visitors'], 'the job wrote nothing')
-
-  // Someone writes a Caddy page meanwhile: Create never overwrites it.
-  fs.writeFileSync(path.join(site, 'pages', 'caddy'), '{"title":"Caddy","story":[],"journal":[]}')
-  const w = await writeStubs({ slug: 'hook-plan', job: started.job, ...ctx })
-  assert.deepEqual(w.written.map(x => x.slug), ['webhook-relay', 'capability-url'])
-  assert.deepEqual(w.skipped.map(x => x.slug), ['caddy'])
-  assert.equal(w.stubPage, true)
-  assert.equal(fs.readFileSync(path.join(site, 'pages', 'caddy'), 'utf8'), '{"title":"Caddy","story":[],"journal":[]}')
+  assert.deepEqual(done.result.written.map(x => x.slug), ['webhook-relay', 'capability-url', 'relay-build'])
+  assert.deepEqual(done.result.failed.map(x => x.slug), ['caddy'])
+  assert.match(done.result.failed[0].error, /did not answer/)
+  assert.deepEqual(done.progress, { n: 4, of: 4, title: 'Relay Build' })
+  const args = fs.readFileSync(path.join(root, 'args.log'), 'utf8').trim().split('\n')
+  assert.equal(args.length, 4, 'one question per red link')
+  for (const a of args) assert.match(a, /--tools WebSearch,WebFetch --allowedTools WebSearch,WebFetch --disallowedTools Bash,/)
   const relay = JSON.parse(fs.readFileSync(path.join(site, 'pages', 'webhook-relay'), 'utf8'))
-  assert.equal(relay.title, 'Webhook Relay')
-  assert.match(relay.story[0].text, /^This page is an AI generated \[\[Stub\]\]\. The relay takes/)
-  assert.equal(relay.story.at(-1).text, '# See\n\n- [[Stub]]\n- [[Hook Plan]]')
-  assert.equal(JSON.parse(fs.readFileSync(path.join(site, 'pages', 'capability-url'), 'utf8')).story[0].text, `${STUB_LINE} A URL that is its own key.`)
-  assert.equal(JSON.parse(fs.readFileSync(path.join(site, 'pages', 'stub'), 'utf8')).title, 'Stub')
+  assert.equal(relay.title, 'Webhook relay')
+  assert.match(relay.story[0].text, /^This page is AI generated: researched on the web/)
+  assert.equal(relay.story[1].text, 'Webhook relay is a thing the plan uses, read from its site.')
+  assert.equal(relay.story[2].text, '# Links\n- [https://example.org/Webhook relay Webhook relay]')
+  assert.equal(relay.story.at(-1).text, '# See\n\n- [[Hook Plan]]')
+  assert.ok(!fs.existsSync(path.join(site, 'pages', 'is-it-safe')), 'a question is never answered by the tool')
+  assert.ok(!fs.existsSync(path.join(site, 'status', 'sitemap.json')), 'the index was reset')
 
-  const again = await writeStubs({ slug: 'hook-plan', job: started.job, titles: ['Webhook Relay'], ...ctx })
-  assert.deepEqual(again.written, [])
-  assert.equal(again.skipped[0].slug, 'webhook-relay')
-  await assert.rejects(writeStubs({ slug: 'hook-plan', job: started.job, titles: ['Nope'], ...ctx }), e => e.status === 400)
-
-  // Only Relay Build is red now; a plan with none is told so.
-  const left = redLinksOf(JSON.parse(fs.readFileSync(path.join(site, 'pages', 'hook-plan'), 'utf8')), new Set([...fs.readdirSync(path.join(site, 'pages')), 'pi5', 'synapse', 'about-hook-plugin']))
-  assert.deepEqual(left.red.map(r => r.title), ['Relay Build'])
-  fs.writeFileSync(path.join(site, 'pages', 'relay-build'), '{}')
+  // Again: only Caddy, which failed, is red now.
+  const again = await redlink({ slug: 'hook-plan', ...ctx })
+  const second = await until(async () => {
+    const j = await job({ id: again.job, ...ctx })
+    return j.status !== 'running' && j
+  })
+  assert.deepEqual(second.meta.red, ['Caddy'])
+  fs.writeFileSync(path.join(site, 'pages', 'caddy'), '{}')
   await assert.rejects(redlink({ slug: 'hook-plan', ...ctx }), e => e.status === 400 && /has no red links/.test(e.message) && /2 question links are left for their answers/.test(e.message))
-  delete process.env.WIKI_EXTRA_FARMS
-  delete process.env.WIKI_PACKAGE_DIR
+  for (const k of ['WIKI_EXTRA_FARMS', 'WIKI_PACKAGE_DIR', 'CLAUDE_DOOR_SCOPE_MEMORY']) delete process.env[k]
 })

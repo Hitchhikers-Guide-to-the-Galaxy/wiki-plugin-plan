@@ -1597,206 +1597,14 @@ export const lastRevision = page => {
 
 
 // ======================================================================
-// Create Red Links (0.5.0, named Red-link until 0.6.0): terms a reader may
-// not understand, made [[links]]. The opposite of Red-link (below), which
-// finds the links that have no page and writes their pages.
-// ======================================================================
-//
-// Often the first step on a plan is to link the words that are not
-// understood: each becomes a red link, ready for a stub or for the Voice
-// Tool. The model only NAMES the terms (the door's answer, one per line);
-// this code decides where, if anywhere, each is linked, so the rule below
-// holds whatever the model says. The first plain mention of a term is
-// wrapped in [[ ]], once per page, and only in:
-//   a markdown item — never code, terminal, plan, timeline, html or any
-//     other type, and never a paragraph item;
-//   outside the "# Open Questions" section (its red question links,
-//     - [ ] [[Question?]] gloss, are made by hand) and outside the Assets
-//     and See sections the tool keeps as they are;
-//   not a heading item (its heading line and the strap beneath it);
-//   not a line inside a ``` fence, not a heading line, not a task line that
-//     holds a question link anywhere on the page;
-//   not inside an existing [[link]], `code`, a [text](url) link, an html
-//     tag or a bare url.
-// A term already linked anywhere on the page is left alone, and so is the
-// plan's own title.
-
-const QUESTIONS_RE = /^open questions$/i
-const PROTECT_RE = /\[\[[^\]]*\]\]|`[^`\n]*`|\[[^\]\n]*\]\([^)\n]*\)|<[^>\n]+>|https?:\/\/\S+/g
-const QUESTION_LINE_RE = /^\s*[-*]\s+\[[ xX]\]\s.*\[\[[^\]]*\?\]\]/
-const TERM_MAX = 40
-
-/** The ids of the items Create Red Links may write in: markdown, outside Open Questions, Assets and See, not a heading. */
-export const termsEligible = page => {
-  const story = page && Array.isArray(page.story) ? page.story : []
-  const ids = new Set()
-  let held = false
-  for (const it of story) {
-    if (!it) continue
-    const h = headingOf(it)
-    if (h !== null) {
-      held = QUESTIONS_RE.test(h) || TAIL_RE.test(h)
-      continue
-    }
-    if (held || it.type !== 'markdown' || typeof it.text !== 'string') continue
-    ids.add(it.id)
-  }
-  return ids
-}
-
-/** The model's answer read as terms: one per list line, links, code marks, bold and a trailing gloss stripped. */
-export const parseTerms = markdown => {
-  const out = []
-  const seen = new Set()
-  for (const raw of String(markdown || '').split('\n')) {
-    const m = raw.match(/^\s*(?:[-*+]|\d+[.)])\s+(.*)$/)
-    if (!m) continue
-    let t = m[1]
-      .replace(/\*\*|__|`/g, '')
-      .replace(/^\[\[|\]\]$/g, '')
-      .split(/\s+[—–]\s+|\s+-\s+|:\s/)[0]
-      .replace(/^["“'‘]|["”'’]$/g, '')
-      .replace(/[.,;]+$/, '')
-      .trim()
-    if (!t || /^none$/i.test(t) || /[\[\]\n|]/.test(t) || t.length > 80) continue
-    const k = t.toLowerCase()
-    if (seen.has(k)) continue
-    seen.add(k)
-    out.push(t)
-    if (out.length >= TERM_MAX) break
-  }
-  return out
-}
-
-const termRe = (term, flags) => new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRe(term)}(?![\\p{L}\\p{N}_])`, flags)
-
-// Link the first match of re in the unprotected stretches of a line: the line
-// back, or null when it has none. shield is PROTECT_RE, widened by the
-// mentions of longer terms, so "Webhook" never splits "Webhook relay".
-const linkInLine = (line, re, shield = PROTECT_RE) => {
-  let at = 0
-  const parts = []
-  for (const m of line.matchAll(shield)) {
-    parts.push({ text: line.slice(at, m.index), free: true }, { text: m[0], free: false })
-    at = m.index + m[0].length
-  }
-  parts.push({ text: line.slice(at), free: true })
-  for (const p of parts) {
-    if (!p.free) continue
-    const m = p.text.match(re)
-    if (!m) continue
-    p.text = `${p.text.slice(0, m.index)}[[${m[0]}]]${p.text.slice(m.index + m[0].length)}`
-    return parts.map(x => x.text).join('')
-  }
-  return null
-}
-
-// The first line of an item's text that links the term, or null.
-const linkInText = (text, re, shield) => {
-  const lines = text.split('\n')
-  let fenced = false
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (/^\s*```/.test(line)) {
-      fenced = !fenced
-      continue
-    }
-    if (fenced || HEADING_RE.test(line) || QUESTION_LINE_RE.test(line)) continue
-    const done = linkInLine(line, re, shield)
-    if (done !== null) {
-      lines[i] = done
-      return lines.join('\n')
-    }
-  }
-  return null
-}
-
-/**
- * The plan with each term's first plain mention linked, by the rule above:
- * {story, linked: [{term, as, id}], skipped: [{term, why}]}. Longest terms go
- * first, so "Claude door" is linked before "door" could take its words; a
- * link made is protected from the terms after it. The story is a copy.
- */
-export const linkTerms = (page, terms, slug = asSlug) => {
-  const story = (page && Array.isArray(page.story) ? page.story : []).filter(Boolean).map(it => ({ ...it }))
-  const eligible = termsEligible({ story })
-  const linkedSlugs = new Set(story.flatMap(it => wikilinksIn(it.text)).map(t => slug(t)))
-  const own = slug((page && page.title) || '')
-  const linked = []
-  const skipped = []
-  const order = [...new Set(terms.map(t => String(t).trim()).filter(Boolean))].sort((a, b) => b.length - a.length)
-  for (const [k, term] of order.entries()) {
-    const longer = order.slice(0, k).filter(t => t.length > term.length && termRe(term, 'iu').test(t))
-    const shield = longer.length ? new RegExp(`${PROTECT_RE.source}|${longer.map(t => termRe(t, 'iu').source).join('|')}`, 'giu') : PROTECT_RE
-    const s = slug(term)
-    if (!s) {
-      skipped.push({ term, why: 'no page name in it' })
-      continue
-    }
-    if (s === own) {
-      skipped.push({ term, why: "the plan's own title" })
-      continue
-    }
-    if (linkedSlugs.has(s)) {
-      skipped.push({ term, why: 'already linked on the page' })
-      continue
-    }
-    let hit = null
-    for (const flags of ['u', 'iu']) {
-      const re = termRe(term, flags)
-      for (const it of story) {
-        if (!eligible.has(it.id)) continue
-        const text = linkInText(it.text, re, shield)
-        if (text === null) continue
-        hit = { it, as: (text.match(/\[\[([^\]]*)\]\]/g) || []).map(x => x.slice(2, -2)).find(x => slug(x) === s) || term }
-        it.text = text
-        break
-      }
-      if (hit) break
-    }
-    if (!hit) {
-      skipped.push({ term, why: 'no plain mention outside the Open Questions, headings, code and links' })
-      continue
-    }
-    linkedSlugs.add(s)
-    linked.push({ term, as: hit.as, id: hit.it.id })
-  }
-  // Report in page order, as a reader meets them.
-  const pos = new Map(story.map((it, i) => [it.id, i]))
-  linked.sort((a, b) => pos.get(a.id) - pos.get(b.id))
-  return { story, linked, skipped }
-}
-
-/**
- * The Create Red Links ghost: the line saying what it is, then the plan with its
- * terms linked, everything else as it was. Saved over the plan the way a
- * Revise Plan ghost is (revisedStory drops the line), so it is rewindable.
- */
-export const termLinkItems = ({ page, markdown, model = '', date = today(), id = randomHex }) => {
-  const title = String((page && page.title) || '')
-  const terms = parseTerms(markdown)
-  const r = linkTerms(page, terms)
-  const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
-  const n = r.linked.length
-  const list = r.linked.map(x => x.as).join(', ')
-  const line = {
-    type: 'markdown',
-    id: id(),
-    text:
-      `Proposed links on [[${title}]] through the [[Plan Tool]]'s Create Red Links${by}, ${date}: ${n} term${n === 1 ? '' : 's'} linked${n ? ` (${list})` : ''}. ` +
-      `Save over the plan writes this page, less this line, over [[${title}]] in place through its journal, and Rewind opens the version it replaces. ` +
-      `The Open Questions, headings, code and the links already there are left as they were.`,
-  }
-  return { items: [line, ...r.story], terms, linked: r.linked, skipped: r.skipped }
-}
-
-// ======================================================================
 // Red-link (0.6.0): the links on the plan with no page behind them, stubbed.
 // ======================================================================
 //
 // What the house has always meant by "red-link this page" (the
 // fedwiki-stub-page skill): find the links that go nowhere and write the
-// missing pages, honest AI-generated stubs. A link is red when no page with
+// missing pages. Since 0.7.0 each page is researched on the web and written
+// in full, not stubbed (David, 17 Oct: "the whole point is to describe what
+// fx is in full detail"). A link is red when no page with
 // its slug is on this site or on any other site the farm can see. Never
 // stubbed, because an answer page is a person's act and a page behind a
 // question marks it answered:
@@ -1806,6 +1614,7 @@ export const termLinkItems = ({ page, markdown, model = '', date = today(), id =
 // and from timeline event labels (fedwiki.py's from_timeline). Code and
 // terminal items hold no links.
 
+const QUESTIONS_RE = /^open questions$/i
 const TIMELINE_EVENT_RE = /^(\d{4}-\d{2}-\d{2})(?:\.\.\d{4}-\d{2}-\d{2})?\s+(.*)$/
 const LINK_ITEM_TYPES = new Set(['markdown', 'paragraph', 'html'])
 
@@ -1868,89 +1677,67 @@ export const redLinksOf = (page, known = new Set(), slug = asSlug) => {
   return { red, questions, held, existing }
 }
 
-const SMALL_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'from', 'in', 'into', 'of', 'on', 'or', 'the', 'to', 'vs', 'via', 'with'])
+// ---------- the researched page ----------
+//
+// Red-link writes a full page for each red link, researched on the web by
+// the door (WebSearch and WebFetch only): the model answers "TITLE: name" on
+// its first line, the name as its makers write it, then the page. The page
+// is written as the house writes one: an opening line saying it is AI
+// generated and from where, the model's paragraphs one item each, commands as
+// terminal items and other fenced blocks as code items, any GitHub-style
+// [label](url) link turned into the wiki's [url label], the model's own See
+// section dropped and the tool's added: the plan that linked it.
 
-/**
- * A stub's title: the link's words in Title Case (fedwiki-stub-page, after
- * fedwiki-title). A word already holding a capital is kept as written
- * (MacMini, BUG, deSEC); small words stay lower unless first. The slug is
- * the link's slug, so the link resolves and its prose is untouched.
- */
-export const titleCase = text =>
-  String(text || '')
-    .trim()
-    .split(/\s+/)
-    .map((w, i) => (/[A-Z]/.test(w) ? w : i > 0 && SMALL_WORDS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
-    .join(' ')
-
-/** The door's answer cut into drafts: each "=== Title" line starts one. */
-export const parseStubs = markdown => {
-  const out = []
-  let cur = null
-  for (const line of String(markdown || '').split('\n')) {
-    const m = line.match(/^===\s*(.+?)\s*=*\s*$/)
-    if (m) {
-      if (cur) out.push(cur)
-      cur = { title: m[1].replace(/^\[\[|\]\]$/g, '').trim(), lines: [] }
-    } else if (cur) cur.lines.push(line)
-  }
-  if (cur) out.push(cur)
-  return out.map(c => ({ title: c.title, markdown: c.lines.join('\n').trim() })).filter(c => c.title && c.markdown)
-}
-
-/** The drafts matched to the red links they were asked for, by slug; anything else is dropped. */
-export const matchStubs = (drafts, red, slug = asSlug) => {
-  const want = new Map(red.map(r => [r.slug, r]))
-  const stubs = []
-  const got = new Set()
-  for (const d of drafts) {
-    const r = want.get(slug(d.title))
-    if (!r || got.has(r.slug)) continue
-    got.add(r.slug)
-    stubs.push({ title: titleCase(r.title), slug: r.slug, link: r.title, markdown: d.markdown })
-  }
-  const missing = red.filter(r => !got.has(r.slug)).map(r => r.title)
-  return { stubs, missing }
-}
-
-export const STUB_LINE = 'This page is an AI generated [[Stub]].'
+const FENCE_RE = /^```([\w-]*)\n([\s\S]*?)\n?```$/
+const SHELL_LANGS = new Set(['', 'bash', 'sh', 'shell', 'console', 'zsh', 'terminal'])
+const GFM_LINK_RE = /(?<!\[)\[([^\[\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g
 const SEE_HEADING_RE = /^#\s*see\s*$/i
 
-/**
- * A stub's story: the draft one item per paragraph, opening with the
- * accreditation line (added when the draft lacks it), a heading naming the
- * page itself dropped, and a See section the tool writes: [[Stub]] first,
- * then the plan that coined the link.
- */
-export const stubStory = ({ title, markdown, planTitle, id = randomHex }) => {
-  const item = text => ({ type: 'markdown', id: id(), text })
-  let blocks = joinStraps(splitMarkdown(markdown))
-  const cut = blocks.findIndex(b => SEE_HEADING_RE.test(b.split('\n')[0].trim()))
-  if (cut !== -1) blocks = blocks.slice(0, cut)
-  if (blocks.length && new RegExp(`^#\\s*${escapeRe(title)}\\s*$`, 'i').test(blocks[0].split('\n')[0].trim()) && !blocks[0].includes('\n')) blocks.shift()
-  if (!blocks.length || !blocks[0].startsWith(STUB_LINE)) {
-    if (blocks.length && !/^#/.test(blocks[0])) blocks[0] = `${STUB_LINE} ${blocks[0]}`
-    else blocks.unshift(STUB_LINE)
+/** The model's answer read back: {title, body}; the title only when it names the same page as the link. */
+export const parseResearch = (markdown, link, slug = asSlug) => {
+  const lines = String(markdown || '').trim().split('\n')
+  let title = link
+  let start = 0
+  const m = (lines[0] || '').match(/^\s*TITLE:\s*(.+?)\s*$/i)
+  if (m) {
+    const named = m[1].replace(/^\[\[|\]\]$/g, '').trim()
+    if (slug(named) === slug(link)) title = named
+    start = 1
   }
-  return [...blocks.map(item), item(`# See\n\n- [[Stub]]\n- [[${planTitle}]]`)]
+  return { title, body: lines.slice(start).join('\n').trim() }
 }
 
-/** A stub as a page file: the story, and a journal of one create with its provenance. */
-export const stubPage = ({ title, markdown, planTitle, model = '', date = Date.now(), id = randomHex }) => {
-  const story = stubStory({ title, markdown, planTitle, id })
+/** The page's story, built from the model's body. */
+export const researchedStory = ({ title, body, planTitle, model = '', date = today(), id = randomHex }) => {
+  const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
+  const out = [{ type: 'markdown', id: id(), text: `This page is AI generated: researched on the web${by} through the [[Plan Tool]]'s Red-link, ${date}, for a link on [[${planTitle}]].` }]
+  // A fenced block may hold blank lines: keep it whole before splitting the rest.
+  const blocks = []
+  const text = String(body || '').replace(GFM_LINK_RE, (_, label, url) => `[${url} ${label}]`)
+  for (const piece of text.split(/(^```[\w-]*\n[\s\S]*?\n```$)/m)) {
+    if (FENCE_RE.test(piece.trim())) blocks.push(piece.trim())
+    else blocks.push(...joinStraps(splitMarkdown(piece)))
+  }
+  let cut = blocks.findIndex(b => SEE_HEADING_RE.test(b.split('\n')[0].trim()))
+  const kept = cut === -1 ? blocks : blocks.slice(0, cut)
+  if (kept.length && new RegExp(`^#\\s*${escapeRe(title)}\\s*$`, 'i').test(kept[0].trim())) kept.shift()
+  for (const b of kept) {
+    const f = b.match(FENCE_RE)
+    if (!f) out.push({ type: 'markdown', id: id(), text: b })
+    else if (SHELL_LANGS.has(f[1].toLowerCase())) out.push({ type: 'terminal', id: id(), text: f[2].split('\n').map(l => l.replace(/^\$\s+/, '')).join('\n').trim() })
+    else out.push({ type: 'code', id: id(), text: f[2] })
+  }
+  out.push({ type: 'markdown', id: id(), text: `# See\n\n- [[${planTitle}]]` })
+  return out
+}
+
+/** A researched page as a page file: the story, and a journal of one create with its provenance. */
+export const researchedPage = ({ title, body, planTitle, model = '', date = Date.now(), id = randomHex }) => {
+  const story = researchedStory({ title, body, planTitle, model, date: today(date), id })
   const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
   return {
     title,
     story,
-    journal: [{ type: 'create', item: { title, story: story.map(i => ({ ...i })) }, date, provenance: `AI generated stub for a red link on ${planTitle}, through the Plan Tool's Red-link${by}.` }],
+    journal: [{ type: 'create', item: { title, story: story.map(i => ({ ...i })) }, date, provenance: `Researched on the web${by} through the Plan Tool's Red-link, for a red link on ${planTitle}.` }],
   }
-}
-
-/** The page every stub links to, written once per site where it is missing (fedwiki-stub-page's template). */
-export const stubOfStubs = ({ date = Date.now(), id = randomHex } = {}) => {
-  const story = [
-    { type: 'markdown', id: id(), text: 'A stub is a placeholder page an AI generated for a [[wikilink]] whose target did not exist yet on this site or its neighbourhood. It guesses what the page should be about and gathers the nearest related pages. Fork it, correct it, grow it, or trash it if the link was a mistake.' },
-    { type: 'markdown', id: id(), text: 'Stub pages open with an accreditation line, "This page is an AI generated [[Stub]]." when an agent worked alone, or "This page is a [[Stub]] generated through a dialogue between [[David Bovill]] and [[Claude Code]]." when it grew out of a conversation, and carry a `- [[Stub]]` link in their `# See` section, so they are easy to find and audit.' },
-  ]
-  return { title: 'Stub', story, journal: [{ type: 'create', item: { title: 'Stub', story: story.map(i => ({ ...i })) }, date, provenance: "Written by the Plan Tool's Red-link, from the fedwiki-stub-page template, the first time a stub was written on this site." }] }
 }

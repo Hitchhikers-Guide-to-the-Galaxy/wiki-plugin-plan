@@ -25,16 +25,11 @@
 //             copy first; the version it replaces is the plan's _rev<N>.
 //             Rewind writes nothing: the client opens the journal's _rev<N>
 //             as a ghost beside the plan, and forking it is the rewind.
-//   linkTerms — Create Red Links (0.5.0): the door names the terms on the plan a reader
-//             may not understand; nothing is written. The client links the
-//             first plain mention of each (linkTerms in core.js, never in the
-//             Open Questions, headings, code or existing links) on a ghost
-//             with the plan's own title, saved over the plan as a revision is.
-//   redlink — Red-link (0.6.0): the plan's links with no page behind them,
-//             question links excepted, to the door, which drafts a stub for
-//             each; nothing is written. writeStubs writes the stubs chosen,
-//             new pages only, each with one journaled create.
-//   job     — how a next, revise, terms or redlink run is getting on, and its report when done.
+//   redlink — Red-link (0.7.0): the plan's links with no page behind them,
+//             question links and Open Questions excepted, each researched
+//             on the web by the door (WebSearch and WebFetch only) and
+//             written as a new page, one journaled create each, as a job.
+//   job     — how a next, revise or redlink run is getting on, and its report when done.
 //   finish  — Finish Plan (Phase 5), mechanical like update: when every phase
 //             checkpoint is ticked, writes the Conclusion section above # See
 //             with the demo link, and adds the demo to the See list.
@@ -49,11 +44,11 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
-import { ask, defaultModel } from '@fortyfoxes/wiki-claude-door'
+import { ask, defaultModel, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, parseTerms, REVISION_KINDS, redLinksOf, parseStubs, matchStubs, stubPage, stubOfStubs } from '../src/client/core.js'
+import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
-import { buildContent, buildSiteContent, buildPageContent, buildTermsContent, buildStubsContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
+import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
 
 const problem = (status, message) => Object.assign(new Error(message), { status })
 
@@ -275,7 +270,7 @@ const readPlan = (status, origin, slug) => {
  * everything after it is the job's, and the marker is released in a finally
  * whatever happens. The heartbeat keeps the claim fresh while the model works.
  */
-const start = ({ kind, origin, status, slug, site, page, phase, session, title = null, build = null, holdOff = null, meta = null, after = null }) => {
+const start = ({ kind, origin, status, slug, site, page, phase, session, title = null, build = null, holdOff = null, meta = null, after = null, run = null }) => {
   forget()
   const scope = `${origin}/${slug}`
   const wip = claim({ session, scope, holdOff: holdOff || `${session}: a model is reading the plan; the report opens as a ghost page and nothing is written to the plan` })
@@ -313,6 +308,11 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
 
   ;(async () => {
     try {
+      if (run) {
+        j.result = await run(j, model)
+        j.status = 'done'
+        return
+      }
       const { content, account } = build ? build() : buildContent({ kind, page, phase, origin, siteDir: site })
       j.context = account
       persist(j)
@@ -325,7 +325,6 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
         reportTitle: j.reportTitle,
         ...(ticks ? { proposedTicks: { found: ticks.found, none: ticks.none, listed: ticks.listed, matched: ticks.matched.map(c => c.text) } } : {}),
         ...(kind === 'site' ? { proposal: proposalSummary(out.markdown, page.title, origin) } : {}),
-        ...(kind === 'terms' ? { terms: parseTerms(out.markdown) } : {}),
         ...(after ? after(out) : {}),
       }
       j.status = 'done'
@@ -375,39 +374,23 @@ export async function revise({ slug, origin, status } = {}) {
   return start({ kind: 'revise', origin, status, slug: p.slug, site: p.site, page: p.page, phase: null, session })
 }
 
-/** Create Red Links: the plan's linkable text to the door, asked which terms a reader may not understand. */
-export async function linkTerms({ slug, origin, status } = {}) {
-  const p = readPlan(status, origin, slug)
-  const session = `Plan Tool: Create Red Links ${origin}/${p.slug}`
-  return start({
-    kind: 'terms',
-    origin,
-    status,
-    slug: p.slug,
-    site: p.site,
-    page: p.page,
-    phase: null,
-    session,
-    title: p.page.title,
-    build: () => buildTermsContent({ page: p.page, origin }),
-    holdOff: `${session}: a model is naming the terms to link; they open as a ghost with the plan's title and nothing is written until Save`,
-  })
-}
-
 // ======================================================================
-// Red-link (0.6.0) — the plan's links with no page behind them, stubbed.
+// Red-link (0.7.0) — the plan's links with no page behind them, researched.
 // ======================================================================
 //
 // redlink reads the plan, finds its red links (redLinksOf in core.js: no page
 // with the slug on any site of this farm or of the farms named in
-// WIKI_EXTRA_FARMS; question links and the Open Questions section left
-// alone) and asks the door for a stub for each, at most STUB_BATCH a run, as
-// a job; a plugin's own pages count as pages. Nothing is written: the client shows the drafts, each opens as a
-// ghost. writeStubs then writes the ones chosen, new pages only, one
-// journaled create each, the Stub page once if the site lacks it, under the
-// WIP marker, and resets the index.
+// WIKI_EXTRA_FARMS, and not one of the installed plugins' own pages; question
+// links and the Open Questions section left alone) and, as a job, takes them
+// one at a time, at most RESEARCH_BATCH a run: the door researches each on
+// the web (WebSearch and WebFetch, nothing else) and the page is written at
+// once, a new page with one journaled create, never over a page that exists
+// by then. One at a time keeps one claude in its memory scope on the Pi5.
+// The job's progress names the page in hand; its result lists what was
+// written, skipped and failed.
 
-const STUB_BATCH = 20
+const RESEARCH_BATCH = 6
+const RESEARCH_TIMEOUT_MS = 6 * 60 * 1000
 
 /** Slugs that have a page on any site of these farm roots. */
 const farmSlugs = roots => {
@@ -481,13 +464,13 @@ const siteTitles = site => {
   }
 }
 
-/** Red-link: the plan's red links to the door, a stub drafted for each, as a job. */
+/** Red-link: research each red link of the plan on the web and write its page, as a job. */
 export async function redlink({ slug, origin, status, farmRoot } = {}) {
   const p = readPlan(status, origin, slug)
   const found = redLinksOf(p.page, knownSlugs(farmRoot, p.site))
   const kept = found.questions.length ? `; ${found.questions.length} question link${found.questions.length === 1 ? ' is' : 's are'} left for their answers` : ''
   if (!found.red.length) throw problem(400, `${p.page.title} has no red links: every link on it has a page on this farm${kept}`)
-  const todo = found.red.slice(0, STUB_BATCH)
+  const todo = found.red.slice(0, RESEARCH_BATCH)
   const session = `Plan Tool: Red-link ${origin}/${p.slug}`
   return start({
     kind: 'redlink',
@@ -500,52 +483,40 @@ export async function redlink({ slug, origin, status, farmRoot } = {}) {
     session,
     title: p.page.title,
     meta: { red: todo.map(r => r.title), more: found.red.length - todo.length, questions: found.questions, held: found.held, existing: found.existing },
-    build: () => buildStubsContent({ page: p.page, red: todo, origin, titles: siteTitles(p.site) }),
-    after: out => matchStubs(parseStubs(out.markdown), todo),
-    holdOff: `${session}: a model is drafting stubs for the plan's red links; nothing is written until Create`,
-  })
-}
-
-/** Write the stubs a finished Red-link job drafted: new pages only, each journaled. */
-export async function writeStubs({ slug, job: id, titles, origin, status, farmRoot } = {}) {
-  const p = readPlan(status, origin, slug)
-  const j = await job({ id, origin, status })
-  if (j.kind !== 'redlink' || j.slug !== p.slug) throw problem(400, `job ${id} is not a Red-link of ${p.page.title}`)
-  if (j.status !== 'done') throw problem(400, `job ${id} is ${j.status}: nothing to write`)
-  const want = Array.isArray(titles) && titles.length ? new Set(titles.map(t => asSlug(t))) : null
-  const stubs = (j.result.stubs || []).filter(s => !want || want.has(s.slug))
-  if (!stubs.length) throw problem(400, 'none of those titles is a stub this job drafted')
-  const session = `Plan Tool: Red-link stubs ${origin}/${p.slug}`
-  const wip = claim({ session, scope: `${origin}/${p.slug}`, holdOff: `${session}: writing ${stubs.length} new stub pages` })
-  try {
-    const known = knownSlugs(farmRoot, p.site)
-    const written = []
-    const skipped = []
-    for (const s of stubs) {
-      checkSlug(s.slug)
-      const file = path.join(p.site, 'pages', s.slug)
-      if (fs.existsSync(file) || known.has(s.slug)) {
-        skipped.push({ title: s.title, slug: s.slug, why: 'a page with that slug is on the farm now' })
-        continue
+    holdOff: `${session}: researching the plan's red links on the web and writing their pages, one at a time`,
+    run: async (j, model) => {
+      // Research needs the CLI: the API road has no tools.
+      const how = /^claude-(?!cli:)/.test(model) ? `claude-cli:${model}` : model
+      const titles = siteTitles(p.site)
+      const written = []
+      const skipped = []
+      const failed = []
+      const t0 = Date.now()
+      for (const [i, r] of todo.entries()) {
+        j.progress = { n: i + 1, of: todo.length, title: r.title }
+        persist(j)
+        try {
+          const { content } = buildResearchContent({ page: p.page, link: r, titles, origin })
+          const out = await ask(how, content, { system: SYSTEM, timeoutMs: RESEARCH_TIMEOUT_MS, tools: RESEARCH_TOOLS })
+          const { title, body } = parseResearch(out.markdown, r.title)
+          if (!body) throw new Error('the model wrote no page')
+          const file = path.join(p.site, 'pages', checkSlug(r.slug))
+          if (fs.existsSync(file) || knownSlugs(farmRoot, p.site).has(r.slug)) {
+            skipped.push({ title: r.title, slug: r.slug, why: 'a page with that slug is on the farm now' })
+            continue
+          }
+          writeAtomic(status, file, JSON.stringify(researchedPage({ title, body, planTitle: p.page.title, model: out.model }), null, 2))
+          written.push({ title, slug: r.slug, ms: out.ms })
+        } catch (e) {
+          failed.push({ title: r.title, slug: r.slug, error: e.message })
+        }
+        j.done = { written, skipped, failed }
+        persist(j)
       }
-      writeAtomic(status, file, JSON.stringify(stubPage({ title: s.title, markdown: s.markdown, planTitle: p.page.title, model: j.result.model }), null, 2))
-      written.push({ title: s.title, slug: s.slug })
-    }
-    let stubPageWritten = false
-    const stubFile = path.join(p.site, 'pages', 'stub')
-    if (written.length && !fs.existsSync(stubFile)) {
-      writeAtomic(status, stubFile, JSON.stringify(stubOfStubs(), null, 2))
-      stubPageWritten = true
-    }
-    const indexReset = written.length ? resetIndex(status) : false
-    const released = release(wip.token)
-    return { slug: p.slug, title: p.page.title, written, skipped, stubPage: stubPageWritten, index: { reset: indexReset }, wip: { session, claimed: wip.claimed, released } }
-  } catch (e) {
-    try {
-      release(wip.token)
-    } catch {}
-    throw e
-  }
+      const indexReset = written.length ? resetIndex(status) : false
+      return { model: how, ms: Date.now() - t0, reportTitle: j.reportTitle, written, skipped, failed, index: { reset: indexReset } }
+    },
+  })
 }
 
 /** A run as the asking site may see it. Another site's jobs are not found, not forbidden. */
