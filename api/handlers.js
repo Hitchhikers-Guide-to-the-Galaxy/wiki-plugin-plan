@@ -47,6 +47,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { fileURLToPath } from 'node:url'
 
 import { ask, defaultModel } from '@fortyfoxes/wiki-claude-door'
 
@@ -401,7 +402,7 @@ export async function linkTerms({ slug, origin, status } = {}) {
 // with the slug on any site of this farm or of the farms named in
 // WIKI_EXTRA_FARMS; question links and the Open Questions section left
 // alone) and asks the door for a stub for each, at most STUB_BATCH a run, as
-// a job. Nothing is written: the client shows the drafts, each opens as a
+// a job; a plugin's own pages count as pages. Nothing is written: the client shows the drafts, each opens as a
 // ghost. writeStubs then writes the ones chosen, new pages only, one
 // journaled create each, the Stub page once if the site lacks it, under the
 // WIP marker, and resets the index.
@@ -431,6 +432,44 @@ const farmSlugs = roots => {
   return known
 }
 
+// A plugin's own pages (its pages/ folder: About X Plugin, a tool page) are
+// served on every site of the farm without being in any site's pages/, so a
+// link to one is not red. The installed plugins are found beside the wiki
+// package the farm runs (from node's own path, the wiki script, or
+// WIKI_PACKAGE_DIR) and beside this plugin, real path and link alike.
+const pluginDirs = () => {
+  const dirs = new Set()
+  if (process.env.WIKI_PACKAGE_DIR) dirs.add(process.env.WIKI_PACKAGE_DIR)
+  dirs.add(path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules', 'wiki', 'node_modules'))
+  try {
+    if (process.argv[1]) dirs.add(path.join(path.dirname(fs.realpathSync(process.argv[1])), 'node_modules'))
+  } catch {}
+  const self = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
+  dirs.add(path.dirname(self))
+  return [...dirs]
+}
+
+const pluginPageSlugs = () => {
+  const known = new Set()
+  for (const dir of pluginDirs()) {
+    let names = []
+    try {
+      names = fs.readdirSync(dir).filter(n => n.startsWith('wiki-plugin-'))
+    } catch {
+      continue
+    }
+    for (const n of names) {
+      try {
+        for (const p of fs.readdirSync(path.join(dir, n, 'pages'))) known.add(p)
+      } catch {}
+    }
+  }
+  return known
+}
+
+/** Every slug a reader of this farm can open: the farm's sites, the extra farms, the plugins' pages. */
+const knownSlugs = (farmRoot, site) => new Set([...farmSlugs(farmRoots(farmRoot, site)), ...pluginPageSlugs()])
+
 const farmRoots = (farmRoot, site) => [farmRoot || path.dirname(site), ...String(process.env.WIKI_EXTRA_FARMS || '').split(/[:,]/).map(s => s.trim()).filter(Boolean)]
 
 /** The page titles of this site, for the door to link to; from the sitemap when there is one. */
@@ -445,7 +484,7 @@ const siteTitles = site => {
 /** Red-link: the plan's red links to the door, a stub drafted for each, as a job. */
 export async function redlink({ slug, origin, status, farmRoot } = {}) {
   const p = readPlan(status, origin, slug)
-  const found = redLinksOf(p.page, farmSlugs(farmRoots(farmRoot, p.site)))
+  const found = redLinksOf(p.page, knownSlugs(farmRoot, p.site))
   const kept = found.questions.length ? `; ${found.questions.length} question link${found.questions.length === 1 ? ' is' : 's are'} left for their answers` : ''
   if (!found.red.length) throw problem(400, `${p.page.title} has no red links: every link on it has a page on this farm${kept}`)
   const todo = found.red.slice(0, STUB_BATCH)
@@ -479,7 +518,7 @@ export async function writeStubs({ slug, job: id, titles, origin, status, farmRo
   const session = `Plan Tool: Red-link stubs ${origin}/${p.slug}`
   const wip = claim({ session, scope: `${origin}/${p.slug}`, holdOff: `${session}: writing ${stubs.length} new stub pages` })
   try {
-    const known = farmSlugs(farmRoots(farmRoot, p.site))
+    const known = knownSlugs(farmRoot, p.site)
     const written = []
     const skipped = []
     for (const s of stubs) {

@@ -28,7 +28,7 @@ const plan = () => ({
     { type: 'timeline', id: 't', text: 'section Build\n2026-10-20 Relay Build #Phase1\n2026-10-21..2026-10-22 Pi5' },
     md('q', '# Open Questions\n> Made by hand.'),
     md('q1', '- [ ] [[Which relay?]] the [[Glossary Entry]] says'),
-    md('s', '# See\n\n- [[Webhook relay]]\n- [[Welcome Visitors]]'),
+    md('s', '# See\n\n- [[Webhook relay]]\n- [[Welcome Visitors]]\n- [[About Hook Plugin]]'),
   ],
   journal: [{ type: 'create', date: 1, item: { title: 'Hook Plan', story: [] } }],
 })
@@ -43,11 +43,11 @@ test('planLinks: wikilinks outside fences, timeline labels; code items hold none
 })
 
 test('redLinksOf: red once each; questions, Open Questions, own title and known pages never', () => {
-  const r = redLinksOf(plan(), new Set(['pi5', 'welcome-visitors']))
+  const r = redLinksOf(plan(), new Set(['pi5', 'welcome-visitors', 'about-hook-plugin']))
   assert.deepEqual(r.red.map(x => x.title), ['Webhook relay', 'capability URL', 'Caddy', 'Synapse', 'Relay Build'])
   assert.deepEqual(r.questions, ['Is it safe?', 'Which relay?'])
   assert.deepEqual(r.held, ['Glossary Entry'])
-  assert.equal(r.existing, 2)
+  assert.equal(r.existing, 3)
   assert.equal(r.red[0].context, 'Run the [[Webhook relay]] on the [[Pi5]], see [[Hook Plan]] and [[Is it safe?]] for the worry.')
   assert.equal(r.red[1].section, 'Phase 1')
 })
@@ -86,7 +86,7 @@ test('stubStory: the accreditation line first, a title heading and a model See d
 })
 
 test('buildStubsContent: the plan, the site titles, each red link with its line', () => {
-  const r = redLinksOf(plan(), new Set(['pi5', 'welcome-visitors']))
+  const r = redLinksOf(plan(), new Set(['pi5', 'welcome-visitors', 'about-hook-plugin']))
   const { content, account } = buildStubsContent({ page: plan(), red: r.red, origin: 'hooks.localhost', titles: ['Welcome Visitors', 'Pi5'] })
   assert.match(content, /<red-links count="5">/)
   assert.match(content, /- capability URL \(under "Phase 1"\): - \[ \] Point the \[\[capability URL\]\] at \[\[Caddy\]\]/)
@@ -121,6 +121,11 @@ test('redlink and writeStubs on a farm: drafts in a job, then new pages, the Stu
   fs.writeFileSync(path.join(root, 'sister.localhost', 'pages', 'pi5'), '{}') // on a sibling site: not red
   fs.writeFileSync(path.join(extra, 'public.fish', 'pages', 'synapse'), '{}') // on an extra farm: not red
   process.env.WIKI_EXTRA_FARMS = extra
+  // A plugin page (About Hook Plugin) is served by the farm, not stored on a site: not red.
+  const pkg = scratch()
+  fs.mkdirSync(path.join(pkg, 'wiki-plugin-hook', 'pages'), { recursive: true })
+  fs.writeFileSync(path.join(pkg, 'wiki-plugin-hook', 'pages', 'about-hook-plugin'), '{}')
+  process.env.WIKI_PACKAGE_DIR = pkg
   const ctx = { origin: 'hooks.localhost', status: path.join(site, 'status'), farmRoot: root }
   process.env.CLAUDE_DOOR_KEY_FILE = path.join(root, 'no-key')
   process.env.CLAUDE_DOOR_BIN = standIn(root, '=== Webhook relay\nThis page is an AI generated [[Stub]]. The relay takes the bot\'s posts.\n\n=== capability URL\nA URL that is its own key.\n\n=== Caddy\nThe web server in front of the farm.\n')
@@ -160,9 +165,10 @@ test('redlink and writeStubs on a farm: drafts in a job, then new pages, the Stu
   await assert.rejects(writeStubs({ slug: 'hook-plan', job: started.job, titles: ['Nope'], ...ctx }), e => e.status === 400)
 
   // Only Relay Build is red now; a plan with none is told so.
-  const left = redLinksOf(JSON.parse(fs.readFileSync(path.join(site, 'pages', 'hook-plan'), 'utf8')), new Set([...fs.readdirSync(path.join(site, 'pages')), 'pi5', 'synapse']))
+  const left = redLinksOf(JSON.parse(fs.readFileSync(path.join(site, 'pages', 'hook-plan'), 'utf8')), new Set([...fs.readdirSync(path.join(site, 'pages')), 'pi5', 'synapse', 'about-hook-plugin']))
   assert.deepEqual(left.red.map(r => r.title), ['Relay Build'])
   fs.writeFileSync(path.join(site, 'pages', 'relay-build'), '{}')
   await assert.rejects(redlink({ slug: 'hook-plan', ...ctx }), e => e.status === 400 && /has no red links/.test(e.message) && /2 question links are left for their answers/.test(e.message))
   delete process.env.WIKI_EXTRA_FARMS
+  delete process.env.WIKI_PACKAGE_DIR
 })
