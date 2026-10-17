@@ -498,7 +498,7 @@ test('reviseSite and applyRevision refuse before any claim', async () => {
   // No answer page yet.
   fs.rmSync(path.join(f.site, 'pages', 'is-the-bed-raised'))
   fs.rmSync(path.join(f.site, 'pages', 'who-waters-it'))
-  await assert.rejects(reviseSite({ slug: 'toy-plan', ...f.ctx }), e => e.status === 400 && /no open question of Toy Plan has an answer page/.test(e.message))
+  await assert.rejects(reviseSite({ slug: 'toy-plan', ...f.ctx }), e => e.status === 400 && /no open question of Toy Plan is answered/.test(e.message))
   await assert.rejects(reviseSite({ slug: 'glossary', ...f.ctx }), e => e.status === 400 && /is not a plan/.test(e.message))
   await assert.rejects(applyRevision({ slug: 'glossary', ...f.ctx }), e => e.status === 400 && /not a revision proposal/.test(e.message))
   await assert.rejects(applyRevision({ slug: 'no-such', ...f.ctx }), e => e.status === 404)

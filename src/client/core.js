@@ -239,11 +239,47 @@ const sectionTicks = sec => {
 // ---------- open questions ----------
 //
 // The task lines of the Open Questions section that hold a [[question link]],
-// a link whose title ends in "?". A question is ANSWERED when a page exists
-// behind its link — known is the set of slugs on the plan's site and in the
-// neighbourhood. The tick on the line is the author's own mark, reported
-// alongside but never taken as the answer.
+// a link whose title ends in "?". A question is ANSWERED in one of two ways:
+//   by a page   a page exists behind its link — known is the set of slugs on
+//               the plan's site and in the neighbourhood;
+//   inline      the line itself carries the answer after the link, written
+//               "*Answer: …*" (also _Answer: …_, **Answer:** …, Answer: …),
+//               as on dns.private.fish/view/resource-map-plan.
+// An inline answer that ends in "?" asks back ("Explain more?"): it is a
+// QUERY, kept as `query`, and the question stays unanswered until it is
+// rephrased or answered. The tick on the line is the author's own mark,
+// reported alongside but never taken as the answer.
 const TASK_LINE_RE = /^\s*[-*]\s+\[([ xX])\]\s(.*)$/
+const INLINE_ANSWER_RE = /(?:^|\s)[*_]{0,2}Answer[*_]{0,2}\s*:\s*(?:[*_]{1,2}\s*)?(.*)$/i
+
+/** The answer written on a question's line after its link, emphasis stripped; '' when there is none. */
+export const inlineAnswer = rest => {
+  const after = String(rest || '').replace(/^.*?\[\[[^\]]*\]\]/, '')
+  const m = after.match(INLINE_ANSWER_RE)
+  if (!m) return ''
+  return m[1].replace(/[*_]+\s*$/, '').trim()
+}
+
+// One question line read: {title, slug, ticked, answered, by, answer, query}.
+// by is 'page', 'inline' or null; a page behind the link wins over the line.
+const readQuestion = (m, known, slug) => {
+  const title = wikilinksIn(m[2]).find(t => t.endsWith('?'))
+  if (!title) return null
+  const s = slug(title)
+  const said = inlineAnswer(m[2])
+  const query = !!said && said.endsWith('?')
+  const page = known.has(s)
+  const inline = !!said && !query
+  return {
+    title,
+    slug: s,
+    ticked: m[1] !== ' ',
+    answered: page || inline,
+    by: page ? 'page' : inline ? 'inline' : null,
+    answer: inline ? said : '',
+    query: query ? said : '',
+  }
+}
 // The items a page's questions are read from. A plan keeps them in its
 // "# Open Questions" section; a page OF open questions (whole: true, the page a
 // research site links from its plan as [[Open Questions]], Phase 7) keeps them
@@ -262,9 +298,8 @@ export const questionsOf = (page, known = new Set(), slug = asSlug, { whole = fa
     for (const line of (it.text || '').split('\n')) {
       const m = line.match(TASK_LINE_RE)
       if (!m) continue
-      const title = wikilinksIn(m[2]).find(t => t.endsWith('?'))
-      if (!title) continue
-      out.push({ title, slug: slug(title), ticked: m[1] !== ' ', answered: known.has(slug(title)) })
+      const q = readQuestion(m, known, slug)
+      if (q) out.push(q)
     }
   }
   return out
@@ -369,7 +404,8 @@ export const allQuestions = (page, linked = null, known = new Set(), slug = asSl
 //              or -1 when the plan is complete
 //   blockers   of the next phase: its unanswered questions and the red links
 //              inside its section
-//   questions  every question line, answered by a page existing
+//   questions  every question line, answered by a page existing or by an
+//              answer written on the line; queried ones carry `query`
 //   lints      short sentences, only those triggered (scatter is added by the
 //              caller, which has to fetch the other copies)
 // linked: the page the plan links as [[Open Questions]] (Phase 7), when the
@@ -415,6 +451,8 @@ export const planState = (page, known = new Set(), slug = asSlug, linked = null)
     blockers: next === -1 ? { questions: [], redLinks: [] } : { questions: unanswered, redLinks },
     questions,
     answered: questions.length - unanswered.length,
+    answeredInline: questions.filter(q => q.by === 'inline').length,
+    queried: questions.filter(q => q.query).length,
     ticked: questions.filter(q => q.ticked).length,
     lints,
   }
@@ -449,8 +487,9 @@ export const trashable = ({ site = null, host = '', ghost = false, local = false
 
 // ---------- ticking answered questions ----------
 //
-// Every unticked Open Questions task line whose ?-link has a page behind it
-// (known, the slugs that exist) is ticked, "- [ ]" to "- [x]", in that item's
+// Every unticked Open Questions task line that is answered, by a page behind
+// its ?-link (known, the slugs that exist) or by an answer written on the
+// line (a query, an answer ending in "?", is not one), is ticked, "- [ ]" to "- [x]", in that item's
 // text. One journal edit per item changed, shaped as the wiki itself journals
 // an edit: {type, id, item, date}, no site. Returns a new page; the one given
 // is not touched.
@@ -467,10 +506,10 @@ export const tickAnswered = (page, known = new Set(), slug = asSlug, now = () =>
       const lines = String(it.text || '').split('\n').map(line => {
         const m = line.match(TASK_LINE_RE)
         if (!m || m[1] !== ' ') return line
-        const title = wikilinksIn(m[2]).find(t => t.endsWith('?'))
-        if (!title || !known.has(slug(title))) return line
+        const q = readQuestion(m, known, slug)
+        if (!q || !q.answered) return line
         changed = true
-        ticked.push({ id: it.id, title, slug: slug(title) })
+        ticked.push({ id: it.id, title: q.title, slug: q.slug, by: q.by })
         return line.replace('[ ]', '[x]')
       })
       if (!changed) continue
@@ -480,7 +519,7 @@ export const tickAnswered = (page, known = new Set(), slug = asSlug, now = () =>
   }
   const unanswered = questionsOf(out, known, slug, { whole })
     .filter(q => !q.answered)
-    .map(({ title, slug }) => ({ title, slug }))
+    .map(({ title, slug, query }) => (query ? { title, slug, query } : { title, slug }))
   return { page: out, ticked, unanswered }
 }
 

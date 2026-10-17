@@ -664,7 +664,7 @@ export async function reviseSite({ slug, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
   const { questions } = questionsFor(p.site, p.page)
   if (!questions.some(q => q.answered)) {
-    throw problem(400, `no open question of ${p.page.title} has an answer page on ${origin} yet: answer one, on the plan's Open Questions or the page it links as [[Open Questions]], then revise the site`)
+    throw problem(400, `no open question of ${p.page.title} is answered on ${origin} yet: answer one, with a page behind its link or "*Answer: …*" on its line, on the plan's Open Questions or the page it links as [[Open Questions]], then revise the site`)
   }
   const session = `Plan Tool: Revise Site ${origin}/${p.slug}`
   return start({
@@ -842,7 +842,7 @@ export async function applyRevision({ slug, plan, origin, status } = {}) {
     try {
       const answers = answerPages(site, work.plan)
       const drawn = answers.pages.map(a => a.title)
-      const provenance = `Revised by the Plan Tool (Revise Site) from ${peek.title}, drawing on: ${drawn.join('; ') || 'no answer page'}.`
+      const provenance = `Revised by the Plan Tool (Revise Site) from ${peek.title}, drawing on: ${drawn.join('; ') || 'no answer'}.`
       for (const w of work.todo) {
         j.progress = { n: j.progress.n + 1, of: work.todo.length, title: w.title }
         persist(j)

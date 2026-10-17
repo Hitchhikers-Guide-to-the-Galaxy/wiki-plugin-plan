@@ -232,7 +232,7 @@ const stateHtml = (st, site, heading, folded = false, rev = null) => {
   const parts = []
   if (heading) parts.push(`<p class="plan-subject">${internal(st.title, asSlug(st.title), site)}</p>`)
 
-  const q = st.questions.length ? ` · ${st.answered} of ${st.questions.length} questions answered` : ''
+  const q = st.questions.length ? ` · ${st.answered} of ${st.questions.length} questions answered${st.queried ? `, ${st.queried} asked back` : ''}` : ''
   const where = st.complete ? 'complete' : st.next === -1 ? 'no checkpoints' : `next: ${escapeHtml(st.phases[st.next].line)}`
   const blocks = st.next === -1 ? 0 : st.blockers.questions.length + st.blockers.redLinks.length
   const extra = (blocks ? ` · ${blocks} blocker${blocks === 1 ? '' : 's'}` : '') + (st.lints.length ? ` · ${st.lints.length} lint${st.lints.length === 1 ? '' : 's'}` : '')
@@ -258,8 +258,12 @@ const stateHtml = (st, site, heading, folded = false, rev = null) => {
   }
 
   if (st.questions.length) {
-    const open = st.questions.filter(x => !x.answered)
-    let line = `${st.answered} of ${st.questions.length} questions answered, a page behind the link; ${st.ticked} ticked on the page.`
+    const open = st.questions.filter(x => !x.answered && !x.query)
+    const queried = st.questions.filter(x => x.query)
+    const inline = st.answeredInline || 0
+    const how = inline === st.answered ? 'written on the line' : inline ? `${st.answered - inline} by a page behind the link, ${inline} written on the line` : 'a page behind the link'
+    let line = `${st.answered} of ${st.questions.length} questions answered${st.answered ? `, ${how}` : ''}; ${st.ticked} ticked on the page.`
+    if (queried.length) line += ` Asked back, not answered: ${queried.map(x => `${internal(x.title, x.slug, site)} (<i>${escapeHtml(x.query)}</i>)${askLink(x)}`).join('; ')}.`
     if (open.length) line += ` Unanswered: ${open.map(x => internal(x.title, x.slug, site) + askLink(x)).join('; ')}`
     parts.push(`<p class="plan-section">${line}</p>`)
   }
@@ -1126,9 +1130,9 @@ async function offerSavedProposal($item, $subject, page) {
 const answerHtml = (r, site) => {
   const parts = []
   // Questions end in "?", so the parts are set apart with a dot, not ended with a full stop.
-  if (r.ticked.length) parts.push(`Ticked ${r.ticked.length}: ${r.ticked.map(t => internal(t.title, t.slug, t.foundOn || site)).join('; ')}`)
+  if (r.ticked.length) parts.push(`Ticked ${r.ticked.length}: ${r.ticked.map(t => internal(t.title, t.slug, t.foundOn || site) + (t.by === 'inline' ? ' (answered on its line)' : '')).join('; ')}`)
   else parts.push('Nothing to tick')
-  if (r.unanswered.length) parts.push(`still unanswered: ${r.unanswered.map(q => internal(q.title, q.slug, site)).join('; ')}`)
+  if (r.unanswered.length) parts.push(`still unanswered: ${r.unanswered.map(q => internal(q.title, q.slug, site) + (q.query ? ' (asked back)' : '')).join('; ')}`)
   if (r.asset && r.asset.rendered) parts.push(`<a href="${escapeHtml(r.asset.path)}" target="_blank">markdown</a> ${r.asset.changed ? 're-rendered' : 'unchanged'}`)
   return parts.join(' · ')
 }

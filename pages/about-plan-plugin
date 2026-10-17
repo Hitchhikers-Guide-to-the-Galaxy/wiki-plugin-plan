@@ -54,7 +54,7 @@
     {
       "type": "markdown",
       "id": "4b93d3def7d0b6ab",
-      "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered when a page exists behind its link. The view says how many of them are answered and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+      "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: \u2026*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
     },
     {
       "type": "markdown",
@@ -968,6 +968,16 @@
         "text": "The button calls `POST /system/api/plan/redlink.json`, which starts a job and takes up to six red links a run, one at a time. For each, the Claude door researches the term on the web from its primary sources: the CLI is given WebSearch and WebFetch and no other tool, in its own memory scope. The page is written at once, under the name as its makers write it (fx, jless, ChatHackers). It opens with a line saying it is AI generated and researched on the web for this plan. Sections follow as the subject needs, with commands as terminal items and a Links section of the sources read; a See section links back to the plan. Each page is new, with one journaled create, and never written over a page that exists by then. The tool's line names the page being researched, then links every page written, with any that were skipped or failed. A stub Red-link wrote in 0.6.0 that nobody has touched since, one create in its journal, counts as still missing: it is researched and written over the stub through the journal, so the stub stays as rev0. A stub anyone has edited is a page and is left alone."
       },
       "date": 1792245999696
+    },
+    {
+      "type": "edit",
+      "id": "4b93d3def7d0b6ab",
+      "item": {
+        "type": "markdown",
+        "id": "4b93d3def7d0b6ab",
+        "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: \u2026*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+      },
+      "date": 1792269722512
     }
   ],
   "plugin": "plan"
