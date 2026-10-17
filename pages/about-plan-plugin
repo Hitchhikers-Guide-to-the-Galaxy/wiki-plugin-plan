@@ -149,7 +149,7 @@
     {
       "type": "markdown",
       "id": "b2f5d5d328424364",
-      "text": "The button calls `POST /system/api/plan/redlink.json`, which starts a job and takes up to six red links a run, one at a time. For each, the Claude door researches the term on the web from its primary sources: the CLI is given WebSearch and WebFetch and no other tool, in its own memory scope. The page is written at once, under the name as its makers write it (fx, jless, ChatHackers). It opens with a line saying it is AI generated and researched on the web for this plan. Sections follow as the subject needs, with commands as terminal items and a Links section of the sources read; a See section links back to the plan. Each page is new, with one journaled create, and never written over a page that exists by then. The tool's line names the page being researched, then links every page written, with any that were skipped or failed."
+      "text": "The button calls `POST /system/api/plan/redlink.json`, which starts a job and takes up to six red links a run, one at a time. For each, the Claude door researches the term on the web from its primary sources: the CLI is given WebSearch and WebFetch and no other tool, in its own memory scope. The page is written at once, under the name as its makers write it (fx, jless, ChatHackers). It opens with a line saying it is AI generated and researched on the web for this plan. Sections follow as the subject needs, with commands as terminal items and a Links section of the sources read; a See section links back to the plan. Each page is new, with one journaled create, and never written over a page that exists by then. The tool's line names the page being researched, then links every page written, with any that were skipped or failed. A stub Red-link wrote in 0.6.0 that nobody has touched since, one create in its journal, counts as still missing: it is researched and written over the stub through the journal, so the stub stays as rev0. A stub anyone has edited is a page and is left alone."
     },
     {
       "type": "markdown",
@@ -958,6 +958,16 @@
         "text": "The button calls `POST /system/api/plan/redlink.json`, which starts a job and takes up to six red links a run, one at a time. For each, the Claude door researches the term on the web from its primary sources: the CLI is given WebSearch and WebFetch and no other tool, in its own memory scope. The page is written at once, under the name as its makers write it (fx, jless, ChatHackers). It opens with a line saying it is AI generated and researched on the web for this plan. Sections follow as the subject needs, with commands as terminal items and a Links section of the sources read; a See section links back to the plan. Each page is new, with one journaled create, and never written over a page that exists by then. The tool's line names the page being researched, then links every page written, with any that were skipped or failed."
       },
       "date": 1792245408989
+    },
+    {
+      "type": "edit",
+      "id": "b2f5d5d328424364",
+      "item": {
+        "type": "markdown",
+        "id": "b2f5d5d328424364",
+        "text": "The button calls `POST /system/api/plan/redlink.json`, which starts a job and takes up to six red links a run, one at a time. For each, the Claude door researches the term on the web from its primary sources: the CLI is given WebSearch and WebFetch and no other tool, in its own memory scope. The page is written at once, under the name as its makers write it (fx, jless, ChatHackers). It opens with a line saying it is AI generated and researched on the web for this plan. Sections follow as the subject needs, with commands as terminal items and a Links section of the sources read; a See section links back to the plan. Each page is new, with one journaled create, and never written over a page that exists by then. The tool's line names the page being researched, then links every page written, with any that were skipped or failed. A stub Red-link wrote in 0.6.0 that nobody has touched since, one create in its journal, counts as still missing: it is researched and written over the stub through the journal, so the stub stays as rev0. A stub anyone has edited is a page and is left alone."
+      },
+      "date": 1792245999696
     }
   ],
   "plugin": "plan"

@@ -1760,3 +1760,25 @@ export const researchedPage = ({ title, body, planTitle, model = '', date = Date
     journal: [{ type: 'create', item: { title, story: story.map(i => ({ ...i })) }, date, provenance: `Researched on the web${by} through the Plan Tool's Red-link, for a red link on ${planTitle}.` }],
   }
 }
+
+/**
+ * An AI stub the Plan Tool's Red-link wrote (0.6.0) that nobody has touched
+ * since: one create in its journal, carrying Red-link's stub provenance.
+ * Since 0.7.0 Red-link treats such a page as still missing, researches it and
+ * writes the full page over it through the journal, so the stub stays in its
+ * history. A stub anyone has edited, forked or written by hand is a page.
+ */
+export const isUntouchedStub = page =>
+  !!page &&
+  Array.isArray(page.journal) &&
+  page.journal.length === 1 &&
+  page.journal[0].type === 'create' &&
+  /^AI generated stub for a red link on .+ through the Plan Tool's Red-link/.test(String(page.journal[0].provenance || ''))
+
+/** The researched page written over an untouched stub: the stub's create, then the journal of the change. */
+export const researchedOverStub = ({ stub, title, body, planTitle, model = '', date = Date.now(), id = randomHex }) => {
+  const story = researchedStory({ title, body, planTitle, model, date: today(date), id })
+  const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
+  const r = reviseJournal(stub.story || [], story, { provenance: `Researched on the web${by} through the Plan Tool's Red-link, over the stub it had written, for a red link on ${planTitle}.`, date })
+  return { ...stub, title, story: r.story, journal: [...stub.journal, ...r.actions] }
+}

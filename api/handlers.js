@@ -46,7 +46,7 @@ import { fileURLToPath } from 'node:url'
 
 import { ask, defaultModel, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage } from '../src/client/core.js'
+import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
 import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
 
@@ -468,9 +468,19 @@ const siteTitles = site => {
 export async function redlink({ slug, origin, status, farmRoot } = {}) {
   const p = readPlan(status, origin, slug)
   const found = redLinksOf(p.page, knownSlugs(farmRoot, p.site))
+  // The plan's links to untouched stubs of Red-link's own on this site count as missing too.
+  const stubs = []
+  const seen = new Set(found.red.map(r => r.slug))
+  for (const l of planLinks(p.page)) {
+    const s = asSlug(l.title)
+    if (!s || seen.has(s) || l.held || l.title.endsWith('?')) continue
+    seen.add(s)
+    const page = readJson(path.join(p.site, 'pages', s))
+    if (isUntouchedStub(page)) stubs.push({ title: l.title, slug: s, kind: l.kind, context: l.context, section: l.section, stub: true })
+  }
   const kept = found.questions.length ? `; ${found.questions.length} question link${found.questions.length === 1 ? ' is' : 's are'} left for their answers` : ''
-  if (!found.red.length) throw problem(400, `${p.page.title} has no red links: every link on it has a page on this farm${kept}`)
-  const todo = found.red.slice(0, RESEARCH_BATCH)
+  if (!found.red.length && !stubs.length) throw problem(400, `${p.page.title} has no red links: every link on it has a page on this farm${kept}`)
+  const todo = [...found.red, ...stubs].slice(0, RESEARCH_BATCH)
   const session = `Plan Tool: Red-link ${origin}/${p.slug}`
   return start({
     kind: 'redlink',
@@ -482,7 +492,7 @@ export async function redlink({ slug, origin, status, farmRoot } = {}) {
     phase: null,
     session,
     title: p.page.title,
-    meta: { red: todo.map(r => r.title), more: found.red.length - todo.length, questions: found.questions, held: found.held, existing: found.existing },
+    meta: { red: todo.map(r => r.title), stubs: todo.filter(r => r.stub).map(r => r.title), more: found.red.length + stubs.length - todo.length, questions: found.questions, held: found.held, existing: found.existing },
     holdOff: `${session}: researching the plan's red links on the web and writing their pages, one at a time`,
     run: async (j, model) => {
       // Research needs the CLI: the API road has no tools.
@@ -501,6 +511,19 @@ export async function redlink({ slug, origin, status, farmRoot } = {}) {
           const { title, body } = parseResearch(out.markdown, r.title)
           if (!body) throw new Error('the model wrote no page')
           const file = path.join(p.site, 'pages', checkSlug(r.slug))
+          if (r.stub) {
+            // Read again: written over only while it is still the untouched stub.
+            const stub = readJson(file)
+            if (!isUntouchedStub(stub)) {
+              skipped.push({ title: r.title, slug: r.slug, why: 'the stub was edited meanwhile' })
+              continue
+            }
+            const page = researchedOverStub({ stub, title, body, planTitle: p.page.title, model: out.model })
+            if (JSON.stringify(storyAt(page)) !== JSON.stringify(page.story)) throw new Error('the journal would not replay to the researched page')
+            writeAtomic(status, file, JSON.stringify(page, null, 2))
+            written.push({ title, slug: r.slug, ms: out.ms, overStub: true })
+            continue
+          }
           if (fs.existsSync(file) || knownSlugs(farmRoot, p.site).has(r.slug)) {
             skipped.push({ title: r.title, slug: r.slug, why: 'a page with that slug is on the farm now' })
             continue

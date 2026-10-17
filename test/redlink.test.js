@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { planLinks, redLinksOf, parseResearch, researchedStory, researchedPage, asSlug } from '../src/client/core.js'
+import { planLinks, redLinksOf, parseResearch, researchedStory, researchedPage, asSlug, isUntouchedStub, storyAt } from '../src/client/core.js'
 
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'plan-stubs-'))
 process.env.WIKI_WIP_DIR = scratch()
@@ -159,4 +159,45 @@ test('redlink on a farm: each red link researched and written, one at a time; qu
   fs.writeFileSync(path.join(site, 'pages', 'caddy'), '{}')
   await assert.rejects(redlink({ slug: 'hook-plan', ...ctx }), e => e.status === 400 && /has no red links/.test(e.message) && /2 question links are left for their answers/.test(e.message))
   for (const k of ['WIKI_EXTRA_FARMS', 'WIKI_PACKAGE_DIR', 'CLAUDE_DOOR_SCOPE_MEMORY']) delete process.env[k]
+})
+
+test('redlink over its own untouched stubs: researched and written through the journal; an edited stub is a page', async () => {
+  const root = scratch()
+  const site = path.join(root, 'hooks.localhost')
+  fs.mkdirSync(path.join(site, 'pages'), { recursive: true })
+  fs.mkdirSync(path.join(site, 'status'), { recursive: true })
+  const p = { title: 'Small Plan', story: [md('a', 'Use [[Caddy]] and the [[capability URL]].'), { type: 'plan', id: 'p', text: 'STATUS' }], journal: [{ type: 'create', date: 1, item: { title: 'Small Plan', story: [] } }] }
+  fs.writeFileSync(path.join(site, 'pages', 'small-plan'), JSON.stringify(p))
+  const stub = (title, extra = []) => {
+    const story = [md('s1', 'This page is an AI generated [[Stub]]. A guess.'), md('s2', '# See\n\n- [[Stub]]\n- [[Small Plan]]')]
+    return { title, story, journal: [{ type: 'create', item: { title, story }, date: 2, provenance: "AI generated stub for a red link on Small Plan, through the Plan Tool's Red-link by claude-opus-5." }, ...extra] }
+  }
+  fs.writeFileSync(path.join(site, 'pages', 'caddy'), JSON.stringify(stub('Caddy')))
+  fs.writeFileSync(path.join(site, 'pages', 'capability-url'), JSON.stringify(stub('Capability URL', [{ type: 'edit', id: 's1', item: md('s1', 'David wrote this.'), date: 3 }])))
+  assert.equal(isUntouchedStub(stub('Caddy')), true)
+  assert.equal(isUntouchedStub(JSON.parse(fs.readFileSync(path.join(site, 'pages', 'capability-url'), 'utf8'))), false)
+  const ctx = { origin: 'hooks.localhost', status: path.join(site, 'status'), farmRoot: root }
+  process.env.CLAUDE_DOOR_KEY_FILE = path.join(root, 'no-key')
+  const bin = path.join(root, 'claude')
+  fs.writeFileSync(bin, "#!/bin/sh\ncat > /dev/null\nprintf 'TITLE: Caddy\\n\\nCaddy is a web server by the Caddy project.\\n\\n# Links\\n- [https://caddyserver.com caddyserver.com]\\n'\n", { mode: 0o755 })
+  process.env.CLAUDE_DOOR_BIN = bin
+  process.env.CLAUDE_DOOR_SCOPE_MEMORY = 'off'
+  const started = await redlink({ slug: 'small-plan', ...ctx })
+  const done = await until(async () => {
+    const j = await job({ id: started.job, ...ctx })
+    return j.status !== 'running' && j
+  })
+  assert.equal(done.status, 'done', done.error)
+  assert.deepEqual(done.meta.red, ['Caddy'])
+  assert.deepEqual(done.meta.stubs, ['Caddy'])
+  assert.deepEqual(done.result.written.map(w => [w.slug, w.overStub]), [['caddy', true]])
+  const caddy = JSON.parse(fs.readFileSync(path.join(site, 'pages', 'caddy'), 'utf8'))
+  assert.match(caddy.story[0].text, /^This page is AI generated: researched on the web/)
+  assert.equal(caddy.story[1].text, 'Caddy is a web server by the Caddy project.')
+  assert.equal(caddy.journal[0].type, 'create', 'the stub stays in the history')
+  assert.deepEqual(storyAt(caddy, 0), stub('Caddy').story, 'rev0 is the stub')
+  assert.deepEqual(storyAt(caddy), caddy.story)
+  assert.match(caddy.journal.at(-1).provenance, /over the stub it had written/)
+  assert.equal(JSON.parse(fs.readFileSync(path.join(site, 'pages', 'capability-url'), 'utf8')).story[0].text, 'This page is an AI generated [[Stub]]. A guess.', 'an edited stub is left alone')
+  delete process.env.CLAUDE_DOOR_SCOPE_MEMORY
 })

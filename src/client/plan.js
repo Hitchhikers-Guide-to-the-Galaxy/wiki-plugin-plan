@@ -574,7 +574,7 @@ function paintAgent($item) {
     const link = x => internal(x.title, x.slug, location.host)
     const w = R.written || []
     html =
-      `Red-link wrote ${w.length} page${w.length === 1 ? '' : 's'}, each researched on the web by ${escapeHtml(String(R.model || '').replace(/^claude-cli:/, ''))}, in ${secs(R.ms || 0)}${w.length ? `: ${w.map(link).join(', ')}` : ''}.` +
+      `Red-link wrote ${w.length} page${w.length === 1 ? '' : 's'}, each researched on the web by ${escapeHtml(String(R.model || '').replace(/^claude-cli:/, ''))}, in ${secs(R.ms || 0)}${w.length ? `: ${w.map(x => link(x) + (x.overStub ? ' (over its stub)' : '')).join(', ')}` : ''}.` +
       ((R.skipped || []).length ? ` Skipped, a page is there now: ${R.skipped.map(x => escapeHtml(x.title)).join(', ')}.` : '') +
       ((R.failed || []).length ? ` <span class="plan-refused">Failed: ${R.failed.map(x => `${escapeHtml(x.title)} (${escapeHtml(x.error)})`).join('; ')}.</span>` : '') +
       ((M.questions || []).length ? ` ${M.questions.length} question link${M.questions.length === 1 ? ' is' : 's are'} left for their answers.` : '') +
