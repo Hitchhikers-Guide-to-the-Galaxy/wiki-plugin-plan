@@ -17,6 +17,9 @@
 //             Claude door (@fortyfoxes/wiki-claude-door, shared with the Voice
 //             Tool); the answer is a phase report, kept in a job. Nothing is
 //             written to any page: the client opens the report as a ghost.
+//             Since 0.9.0 the Plan Tool does not call it: its Do Next Phase
+//             places the plan's Terminal Button, and a Claude Code session
+//             David watches does the phase (phaseButtonText in core.js).
 //   revise  — Revise Plan: the same door, asked to redraft the plan given the
 //             answered questions. A job too; nothing written: the client opens
 //             the redraft as a ghost with the plan's own title (Phase 8).

@@ -113,6 +113,11 @@
     },
     {
       "type": "markdown",
+      "id": "167535f526a644b3",
+      "text": "Since 0.9.0 Do Next Phase does the phase instead of describing it. Until then it sent the plan to the Claude door with every tool switched off and asked for a report on how the phase might be done, so the button said do and the run only described. Now it asks no model: it writes the plan's one [[Terminal Button]] just after the next phase's last checkpoint, through the wiki's own add, edit and move. The button's brief names the plan, tells the session to do every unticked checkpoint for real and verify each, to ask before DNS, public sites, farm restarts, publishing, pushing or messages, and then to write the phase report, tick what it verified and move the button on. Clicking it opens a Claude Code session on the laptop and types the brief in; David watches and approves each step. A page from a site that is not local also needs that site in ~/.config/wiki-plugin-terminal/trust.json."
+    },
+    {
+      "type": "markdown",
       "id": "f3c25edf2403956f",
       "text": "Beside Update Plan, on a plan's status line and on the Plan Tool beside a plan, are two more buttons under the same owner rule. Do Next Phase calls `POST /system/api/plan/next.json` with the plan's slug, and optionally a phase; Revise Plan calls `POST /system/api/plan/revise.json`. Both are declared as writes, so the farm's gate refuses them with a 403 off a private site or without the owner's rights, and both answer at once with a job. The tool polls `GET /system/api/plan/job.json?id=` every three seconds, showing the elapsed time, until the job is done or failed; a refusal or a failure comes back word for word."
     },
@@ -124,7 +129,7 @@
     {
       "type": "markdown",
       "id": "f8025429eae60cf8",
-      "text": "Do Next Phase asks for a fixed shape: a one-paragraph summary, one section per checkpoint saying what to do, how to verify it and whether the pages already show it done, and a closing Proposed Ticks section listing the checkpoints it judges done, word for word, or none. Revise Plan asks for the whole plan redrafted in the house format, every existing tick kept and only what the answers justify changed, with a closing What Changed section."
+      "text": "Before 0.9.0, Do Next Phase asked for a fixed shape: a one-paragraph summary, one section per checkpoint saying what to do, how to verify it and whether the pages already show it done, and a closing Proposed Ticks section. The next.json operation still answers that way, but the tool no longer calls it."
     },
     {
       "type": "markdown",
@@ -978,6 +983,27 @@
         "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: \u2026*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
       },
       "date": 1792269722512
+    },
+    {
+      "type": "add",
+      "id": "167535f526a644b3",
+      "item": {
+        "type": "markdown",
+        "id": "167535f526a644b3",
+        "text": "Since 0.9.0 Do Next Phase does the phase instead of describing it. Until then it sent the plan to the Claude door with every tool switched off and asked for a report on how the phase might be done, so the button said do and the run only described. Now it asks no model: it writes the plan's one [[Terminal Button]] just after the next phase's last checkpoint, through the wiki's own add, edit and move. The button's brief names the plan, tells the session to do every unticked checkpoint for real and verify each, to ask before DNS, public sites, farm restarts, publishing, pushing or messages, and then to write the phase report, tick what it verified and move the button on. Clicking it opens a Claude Code session on the laptop and types the brief in; David watches and approves each step. A page from a site that is not local also needs that site in ~/.config/wiki-plugin-terminal/trust.json."
+      },
+      "after": "4b1648a795e6fb22",
+      "date": 1792272348026
+    },
+    {
+      "type": "edit",
+      "id": "f8025429eae60cf8",
+      "item": {
+        "type": "markdown",
+        "id": "f8025429eae60cf8",
+        "text": "Before 0.9.0, Do Next Phase asked for a fixed shape: a one-paragraph summary, one section per checkpoint saying what to do, how to verify it and whether the pages already show it done, and a closing Proposed Ticks section. The next.json operation still answers that way, but the tool no longer calls it."
+      },
+      "date": 1792272348026
     }
   ],
   "plugin": "plan"

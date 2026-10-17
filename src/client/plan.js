@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -332,7 +332,7 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   const next = st && st.next !== -1 ? st.phases[st.next].line : ''
   const $box = $(
     `<div class="plan-update"><button class="plan-update-go" title="Update Plan ticks what the answers settled and re-renders the plan's markdown asset; no model, written on the page">Update Plan</button>` +
-      (next ? ` <button class="plan-next-go" title="Ask the Claude door for a report on ${escapeHtml(next)}: it opens as a ghost page, nothing is written to the plan">Do Next Phase</button>` : '') +
+      (next ? ` <button class="plan-next-go" title="Put the plan's Do Phase button just after ${escapeHtml(next)}: clicking it opens a Claude Code session on this laptop and types the phase in, and you watch and approve the work there">Do Next Phase</button>` : '') +
       ` <button class="plan-revise-go" title="Revise Plan asks the model to redraft the plan from its answers, on a ghost with the plan's own title; Save overwrites the plan with a rewindable journal">Revise Plan</button>` +
       ` <button class="plan-redlink-go" title="Red-link finds the links on the plan that have no page behind them, researches each on the web and writes its page, a new page with one journaled create; question links are left for their answers">Red-link</button>` +
       (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
@@ -352,7 +352,7 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   })
   $box.on('click', '.plan-next-go', e => {
     e.preventDefault()
-    runAgent($item, $subject, slug, 'next')
+    placeButton($item, $subject, slug, $box)
   })
   $box.on('click', '.plan-revise-go', e => {
     e.preventDefault()
@@ -507,6 +507,93 @@ async function runFinish($item, $subject, slug, page) {
     } else $subject.data('data', fresh)
   } catch (_) {}
   if (document.body.contains($item[0])) render($item, $item.data('item') || {})
+}
+
+// ---------- Do Next Phase (0.9.0): the plan's Terminal Button ----------
+//
+// Do Next Phase does not ask a model for anything. It writes the plan's one
+// Terminal Button (phaseButtonText in core.js) just after the next phase's
+// last checkpoint, through the wiki's own add, edit and move, so the item on
+// the site is byte-for-byte what the terminal service checks before it lets
+// a non-local page type into a session. The click on that button is David's:
+// it opens the terminal on this laptop, boots claude in the plan's session
+// and types the brief in, and every step is approved there.
+
+const TERMINAL_HEALTH = ['http://terminal.localhost/terminal/health', 'http://terminal.localhost:4288/terminal/health']
+
+const terminalHealth = async () => {
+  for (const url of TERMINAL_HEALTH) {
+    try {
+      const r = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(2500) })
+      if (r.ok) return await r.json()
+    } catch (_) {}
+  }
+  return null
+}
+
+async function placeButton($item, $subject, slug, $box) {
+  // The line is kept on the element, as Update Plan's is: the add re-renders
+  // the items to the plan's right, this tool among them, and attachUpdate
+  // paints planAnswer back into the new box.
+  const say = (html, refused = false) => {
+    $item[0].planAnswer = { refused, html }
+    $item.find('.plan-answer').toggleClass('plan-refused', refused).html(html)
+  }
+  if (ownerHere() === false) return say(escapeHtml(`Log in to ${location.host} as its owner: Do Next Phase writes the plan's Do Phase button.`), true)
+  $item.find('.plan-next-go').prop('disabled', true)
+  try {
+    say('Do Next Phase: placing the button…')
+    let plan
+    try {
+      plan = await getJSON(`/${slug}.json`)
+    } catch (_) {
+      plan = $subject.data('data')
+    }
+    const phase = choosePhase(plan)
+    if (!phase) return say('Every checkpoint is ticked: there is no next phase.', true)
+    const report = reportTitle({ kind: 'next', planTitle: plan.title, phaseLabel: phase.label })
+    const text = phaseButtonText({ title: plan.title, slug, base: location.origin, phase, reportTitle: report })
+    const want = buttonPlacement(plan, phase, text)
+    const $story = $subject.find('.story:first')
+    let id
+    if (want.add) {
+      id = await addItem($subject, want.after, { type: 'terminal', id: randomId(), text })
+    } else {
+      id = want.existing.id
+      const $it = $story.children(`.item[data-id="${id}"]`)
+      if (want.move) {
+        const $anchor = $story.children(`.item[data-id="${want.after}"]`)
+        if ($anchor.length && $it.length) $anchor.after($it)
+        const order = $story.children('.item').map((_, el) => $(el).data('id')).get()
+        await putAndWait($subject, { type: 'move', id, order })
+      }
+      if (want.edit) {
+        const item = { ...want.existing, text }
+        if ($it.length) {
+          $it.data('item', item).empty()
+          wiki.doPlugin($it, item)
+        }
+        await putAndWait($subject, { type: 'edit', id, item })
+      }
+    }
+    const did = want.add ? 'added' : want.edit || want.move ? `${[want.edit && 'rewritten', want.move && 'moved'].filter(Boolean).join(' and ')}` : 'already in place'
+    const $button = $story.children(`.item[data-id="${id}"]`)
+    if ($button.length && $button[0].scrollIntoView) $button[0].scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const health = await terminalHealth()
+    const ready = health
+      ? ` The terminal service on this laptop answers.`
+      : ` <span class="plan-refused">The terminal service on this laptop did not answer this page. It runs only on the laptop, and a page from ${escapeHtml(location.host)} also needs the site listed in ~/.config/wiki-plugin-terminal/trust.json and the padlock opened on the button.</span>`
+    say(
+      `Do ${escapeHtml(phase.label)} is on the plan (${escapeHtml(did)}), just after its last checkpoint. ` +
+        `Click it: it opens a Claude Code session on this laptop (${escapeHtml(buttonSession(slug))}) and types the phase in. You watch the work and approve each step there; ` +
+        `the session ticks what it verified, writes ${internal(report, asSlug(report), location.host)} and moves the button on.` +
+        ready,
+    )
+  } catch (err) {
+    say(escapeHtml(`Could not place the button: ${err.message}`), true)
+  } finally {
+    $item.find('.plan-next-go').prop('disabled', false)
+  }
 }
 
 // ---------- Do Next Phase and Revise Plan (Phase 4) ----------

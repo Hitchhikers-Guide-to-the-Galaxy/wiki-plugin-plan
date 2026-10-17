@@ -1821,3 +1821,72 @@ export const researchedOverStub = ({ stub, title, body, planTitle, model = '', d
   const r = reviseJournal(stub.story || [], story, { provenance: `Researched on the web${by} through the Plan Tool's Red-link, over the stub it had written, for a red link on ${planTitle}.`, date })
   return { ...stub, title, story: r.story, journal: [...stub.journal, ...r.actions] }
 }
+
+
+// ======================================================================
+// 0.9.0 — Do Next Phase places a Terminal Button.
+// ======================================================================
+//
+// Until 0.8.0 Do Next Phase asked the Claude door, with every tool switched
+// off, for a report on how the phase might be done: it described the work and
+// did none of it. David chose (17 Oct 2026) that the work is done in a Claude
+// Code session he watches, not by an agent the wiki starts unattended. So Do
+// Next Phase now puts the plan's one Terminal Button (wiki-plugin-terminal's
+// BUTTON mode, the fedwiki-plan skill's "moving button") just after the
+// phase's last checkpoint, written for that phase. Clicking it opens the
+// terminal on the laptop, boots `claude` in a shared session and types the
+// brief in; every tool call is approved there, in the open. The brief carries
+// the moving rule, so the session walks the button on when the phase is done.
+
+// Shell-safe: an unmatched quote wedges a bare zsh at `quote>` if claude has
+// not drawn yet, so the interpolated words lose quotes, backticks, $ and \.
+const shellSafe = s => String(s || '').replace(/['"`$\\]/g, '').replace(/\s+/g, ' ').trim()
+
+export const buttonSession = slug => `${slug}-agent`
+
+export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report }) => {
+  const label = phase.label
+  const origin = String(base).replace(/^https?:\/\//, '').replace(/\/$/, '')
+  const t = shellSafe(title)
+  const r = shellSafe(report)
+  const brief =
+    `Do ${label} of the ${t}, ${String(base).replace(/\/$/, '')}/view/${slug}. ` +
+    `Read the plan page first, then do every unticked checkpoint of ${label}, in order, for real: write the code, run it, write the pages, and verify each one with a command before you count it done. ` +
+    `The page files live on the machine whose farm serves ${origin}: write pages there through the journal with fedwiki-lib, and follow the fedwiki-plan skill. ` +
+    `Ask me before any DNS change, anything on a public site, a farm restart, an npm publish, a git push or a message to anyone, and before any checkpoint that needs my decision. ` +
+    `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; tick each checkpoint you verified, one journal edit per item; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, or remove it after the final phase. Reset the site index after writing.`
+  return [
+    'BUTTON: show',
+    `LABEL: Do ${label}`,
+    `SESSION: ${buttonSession(slug)}`,
+    'BOOT: cd ~ && claude',
+    'GUARD: claude auth status',
+    'GUARDLABEL: Sign in to Claude first',
+    brief,
+  ].join('\n')
+}
+
+/** The plan's Terminal Button: a terminal item in BUTTON mode whose label is Do <something>. */
+export const findPhaseButton = page => {
+  const story = page && Array.isArray(page.story) ? page.story : []
+  const index = story.findIndex(it => {
+    if (!it || it.type !== 'terminal') return false
+    const lines = String(it.text || '').split('\n')
+    return lines.some(l => /^BUTTON(?::\s*\S+)?\s*$/.test(l)) && lines.some(l => /^LABEL:\s*Do\s/.test(l))
+  })
+  return index === -1 ? null : { item: story[index], index }
+}
+
+/**
+ * What Do Next Phase must do to the plan so its button sits right after the
+ * phase's last checkpoint item, with the text for that phase:
+ * {add, edit, move, after, existing} — none of them when it already does.
+ */
+export const buttonPlacement = (page, phase, text) => {
+  const story = page && Array.isArray(page.story) ? page.story : []
+  const after = phase.lastItemId
+  const found = findPhaseButton(page)
+  if (!found) return { add: true, edit: false, move: false, after, existing: null }
+  const at = story.findIndex(it => it && it.id === after)
+  return { add: false, edit: found.item.text !== text, move: found.index !== at + 1, after, existing: found.item }
+}
