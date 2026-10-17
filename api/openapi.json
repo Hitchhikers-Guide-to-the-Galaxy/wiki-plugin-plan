@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.5.0",
-    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link. Red-link is agentic too, and writes nothing: the door names the terms on the plan a reader may not understand, and the tool links the first plain mention of each on a ghost with the plan's own title, never inside the Open Questions, a heading, code or an existing link; Save over the plan (saveRevision, kind redlink) writes it as a revision is written."
+    "version": "0.6.0",
+    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link. Red-link finds the plan's links that have no page behind them on this farm, question links and the Open Questions section left alone, and asks the door for a stub for each, a job that writes nothing; Write Stubs (writeStubs) then writes the stubs chosen as new pages, one journaled create each. Create Red Links is the opposite and agentic too: the door names the terms a reader may not understand, and the tool links the first plain mention of each on a ghost with the plan's own title, saved over the plan as a revision is (saveRevision, kind terms)."
   },
   "paths": {
     "/update.json": {
@@ -113,55 +113,6 @@
         "operationId": "revise",
         "summary": "Revise Plan: ask the Claude door to redraft the plan given its answered questions, as a job",
         "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job and nothing is written: the tool opens it as a ghost with the plan's own title, carrying the plan's opener, its plan item second, the redrafted body and the plan's own timeline, Assets and See unchanged, and Save over the plan (save-revision.json) writes it. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
-        "x-fedwiki-writes": true,
-        "x-fedwiki-context": [
-          "origin",
-          "status",
-          "farmRoot"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "slug"
-                ],
-                "properties": {
-                  "slug": {
-                    "type": "string",
-                    "description": "The plan page on this site, by slug, e.g. next-demo-plan."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "{ job, status: 'running', kind, slug, title, phase, reportTitle, model, session, started } at once; poll job.json with the job id."
-          },
-          "400": {
-            "description": "Not a slug, or the page is not a plan."
-          },
-          "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
-          },
-          "404": {
-            "description": "No such page on this site."
-          },
-          "409": {
-            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
-          }
-        }
-      }
-    },
-    "/redlink.json": {
-      "post": {
-        "operationId": "redlink",
-        "summary": "Red-link: ask the Claude door which terms on the plan a reader may not understand, as a job",
-        "description": "Reads the plan page on this site. The content is only the text Red-link may write in: the markdown items outside the Open Questions, Assets and See sections, heading items left out, so code, terminal, timeline and plan items never reach the model. The model (the farm's choice, as for Revise Plan, through @fortyfoxes/wiki-claude-door, every tool disallowed, seven minutes) is asked for a list of terms, one per line, copied as written. The terms are kept in the job (result.terms) and nothing is written. The tool then links the first plain mention of each term, once per page, in those items only, never inside an existing [[link]], `code`, a [text](url) link or a fenced block, and never on a task line holding a [[Question?]] link; terms already linked are left alone. The result opens as a ghost with the plan's own title, and Save over the plan (save-revision.json with kind redlink) writes it through the journal so the version replaced is the plan's _rev. The run holds the farm WIP marker as Revise Plan does, named Plan Tool: Red-link <site>/<slug>.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -446,9 +397,10 @@
                     "type": "string",
                     "enum": [
                       "revise",
+                      "terms",
                       "redlink"
                     ],
-                    "description": "What made the ghost: revise (Revise Plan, the default) or redlink (Red-link); it names the revision on the journal and the status line."
+                    "description": "What made the ghost: revise (Revise Plan, the default) or terms (Create Red Links; redlink is its 0.5.0 name and still accepted); it names the revision on the journal and the status line."
                   }
                 }
               }
@@ -519,6 +471,165 @@
           },
           "404": {
             "description": "No such page on this site."
+          }
+        }
+      }
+    },
+    "/link-terms.json": {
+      "post": {
+        "operationId": "linkTerms",
+        "summary": "Create Red Links: ask the Claude door which terms on the plan a reader may not understand, as a job",
+        "description": "Reads the plan page on this site. The content is only the text Create Red Links may write in: the markdown items outside the Open Questions, Assets and See sections, heading items left out, so code, terminal, timeline and plan items never reach the model. The model (the farm's choice, as for Revise Plan, through @fortyfoxes/wiki-claude-door, every tool disallowed, seven minutes) is asked for a list of terms, one per line, copied as written. The terms are kept in the job (result.terms) and nothing is written. The tool then links the first plain mention of each term, once per page, in those items only, never inside an existing [[link]], `code`, a [text](url) link or a fenced block, and never on a task line holding a [[Question?]] link; terms already linked are left alone. The result opens as a ghost with the plan's own title, and Save over the plan (save-revision.json with kind terms) writes it through the journal so the version replaced is the plan's _rev. The run holds the farm WIP marker as Revise Plan does, named Plan Tool: Create Red Links <site>/<slug>.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. next-demo-plan."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind, slug, title, phase, reportTitle, model, session, started } at once; poll job.json with the job id."
+          },
+          "400": {
+            "description": "Not a slug, or the page is not a plan."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
+    "/redlink.json": {
+      "post": {
+        "operationId": "redlink",
+        "summary": "Red-link: find the plan's links with no page behind them and ask the Claude door for a stub for each, as a job",
+        "description": "Reads the plan page on this site and collects its links: [[wikilinks]] in markdown, paragraph and html items (outside ``` fences) and timeline event labels. A link is red when no page with its slug is on any site of this farm, or of the farms named in WIKI_EXTRA_FARMS. Question links (a title ending in ?) and everything under the # Open Questions heading are never stubbed: a page behind a question marks it answered, and that is a person's act. Up to 20 red links a run go to the Claude door with the plan, the titles of the site's pages and the line each link was coined in; the model drafts one stub per title, opening with the line This page is an AI generated [[Stub]]. and a short assertive definition. The drafts are kept in the job (result.stubs, result.missing; meta lists the red links, how many more remain, the questions left alone) and nothing is written. 400 when the plan has no red links. The run holds the farm WIP marker, named Plan Tool: Red-link <site>/<slug>.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. next-demo-plan."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind, slug, title, phase, reportTitle, model, session, started } at once; poll job.json with the job id."
+          },
+          "400": {
+            "description": "Not a slug, the page is not a plan, or it has no red links."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
+    "/write-stubs.json": {
+      "post": {
+        "operationId": "writeStubs",
+        "summary": "Write Stubs: write the stubs a Red-link job drafted, as new pages",
+        "description": "Takes a finished Red-link job of this plan and, optionally, the titles to write (all by default). Each stub is written as a new page on this site, title in Title Case, its story the draft one item per paragraph opening with the accreditation line and ending in a See section of [[Stub]] and the plan, with a journal of one create carrying its provenance. A stub whose slug has a page anywhere on the farm by now is skipped, never overwritten. The site's Stub page is written once if it is missing, from the fedwiki-stub-page template. The index is reset. Holds the farm WIP marker; 409 when someone else does.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "job"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug."
+                  },
+                  "job": {
+                    "type": "string",
+                    "description": "The Red-link job's id."
+                  },
+                  "titles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "The stubs to write, by title; all the job drafted when left out."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ written: [{title, slug}], skipped: [{title, slug, why}], stubPage: true when the Stub page was written, index, wip }."
+          },
+          "400": {
+            "description": "Not a slug, not a plan, not a finished Red-link job of this plan, or no such titles in it."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
           }
         }
       }

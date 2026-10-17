@@ -14,7 +14,7 @@
     {
       "type": "markdown",
       "id": "9101f3208b7b4818",
-      "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Red-link** links the terms a reader may not know, red where no page exists yet; never the Open Questions, headings, code or existing links.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
+      "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Red-link** finds the links on the plan with no page behind them and drafts a stub for each; **Create the stubs** writes them as new pages. Question links are left for their answers.\n- **Create Red Links** links the terms a reader may not know, red where no page exists yet; never the Open Questions, headings, code or existing links.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
     },
     {
       "type": "paragraph",
@@ -110,6 +110,16 @@
         "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Red-link** links the terms a reader may not know, red where no page exists yet; never the Open Questions, headings, code or existing links.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
       },
       "date": 1792238183399
+    },
+    {
+      "type": "edit",
+      "id": "9101f3208b7b4818",
+      "item": {
+        "type": "markdown",
+        "id": "9101f3208b7b4818",
+        "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Red-link** finds the links on the plan with no page behind them and drafts a stub for each; **Create the stubs** writes them as new pages. Question links are left for their answers.\n- **Create Red Links** links the terms a reader may not know, red where no page exists yet; never the Open Questions, headings, code or existing links.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
+      },
+      "date": 1792244056923
     }
   ]
 }

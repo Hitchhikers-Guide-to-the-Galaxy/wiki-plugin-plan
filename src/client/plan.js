@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, redlinkItems, DEFAULT_TEXT } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, termLinkItems, DEFAULT_TEXT, stubStory } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -224,7 +224,7 @@ const revisedHtml = (rev, title) => {
   const rewind = ` <button class="plan-rewind" data-rev="${rev.previous}" title="Open ${escapeHtml(label)} beside the plan as a ghost with the plan's title: fork it to rewind, or close it; nothing is written until you fork">Rewind</button>`
   // A rewind the plugin wrote before Rewind became a ghost to fork (0.4.0 drafts) still reads as one.
   const by = rev.model ? ` by ${escapeHtml(rev.model)}` : ''
-  const what = rev.kind === 'rewind' && Number.isInteger(rev.to) ? `Rewound ${day} to ${escapeHtml(revLabel(title, rev.to))}` : rev.kind === 'redlink' ? `Red-linked ${day}${by}` : `Revised ${day}${by}`
+  const what = rev.kind === 'rewind' && Number.isInteger(rev.to) ? `Rewound ${day} to ${escapeHtml(revLabel(title, rev.to))}` : rev.kind === 'terms' || rev.kind === 'redlink' ? `Linked terms ${day}${by}` : `Revised ${day}${by}`
   return `<p class="plan-revised">${what} · the version it replaced: ${link}${rewind}</p>`
 }
 
@@ -330,7 +330,8 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
     `<div class="plan-update"><button class="plan-update-go" title="Update Plan ticks what the answers settled and re-renders the plan's markdown asset; no model, written on the page">Update Plan</button>` +
       (next ? ` <button class="plan-next-go" title="Ask the Claude door for a report on ${escapeHtml(next)}: it opens as a ghost page, nothing is written to the plan">Do Next Phase</button>` : '') +
       ` <button class="plan-revise-go" title="Revise Plan asks the model to redraft the plan from its answers, on a ghost with the plan's own title; Save overwrites the plan with a rewindable journal">Revise Plan</button>` +
-      ` <button class="plan-redlink-go" title="Red-link asks the model which terms a reader may not understand and links the first mention of each, red where no page exists yet, on a ghost with the plan's own title; the Open Questions, headings, code and existing links are left alone, and Save overwrites the plan with a rewindable journal">Red-link</button>` +
+      ` <button class="plan-redlink-go" title="Red-link finds the links on the plan that have no page behind them and asks the model for a stub for each; the stubs open as ghosts and nothing is written until Create; question links are left for their answers">Red-link</button>` +
+      ` <button class="plan-terms-go" title="Create Red Links asks the model which terms a reader may not understand and links the first mention of each, red where no page exists yet, on a ghost with the plan's own title; the Open Questions, headings, code and existing links are left alone, and Save overwrites the plan with a rewindable journal">Create Red Links</button>` +
       (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
         ? ` <button class="plan-site-go" title="Ask the Claude door for a Revision Proposal for the whole site from the answered questions: it opens as a ghost page with Go Ahead and Pause, and nothing is written until Go Ahead">Revise Site</button>`
         : '') +
@@ -357,6 +358,18 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   $box.on('click', '.plan-redlink-go', e => {
     e.preventDefault()
     runAgent($item, $subject, slug, 'redlink')
+  })
+  $box.on('click', '.plan-stub', e => {
+    e.preventDefault()
+    openStub($item, parseInt(e.currentTarget.getAttribute('data-i'), 10))
+  })
+  $box.on('click', '.plan-stubs-go', e => {
+    e.preventDefault()
+    writeStubs($item, $subject)
+  })
+  $box.on('click', '.plan-terms-go', e => {
+    e.preventDefault()
+    runAgent($item, $subject, slug, 'terms')
   })
   $box.on('click', '.plan-site-go', e => {
     e.preventDefault()
@@ -521,10 +534,10 @@ async function runFinish($item, $subject, slug, page) {
 // The run's state lives on the element ($item[0].planAgent), so a re-render
 // (a neighbour's sitemap landing, Update Plan's re-emit) repaints it.
 
-const AGENT_NAME = { next: 'Do Next Phase', revise: 'Revise Plan', site: 'Revise Site', redlink: 'Red-link' }
-const AGENT_PATH = { next: 'next', revise: 'revise', site: 'revise-site', redlink: 'redlink' }
+const AGENT_NAME = { next: 'Do Next Phase', revise: 'Revise Plan', site: 'Revise Site', redlink: 'Red-link', terms: 'Create Red Links' }
+const AGENT_PATH = { next: 'next', revise: 'revise', site: 'revise-site', redlink: 'redlink', terms: 'link-terms' }
 // The kinds whose ghost has the plan's own title and is saved over the plan.
-const OVER = new Set(['revise', 'redlink'])
+const OVER = new Set(['revise', 'terms'])
 const POLL_MS = 3000
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const agentOf = $item => ($item[0] && $item[0].planAgent) || null
@@ -539,14 +552,14 @@ const ghostIsOpen = A => !!(A && A.$ghost && A.$ghost.hasClass('ghost') && docum
 function paintAgent($item) {
   const A = agentOf($item)
   const $line = $item.find('.plan-agent')
-  $item.find('.plan-next-go, .plan-revise-go, .plan-site-go, .plan-redlink-go').prop('disabled', busy(A))
+  $item.find('.plan-next-go, .plan-revise-go, .plan-site-go, .plan-redlink-go, .plan-terms-go').prop('disabled', busy(A))
   if (!A || !$line.length) return
   const name = AGENT_NAME[A.kind]
   const what = A.phase ? ` on ${escapeHtml(A.phase.label)}` : ''
   const model = A.model ? ` with ${escapeHtml(String(A.model).replace(/^claude-cli:/, ''))}` : ''
   let html = ''
   if (A.state === 'posting') html = `${name}: asking the farm…`
-  else if (A.state === 'running') html = `${name}${what}${model}: the model is ${A.kind === 'redlink' ? 'naming the terms a reader may not know' : `reading the ${A.kind === 'site' ? 'answers and every page of the site' : 'plan'}`}… ${secs(Date.now() - A.started)}`
+  else if (A.state === 'running') html = `${name}${what}${model}: the model is ${A.kind === 'terms' ? 'naming the terms a reader may not know' : A.kind === 'redlink' ? `drafting a stub for each red link` : `reading the ${A.kind === 'site' ? 'answers and every page of the site' : 'plan'}`}… ${secs(Date.now() - A.started)}`
   else if (A.state === 'refused' || A.state === 'failed') html = escapeHtml(A.line)
   else if (A.kind === 'site' && (A.state === 'done' || A.state === 'saving')) {
     const open = ghostIsOpen(A)
@@ -566,13 +579,28 @@ function paintAgent($item) {
     html = `Go Ahead from ${escapeHtml(A.proposalTitle)}` + (P.of ? `: page ${P.n || 0} of ${P.of}${P.title ? `, ${escapeHtml(P.title)}` : ''}` : ': starting') + `… ${secs(Date.now() - A.applyStarted)}`
   } else if (A.state === 'applied') html = A.html
   else if (A.kind === 'redlink' && (A.state === 'done' || A.state === 'saving')) {
+    const S = A.result.stubs || []
+    const M = A.meta || { red: [], questions: [], more: 0 }
+    const by = escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))
+    const n = S.length
+    html =
+      `Red-link: ${M.red.length} red link${M.red.length === 1 ? '' : 's'} on the plan, ${n} stub${n === 1 ? '' : 's'} drafted by ${by} in ${secs(A.result.ms || 0)}: ` +
+      S.map((s, i) => `<a href="#" class="plan-stub" data-i="${i}" title="Open this stub as a ghost to read it; its own fork flag writes just this one">${escapeHtml(s.title)}</a>`).join(', ') +
+      '. Nothing is written until Create.' +
+      ((A.result.missing || []).length ? ` No draft came back for ${A.result.missing.map(escapeHtml).join(', ')}.` : '') +
+      ((M.questions || []).length ? ` ${M.questions.length} question link${M.questions.length === 1 ? ' is' : 's are'} left for their answers.` : '') +
+      (M.more ? ` ${M.more} more red link${M.more === 1 ? '' : 's'} after these: press Red-link again once these are written.` : '') +
+      (n ? ` <button class="plan-stubs-go" ${A.state === 'saving' ? 'disabled' : ''} title="Write every drafted stub as a new page on this site, each with one journaled create; a page that exists by now is never overwritten">Create the ${n} stub${n === 1 ? '' : 's'}</button>` : '') +
+      (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
+  } else if (A.state === 'stubbed') html = A.html
+  else if (A.kind === 'terms' && (A.state === 'done' || A.state === 'saving')) {
     const open = ghostIsOpen(A)
-    const R = A.redlink || { linked: [], skipped: [], terms: [] }
+    const R = A.terms || { linked: [], skipped: [], terms: [] }
     const by = escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))
     const skipped = R.skipped.length ? ` ${R.skipped.length} left as they were: ${R.skipped.map(x => `${escapeHtml(x.term)} (${escapeHtml(x.why)})`).join('; ')}.` : ''
     html = !R.linked.length
-      ? `Red-link: ${by} named ${R.terms.length} term${R.terms.length === 1 ? '' : 's'} in ${secs(A.result.ms || 0)}; none could be linked, so there is no ghost and nothing is written.${skipped}`
-      : `Red-link: ${R.linked.length} term${R.linked.length === 1 ? '' : 's'} linked by ${by} in ${secs(A.result.ms || 0)} (${R.linked.map(x => escapeHtml(x.as)).join(', ')}), ` +
+      ? `Create Red Links: ${by} named ${R.terms.length} term${R.terms.length === 1 ? '' : 's'} in ${secs(A.result.ms || 0)}; none could be linked, so there is no ghost and nothing is written.${skipped}`
+      : `Create Red Links: ${R.linked.length} term${R.linked.length === 1 ? '' : 's'} linked by ${by} in ${secs(A.result.ms || 0)} (${R.linked.map(x => escapeHtml(x.as)).join(', ')}), ` +
         (open ? `open as a ghost with the plan's own title; nothing is written until Save.` : `its ghost is closed; Save still writes it.`) +
         skipped +
         ` <button class="plan-save-over" ${A.state === 'saving' ? 'disabled' : ''} title="Save overwrites the plan in place with a rewindable journal: the version it replaces stays in the journal as its _rev, and Rewind opens it beside the plan to fork back">Save over the plan</button>` +
@@ -648,6 +676,7 @@ async function runAgent($item, $subject, slug, kind) {
     if (j.status === 'failed') Object.assign(A, { state: 'failed', line: `${AGENT_NAME[kind]} failed: ${j.error}` })
     else if (j.status === 'done') {
       A.result = j.result
+      A.meta = j.meta || null
       A.reportTitle = j.result.reportTitle || A.reportTitle
       const t = j.result.proposedTicks
       if (t) A.ticks = !t.found ? 'The report has no Proposed Ticks section.' : t.none ? 'It proposes no ticks.' : `It proposes ${t.listed.length} tick${t.listed.length === 1 ? '' : 's'}, listed on the report; none was made.`
@@ -659,8 +688,8 @@ async function runAgent($item, $subject, slug, kind) {
         }
       }
       A.state = 'done'
-      itemsOf(A)
-      if (kind !== 'redlink' || A.redlink.linked.length) openReport($item, A)
+      if (kind !== 'redlink') itemsOf(A)
+      if (kind !== 'redlink' && (kind !== 'terms' || A.terms.linked.length)) openReport($item, A)
     }
     paintAgent($item)
   }
@@ -670,9 +699,9 @@ async function runAgent($item, $subject, slug, kind) {
 // The report's items, once: the ghost reopens with the same ids.
 const itemsOf = A => {
   if (A.items) return A.items
-  if (A.kind === 'redlink') {
-    const r = redlinkItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model })
-    A.redlink = { terms: r.terms, linked: r.linked, skipped: r.skipped }
+  if (A.kind === 'terms') {
+    const r = termLinkItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model })
+    A.terms = { terms: r.terms, linked: r.linked, skipped: r.skipped }
     return (A.items = r.items)
   }
   return (A.items =
@@ -850,6 +879,56 @@ async function saveAndLink($item, $subject) {
   return title
 }
 
+// ---------- Red-link: read a stub, write the stubs (0.6.0) ----------
+//
+// Each drafted stub opens as a ghost with its own title, the Voice Tool's
+// ghost: its fork flag writes that one page the wiki's way. Create writes
+// every draft through write-stubs.json, where the farm writes new pages only,
+// one journaled create each, and the site's Stub page once. The status line
+// is read again after, so the links it counted red count as pages.
+
+function openStub($item, i) {
+  const A = agentOf($item)
+  const s = A && A.result && (A.result.stubs || [])[i]
+  if (!s) return
+  A.stubItems = A.stubItems || {}
+  A.stubItems[i] = A.stubItems[i] || stubStory({ title: s.title, markdown: s.markdown, planTitle: A.title })
+  openGhost($item.parents('.page').first(), s.title, A.stubItems[i])
+}
+
+async function writeStubs($item, $subject) {
+  const A = agentOf($item)
+  if (!A || A.kind !== 'redlink' || !A.result || A.state === 'saving') return
+  if (ownerHere() === false) {
+    A.line = `log in to ${location.host} as its owner to write pages here`
+    return paintAgent($item)
+  }
+  A.state = 'saving'
+  A.line = ''
+  paintAgent($item)
+  let out
+  try {
+    out = await postJSON('write-stubs.json', { slug: A.slug, job: A.job })
+  } catch (err) {
+    Object.assign(A, { state: 'done', line: `Could not reach the farm: ${err.message}` })
+    return paintAgent($item)
+  }
+  if (!out.res.ok) {
+    Object.assign(A, { state: 'done', line: apiError(out.res, out.body) })
+    return paintAgent($item)
+  }
+  const b = out.body
+  const link = x => internal(x.title, x.slug, location.host)
+  A.state = 'stubbed'
+  A.html =
+    `Red-link wrote ${b.written.length} stub${b.written.length === 1 ? '' : 's'}: ${b.written.map(link).join(', ') || 'none'}` +
+    (b.stubPage ? `, and the site's ${internal('Stub', 'stub', location.host)} page` : '') +
+    '. Each opens "This page is an AI generated Stub." and links back to the plan.' +
+    (b.skipped.length ? ` Skipped, a page is there now: ${b.skipped.map(x => escapeHtml(x.title)).join(', ')}.` : '')
+  paintAgent($item)
+  setTimeout(() => document.body.contains($item[0]) && render($item, $item.data('item') || {}), 1500)
+}
+
 // ---------- Save over the plan, the _rev and Rewind (Phase 8) ----------
 //
 // Save over the plan POSTs the ghost's story to save-revision.json, where the
@@ -937,7 +1016,7 @@ async function saveOver($item, $subject) {
   }
   if (!out.res.ok) return fail(apiError(out.res, out.body))
   if (!out.body.written) return fail(`Nothing written: ${out.body.why}`)
-  SAVED.set(A.slug, { html: savedHtml(A.kind === 'redlink' ? 'Red-linked the plan' : 'Saved over the plan', out.body) })
+  SAVED.set(A.slug, { html: savedHtml(A.kind === 'terms' ? 'Linked the terms' : 'Saved over the plan', out.body) })
   $item[0].planAgent = null
   closeGhost(A.$ghost)
   reopenPlan($item, $subject)
