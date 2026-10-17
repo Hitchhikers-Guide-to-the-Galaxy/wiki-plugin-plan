@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.4.0",
-    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link."
+    "version": "0.5.0",
+    "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link. Red-link is agentic too, and writes nothing: the door names the terms on the plan a reader may not understand, and the tool links the first plain mention of each on a ghost with the plan's own title, never inside the Open Questions, a heading, code or an existing link; Save over the plan (saveRevision, kind redlink) writes it as a revision is written."
   },
   "paths": {
     "/update.json": {
@@ -157,11 +157,60 @@
         }
       }
     },
+    "/redlink.json": {
+      "post": {
+        "operationId": "redlink",
+        "summary": "Red-link: ask the Claude door which terms on the plan a reader may not understand, as a job",
+        "description": "Reads the plan page on this site. The content is only the text Red-link may write in: the markdown items outside the Open Questions, Assets and See sections, heading items left out, so code, terminal, timeline and plan items never reach the model. The model (the farm's choice, as for Revise Plan, through @fortyfoxes/wiki-claude-door, every tool disallowed, seven minutes) is asked for a list of terms, one per line, copied as written. The terms are kept in the job (result.terms) and nothing is written. The tool then links the first plain mention of each term, once per page, in those items only, never inside an existing [[link]], `code`, a [text](url) link or a fenced block, and never on a task line holding a [[Question?]] link; terms already linked are left alone. The result opens as a ghost with the plan's own title, and Save over the plan (save-revision.json with kind redlink) writes it through the journal so the version replaced is the plan's _rev. The run holds the farm WIP marker as Revise Plan does, named Plan Tool: Red-link <site>/<slug>.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug, e.g. next-demo-plan."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind, slug, title, phase, reportTitle, model, session, started } at once; poll job.json with the job id."
+          },
+          "400": {
+            "description": "Not a slug, or the page is not a plan."
+          },
+          "403": {
+            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+          },
+          "404": {
+            "description": "No such page on this site."
+          },
+          "409": {
+            "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
     "/revise-site.json": {
       "post": {
         "operationId": "reviseSite",
         "summary": "Revise Site: ask the Claude door for a Revision Proposal for the whole site, given the answered questions, as a job",
-        "description": "Reads the plan page on this site and its open questions, from the plan and from the page it links as Open Questions, and refuses with 400 until at least one has an answer page. The content is every answered question's page first, then every page on the site in sitemap order, the plan among them, each rendered as markdown, up to 120 kB; a page past the budget goes in as its title and first paragraph, and the account says which. Answer pages lead and are not repeated; the Open Questions page, pages whose journal forks from or credits another site, and earlier revision proposals are left out and named to the model as untouched. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door as Do Next Phase reaches it. It is asked for a Revision Proposal in exactly four parts: # The tone shift, two or three sentences; # Pages, one table Page | Action | Reason with Action one of Keep, Amend, Rewrite or New, in the order the revision should run, the plan last; # Untouched, each page it will not touch and why; and # Names, every personal name, place name or venue in the answer pages as an unticked - [ ] Name — Answer Page line, meaning not confirmed to travel. The proposal is kept in the job, titled Revision Proposal (dated when that page exists); the client opens it as a ghost page with Go Ahead and Pause, and nothing is written to any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Site <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "description": "Reads the plan page on this site and its open questions, from the plan and from the page it links as Open Questions, and refuses with 400 until at least one has an answer page. The content is every answered question's page first, then every page on the site in sitemap order, the plan among them, each rendered as markdown, up to 120 kB; a page past the budget goes in as its title and first paragraph, and the account says which. Answer pages lead and are not repeated; the Open Questions page, pages whose journal forks from or credits another site, and earlier revision proposals are left out and named to the model as untouched. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door as Do Next Phase reaches it. It is asked for a Revision Proposal in exactly four parts: # The tone shift, two or three sentences; # Pages, one table Page | Action | Reason with Action one of Keep, Amend, Rewrite or New, in the order the revision should run, the plan last; # Untouched, each page it will not touch and why; and # Names, every personal name, place name or venue in the answer pages as an unticked - [ ] Name \u2014 Answer Page line, meaning not confirmed to travel. The proposal is kept in the job, titled Revision Proposal (dated when that page exists); the client opens it as a ghost page with Go Ahead and Pause, and nothing is written to any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Site <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",
@@ -391,7 +440,15 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "The model that wrote the redraft, for the status line."
+                    "description": "The model that wrote the redraft or named the terms, for the status line."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "revise",
+                      "redlink"
+                    ],
+                    "description": "What made the ghost: revise (Revise Plan, the default) or redlink (Red-link); it names the revision on the journal and the status line."
                   }
                 }
               }

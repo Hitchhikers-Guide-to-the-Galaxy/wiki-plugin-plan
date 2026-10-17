@@ -25,7 +25,12 @@
 //             copy first; the version it replaces is the plan's _rev<N>.
 //             Rewind writes nothing: the client opens the journal's _rev<N>
 //             as a ghost beside the plan, and forking it is the rewind.
-//   job     — how a next or revise run is getting on, and its report when done.
+//   redlink — Red-link (0.5.0): the door names the terms on the plan a reader
+//             may not understand; nothing is written. The client links the
+//             first plain mention of each (linkTerms in core.js, never in the
+//             Open Questions, headings, code or existing links) on a ghost
+//             with the plan's own title, saved over the plan as a revision is.
+//   job     — how a next, revise or redlink run is getting on, and its report when done.
 //   finish  — Finish Plan (Phase 5), mechanical like update: when every phase
 //             checkpoint is ticked, writes the Conclusion section above # See
 //             with the demo link, and adds the demo to the See list.
@@ -41,9 +46,9 @@ import crypto from 'node:crypto'
 
 import { ask, defaultModel } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug } from '../src/client/core.js'
+import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, parseTerms, REVISION_KINDS } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
-import { buildContent, buildSiteContent, buildPageContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
+import { buildContent, buildSiteContent, buildPageContent, buildRedlinkContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
 
 const problem = (status, message) => Object.assign(new Error(message), { status })
 
@@ -314,6 +319,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
         reportTitle: j.reportTitle,
         ...(ticks ? { proposedTicks: { found: ticks.found, none: ticks.none, listed: ticks.listed, matched: ticks.matched.map(c => c.text) } } : {}),
         ...(kind === 'site' ? { proposal: proposalSummary(out.markdown, page.title, origin) } : {}),
+        ...(kind === 'redlink' ? { terms: parseTerms(out.markdown) } : {}),
       }
       j.status = 'done'
     } catch (e) {
@@ -360,6 +366,25 @@ export async function revise({ slug, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
   const session = `Plan Tool: Revise Plan ${origin}/${p.slug}`
   return start({ kind: 'revise', origin, status, slug: p.slug, site: p.site, page: p.page, phase: null, session })
+}
+
+/** Red-link: the plan's linkable text to the door, asked which terms a reader may not understand. */
+export async function redlink({ slug, origin, status } = {}) {
+  const p = readPlan(status, origin, slug)
+  const session = `Plan Tool: Red-link ${origin}/${p.slug}`
+  return start({
+    kind: 'redlink',
+    origin,
+    status,
+    slug: p.slug,
+    site: p.site,
+    page: p.page,
+    phase: null,
+    session,
+    title: p.page.title,
+    build: () => buildRedlinkContent({ page: p.page, origin }),
+    holdOff: `${session}: a model is naming the terms to link; they open as a ghost with the plan's title and nothing is written until Save`,
+  })
 }
 
 /** A run as the asking site may see it. Another site's jobs are not found, not forbidden. */
@@ -852,8 +877,10 @@ const writeOver = ({ origin, status, slug, session, holdOff, make }) => {
 }
 
 /** Save over the plan: the revise ghost's story written over the plan, journaled, the old version its _rev. */
-export async function saveRevision({ slug, story, model, origin, status } = {}) {
+export async function saveRevision({ slug, story, model, kind, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
+  const how = kind === undefined || kind === null || kind === '' ? 'revise' : String(kind)
+  if (!REVISION_KINDS.includes(how)) throw problem(400, `not a kind of revision: ${kind}; one of ${REVISION_KINDS.join(', ')}`)
   const want = checkStory(revisedStory(checkStory(story)))
   if (!want.some(it => it.type === 'plan')) throw problem(400, `the revision carries no plan item: a plan keeps its status line`)
   return writeOver({
@@ -862,7 +889,7 @@ export async function saveRevision({ slug, story, model, origin, status } = {}) 
     slug: p.slug,
     session: `Plan Tool: Save over the plan ${origin}/${p.slug}`,
     holdOff: `Save over the plan is writing ${origin}/${p.slug}`,
-    make: page => writeRevision(page, want, { model: model || '' }),
+    make: page => writeRevision(page, want, { model: model || '', kind: how }),
   })
 }
 

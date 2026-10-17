@@ -23,13 +23,24 @@
 //                    from ~/.claude/skills/<name>/SKILL.md on the machine the
 //                    farm runs on (Phase 4); names split on commas or spaces,
 //                    and several SKILLS lines add up
+//   STATUS         — the status line, said out loud: on a plan page it reads
+//                    exactly as a bare item does. It is the default text of a
+//                    new plan item (DEFAULT_TEXT), because wiki-client removes
+//                    an item whose text is saved empty: with STATUS there,
+//                    opening the editor and saving never deletes the status
+//                    line, and deleting the text is a deliberate act. An item
+//                    with empty text (pages written before 0.5.0) still reads
+//                    as the status line.
 // subject is true only for an explicit SUBJECT line; face() below decides
-// what a bare item does from the page it sits on. SKILLS does not change the
-// face: a status item that names skills is still the status line.
-export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS']
+// what a bare item does from the page it sits on. SKILLS and STATUS do not
+// change the face: a status item that names skills is still the status line.
+export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS']
+
+/** The text a new plan item carries, and the text an empty one is given when its editor opens. */
+export const DEFAULT_TEXT = 'STATUS'
 
 export const parse = text => {
-  const out = { subject: false, site: null, limit: null, skills: [], caption: '', commands: 0 }
+  const out = { subject: false, status: false, site: null, limit: null, skills: [], caption: '', commands: 0 }
   const caption = []
   for (const raw of (text || '').split('\n')) {
     const line = raw.trim()
@@ -41,6 +52,7 @@ export const parse = text => {
     }
     out.commands++
     if (key === 'SUBJECT') out.subject = true
+    if (key === 'STATUS') out.status = true
     if (key === 'SITE') out.site = (args[0] || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null
     if (key === 'LIMIT') {
       const n = parseInt(args[0], 10)
@@ -622,7 +634,7 @@ export const today = (now = Date.now()) => new Date(now).toISOString().slice(0, 
  * Save writes it over the plan, journaled.
  */
 export const reportTitle = ({ kind, planTitle, phaseLabel = '', date = today() }) =>
-  kind === 'revise' ? planTitle : `${planTitle} ${phaseLabel} Report`
+  kind === 'revise' || kind === 'redlink' ? planTitle : `${planTitle} ${phaseLabel} Report`
 
 /**
  * Markdown as separately draggable items: each paragraph its own item, each
@@ -1360,7 +1372,7 @@ export const linksOf = page => [...new Set((page && Array.isArray(page.story) ? 
 // ======================================================================
 
 /** The ghost's first line, which Save drops: it says what the ghost is. */
-export const REVISE_LINE_RE = /^Proposed revision of \[\[[^\]]+\]\] through the \[\[Plan Tool\]\]'s Revise Plan/
+export const REVISE_LINE_RE = /^Proposed (?:revision of|red links on) \[\[[^\]]+\]\] through the \[\[Plan Tool\]\]'s (?:Revise Plan|Red-link)/
 
 const firstLineOf = it => String((it && it.text) || '').trim().split('\n')[0].trim()
 const isHeadingItem = it => !!it && TEXT_TYPES.has(it.type) && headingOf({ ...it, type: 'markdown' }) !== null
@@ -1537,14 +1549,20 @@ export const revSlug = (title, n, slug = asSlug) => `${slug(title)}_rev${n}`
  * back the old story at `previous` and the new story at the end: nothing to
  * write then.
  */
-export const writeRevision = (page, story, { model = '', date = Date.now() } = {}) => {
+export const REVISION_KINDS = ['revise', 'redlink']
+
+export const writeRevision = (page, story, { model = '', date = Date.now(), kind = 'revise' } = {}) => {
+  if (!REVISION_KINDS.includes(kind)) throw new Error(`not a kind of revision: ${kind}`)
   const before = page && Array.isArray(page.story) ? page.story.filter(Boolean) : []
   const reconcile = reconcileJournal(page, { date })
   const journal = [...((page && page.journal) || []), ...reconcile]
   const previous = journal.length - 1
   const who = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
-  const provenance = `Revised through the Plan Tool's Revise Plan${who}, saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
-  const extra = { planTool: { kind: 'revise', previous, ...(model ? { model: String(model).replace(/^claude-cli:/, '') } : {}) } }
+  const provenance =
+    kind === 'redlink'
+      ? `Red-linked through the Plan Tool's Red-link${who}: terms a reader may not know made [[links]], saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
+      : `Revised through the Plan Tool's Revise Plan${who}, saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
+  const extra = { planTool: { kind, previous, ...(model ? { model: String(model).replace(/^claude-cli:/, '') } : {}) } }
   const r = reviseJournal(before, story, { provenance, date, extra })
   if (!r.actions.length) return { page, actions: [], reconcile, previous, changed: false }
   const out = { ...page, story: r.story, journal: [...journal, ...r.actions] }
@@ -1574,4 +1592,197 @@ export const lastRevision = page => {
     if (a && a.planTool && Number.isInteger(a.planTool.previous) && a.planTool.previous < i) return { ...a.planTool, date: a.date }
   }
   return null
+}
+
+
+// ======================================================================
+// Red-link (0.5.0): terms a reader may not understand, made [[links]].
+// ======================================================================
+//
+// Often the first step on a plan is to link the words that are not
+// understood: each becomes a red link, ready for a stub or for the Voice
+// Tool. The model only NAMES the terms (the door's answer, one per line);
+// this code decides where, if anywhere, each is linked, so the rule below
+// holds whatever the model says. The first plain mention of a term is
+// wrapped in [[ ]], once per page, and only in:
+//   a markdown item — never code, terminal, plan, timeline, html or any
+//     other type, and never a paragraph item;
+//   outside the "# Open Questions" section (its red question links,
+//     - [ ] [[Question?]] gloss, are made by hand) and outside the Assets
+//     and See sections the tool keeps as they are;
+//   not a heading item (its heading line and the strap beneath it);
+//   not a line inside a ``` fence, not a heading line, not a task line that
+//     holds a question link anywhere on the page;
+//   not inside an existing [[link]], `code`, a [text](url) link, an html
+//     tag or a bare url.
+// A term already linked anywhere on the page is left alone, and so is the
+// plan's own title.
+
+const QUESTIONS_RE = /^open questions$/i
+const PROTECT_RE = /\[\[[^\]]*\]\]|`[^`\n]*`|\[[^\]\n]*\]\([^)\n]*\)|<[^>\n]+>|https?:\/\/\S+/g
+const QUESTION_LINE_RE = /^\s*[-*]\s+\[[ xX]\]\s.*\[\[[^\]]*\?\]\]/
+const TERM_MAX = 40
+
+/** The ids of the items Red-link may write in: markdown, outside Open Questions, Assets and See, not a heading. */
+export const redlinkEligible = page => {
+  const story = page && Array.isArray(page.story) ? page.story : []
+  const ids = new Set()
+  let held = false
+  for (const it of story) {
+    if (!it) continue
+    const h = headingOf(it)
+    if (h !== null) {
+      held = QUESTIONS_RE.test(h) || TAIL_RE.test(h)
+      continue
+    }
+    if (held || it.type !== 'markdown' || typeof it.text !== 'string') continue
+    ids.add(it.id)
+  }
+  return ids
+}
+
+/** The model's answer read as terms: one per list line, links, code marks, bold and a trailing gloss stripped. */
+export const parseTerms = markdown => {
+  const out = []
+  const seen = new Set()
+  for (const raw of String(markdown || '').split('\n')) {
+    const m = raw.match(/^\s*(?:[-*+]|\d+[.)])\s+(.*)$/)
+    if (!m) continue
+    let t = m[1]
+      .replace(/\*\*|__|`/g, '')
+      .replace(/^\[\[|\]\]$/g, '')
+      .split(/\s+[—–]\s+|\s+-\s+|:\s/)[0]
+      .replace(/^["“'‘]|["”'’]$/g, '')
+      .replace(/[.,;]+$/, '')
+      .trim()
+    if (!t || /^none$/i.test(t) || /[\[\]\n|]/.test(t) || t.length > 80) continue
+    const k = t.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(t)
+    if (out.length >= TERM_MAX) break
+  }
+  return out
+}
+
+const termRe = (term, flags) => new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRe(term)}(?![\\p{L}\\p{N}_])`, flags)
+
+// Link the first match of re in the unprotected stretches of a line: the line
+// back, or null when it has none. shield is PROTECT_RE, widened by the
+// mentions of longer terms, so "Webhook" never splits "Webhook relay".
+const linkInLine = (line, re, shield = PROTECT_RE) => {
+  let at = 0
+  const parts = []
+  for (const m of line.matchAll(shield)) {
+    parts.push({ text: line.slice(at, m.index), free: true }, { text: m[0], free: false })
+    at = m.index + m[0].length
+  }
+  parts.push({ text: line.slice(at), free: true })
+  for (const p of parts) {
+    if (!p.free) continue
+    const m = p.text.match(re)
+    if (!m) continue
+    p.text = `${p.text.slice(0, m.index)}[[${m[0]}]]${p.text.slice(m.index + m[0].length)}`
+    return parts.map(x => x.text).join('')
+  }
+  return null
+}
+
+// The first line of an item's text that links the term, or null.
+const linkInText = (text, re, shield) => {
+  const lines = text.split('\n')
+  let fenced = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced
+      continue
+    }
+    if (fenced || HEADING_RE.test(line) || QUESTION_LINE_RE.test(line)) continue
+    const done = linkInLine(line, re, shield)
+    if (done !== null) {
+      lines[i] = done
+      return lines.join('\n')
+    }
+  }
+  return null
+}
+
+/**
+ * The plan with each term's first plain mention linked, by the rule above:
+ * {story, linked: [{term, as, id}], skipped: [{term, why}]}. Longest terms go
+ * first, so "Claude door" is linked before "door" could take its words; a
+ * link made is protected from the terms after it. The story is a copy.
+ */
+export const linkTerms = (page, terms, slug = asSlug) => {
+  const story = (page && Array.isArray(page.story) ? page.story : []).filter(Boolean).map(it => ({ ...it }))
+  const eligible = redlinkEligible({ story })
+  const linkedSlugs = new Set(story.flatMap(it => wikilinksIn(it.text)).map(t => slug(t)))
+  const own = slug((page && page.title) || '')
+  const linked = []
+  const skipped = []
+  const order = [...new Set(terms.map(t => String(t).trim()).filter(Boolean))].sort((a, b) => b.length - a.length)
+  for (const [k, term] of order.entries()) {
+    const longer = order.slice(0, k).filter(t => t.length > term.length && termRe(term, 'iu').test(t))
+    const shield = longer.length ? new RegExp(`${PROTECT_RE.source}|${longer.map(t => termRe(t, 'iu').source).join('|')}`, 'giu') : PROTECT_RE
+    const s = slug(term)
+    if (!s) {
+      skipped.push({ term, why: 'no page name in it' })
+      continue
+    }
+    if (s === own) {
+      skipped.push({ term, why: "the plan's own title" })
+      continue
+    }
+    if (linkedSlugs.has(s)) {
+      skipped.push({ term, why: 'already linked on the page' })
+      continue
+    }
+    let hit = null
+    for (const flags of ['u', 'iu']) {
+      const re = termRe(term, flags)
+      for (const it of story) {
+        if (!eligible.has(it.id)) continue
+        const text = linkInText(it.text, re, shield)
+        if (text === null) continue
+        hit = { it, as: (text.match(/\[\[([^\]]*)\]\]/g) || []).map(x => x.slice(2, -2)).find(x => slug(x) === s) || term }
+        it.text = text
+        break
+      }
+      if (hit) break
+    }
+    if (!hit) {
+      skipped.push({ term, why: 'no plain mention outside the Open Questions, headings, code and links' })
+      continue
+    }
+    linkedSlugs.add(s)
+    linked.push({ term, as: hit.as, id: hit.it.id })
+  }
+  // Report in page order, as a reader meets them.
+  const pos = new Map(story.map((it, i) => [it.id, i]))
+  linked.sort((a, b) => pos.get(a.id) - pos.get(b.id))
+  return { story, linked, skipped }
+}
+
+/**
+ * The Red-link ghost: the line saying what it is, then the plan with its
+ * terms linked, everything else as it was. Saved over the plan the way a
+ * Revise Plan ghost is (revisedStory drops the line), so it is rewindable.
+ */
+export const redlinkItems = ({ page, markdown, model = '', date = today(), id = randomHex }) => {
+  const title = String((page && page.title) || '')
+  const terms = parseTerms(markdown)
+  const r = linkTerms(page, terms)
+  const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
+  const n = r.linked.length
+  const list = r.linked.map(x => x.as).join(', ')
+  const line = {
+    type: 'markdown',
+    id: id(),
+    text:
+      `Proposed red links on [[${title}]] through the [[Plan Tool]]'s Red-link${by}, ${date}: ${n} term${n === 1 ? '' : 's'} linked${n ? ` (${list})` : ''}. ` +
+      `Save over the plan writes this page, less this line, over [[${title}]] in place through its journal, and Rewind opens the version it replaces. ` +
+      `The Open Questions, headings, code and the links already there are left as they were.`,
+  }
+  return { items: [line, ...r.story], terms, linked: r.linked, skipped: r.skipped }
 }

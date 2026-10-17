@@ -10,10 +10,15 @@
 //            that is not a plan) it lists every plan on a site, newest journal
 //            edit first, each with its ticks and open questions (Phase 1).
 //
+// A plan item's text is STATUS (DEFAULT_TEXT) from 0.5.0: an item saved with
+// empty text is removed by wiki-client, so an empty status line was one
+// unchanged save from deletion. Empty text still reads as the status line,
+// and its editor opens with STATUS already in it (editText below).
+//
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, redlinkItems, DEFAULT_TEXT } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -218,7 +223,8 @@ const revisedHtml = (rev, title) => {
   const link = `<a href="/view/${escapeHtml(revSlug(title, rev.previous, asSlug))}" class="plan-rev" data-rev="${rev.previous}" title="Open the plan as it was before, from its journal">${escapeHtml(label)}</a>`
   const rewind = ` <button class="plan-rewind" data-rev="${rev.previous}" title="Open ${escapeHtml(label)} beside the plan as a ghost with the plan's title: fork it to rewind, or close it; nothing is written until you fork">Rewind</button>`
   // A rewind the plugin wrote before Rewind became a ghost to fork (0.4.0 drafts) still reads as one.
-  const what = rev.kind === 'rewind' && Number.isInteger(rev.to) ? `Rewound ${day} to ${escapeHtml(revLabel(title, rev.to))}` : `Revised ${day}${rev.model ? ` by ${escapeHtml(rev.model)}` : ''}`
+  const by = rev.model ? ` by ${escapeHtml(rev.model)}` : ''
+  const what = rev.kind === 'rewind' && Number.isInteger(rev.to) ? `Rewound ${day} to ${escapeHtml(revLabel(title, rev.to))}` : rev.kind === 'redlink' ? `Red-linked ${day}${by}` : `Revised ${day}${by}`
   return `<p class="plan-revised">${what} · the version it replaced: ${link}${rewind}</p>`
 }
 
@@ -324,6 +330,7 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
     `<div class="plan-update"><button class="plan-update-go" title="Update Plan ticks what the answers settled and re-renders the plan's markdown asset; no model, written on the page">Update Plan</button>` +
       (next ? ` <button class="plan-next-go" title="Ask the Claude door for a report on ${escapeHtml(next)}: it opens as a ghost page, nothing is written to the plan">Do Next Phase</button>` : '') +
       ` <button class="plan-revise-go" title="Revise Plan asks the model to redraft the plan from its answers, on a ghost with the plan's own title; Save overwrites the plan with a rewindable journal">Revise Plan</button>` +
+      ` <button class="plan-redlink-go" title="Red-link asks the model which terms a reader may not understand and links the first mention of each, red where no page exists yet, on a ghost with the plan's own title; the Open Questions, headings, code and existing links are left alone, and Save overwrites the plan with a rewindable journal">Red-link</button>` +
       (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
         ? ` <button class="plan-site-go" title="Ask the Claude door for a Revision Proposal for the whole site from the answered questions: it opens as a ghost page with Go Ahead and Pause, and nothing is written until Go Ahead">Revise Site</button>`
         : '') +
@@ -346,6 +353,10 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   $box.on('click', '.plan-revise-go', e => {
     e.preventDefault()
     runAgent($item, $subject, slug, 'revise')
+  })
+  $box.on('click', '.plan-redlink-go', e => {
+    e.preventDefault()
+    runAgent($item, $subject, slug, 'redlink')
   })
   $box.on('click', '.plan-site-go', e => {
     e.preventDefault()
@@ -510,8 +521,10 @@ async function runFinish($item, $subject, slug, page) {
 // The run's state lives on the element ($item[0].planAgent), so a re-render
 // (a neighbour's sitemap landing, Update Plan's re-emit) repaints it.
 
-const AGENT_NAME = { next: 'Do Next Phase', revise: 'Revise Plan', site: 'Revise Site' }
-const AGENT_PATH = { next: 'next', revise: 'revise', site: 'revise-site' }
+const AGENT_NAME = { next: 'Do Next Phase', revise: 'Revise Plan', site: 'Revise Site', redlink: 'Red-link' }
+const AGENT_PATH = { next: 'next', revise: 'revise', site: 'revise-site', redlink: 'redlink' }
+// The kinds whose ghost has the plan's own title and is saved over the plan.
+const OVER = new Set(['revise', 'redlink'])
 const POLL_MS = 3000
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const agentOf = $item => ($item[0] && $item[0].planAgent) || null
@@ -526,14 +539,14 @@ const ghostIsOpen = A => !!(A && A.$ghost && A.$ghost.hasClass('ghost') && docum
 function paintAgent($item) {
   const A = agentOf($item)
   const $line = $item.find('.plan-agent')
-  $item.find('.plan-next-go, .plan-revise-go, .plan-site-go').prop('disabled', busy(A))
+  $item.find('.plan-next-go, .plan-revise-go, .plan-site-go, .plan-redlink-go').prop('disabled', busy(A))
   if (!A || !$line.length) return
   const name = AGENT_NAME[A.kind]
   const what = A.phase ? ` on ${escapeHtml(A.phase.label)}` : ''
   const model = A.model ? ` with ${escapeHtml(String(A.model).replace(/^claude-cli:/, ''))}` : ''
   let html = ''
   if (A.state === 'posting') html = `${name}: asking the farm…`
-  else if (A.state === 'running') html = `${name}${what}${model}: the model is reading the ${A.kind === 'site' ? 'answers and every page of the site' : 'plan'}… ${secs(Date.now() - A.started)}`
+  else if (A.state === 'running') html = `${name}${what}${model}: the model is ${A.kind === 'redlink' ? 'naming the terms a reader may not know' : `reading the ${A.kind === 'site' ? 'answers and every page of the site' : 'plan'}`}… ${secs(Date.now() - A.started)}`
   else if (A.state === 'refused' || A.state === 'failed') html = escapeHtml(A.line)
   else if (A.kind === 'site' && (A.state === 'done' || A.state === 'saving')) {
     const open = ghostIsOpen(A)
@@ -552,7 +565,19 @@ function paintAgent($item) {
     const P = A.progress || {}
     html = `Go Ahead from ${escapeHtml(A.proposalTitle)}` + (P.of ? `: page ${P.n || 0} of ${P.of}${P.title ? `, ${escapeHtml(P.title)}` : ''}` : ': starting') + `… ${secs(Date.now() - A.applyStarted)}`
   } else if (A.state === 'applied') html = A.html
-  else if (A.kind === 'revise' && (A.state === 'done' || A.state === 'saving')) {
+  else if (A.kind === 'redlink' && (A.state === 'done' || A.state === 'saving')) {
+    const open = ghostIsOpen(A)
+    const R = A.redlink || { linked: [], skipped: [], terms: [] }
+    const by = escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))
+    const skipped = R.skipped.length ? ` ${R.skipped.length} left as they were: ${R.skipped.map(x => `${escapeHtml(x.term)} (${escapeHtml(x.why)})`).join('; ')}.` : ''
+    html = !R.linked.length
+      ? `Red-link: ${by} named ${R.terms.length} term${R.terms.length === 1 ? '' : 's'} in ${secs(A.result.ms || 0)}; none could be linked, so there is no ghost and nothing is written.${skipped}`
+      : `Red-link: ${R.linked.length} term${R.linked.length === 1 ? '' : 's'} linked by ${by} in ${secs(A.result.ms || 0)} (${R.linked.map(x => escapeHtml(x.as)).join(', ')}), ` +
+        (open ? `open as a ghost with the plan's own title; nothing is written until Save.` : `its ghost is closed; Save still writes it.`) +
+        skipped +
+        ` <button class="plan-save-over" ${A.state === 'saving' ? 'disabled' : ''} title="Save overwrites the plan in place with a rewindable journal: the version it replaces stays in the journal as its _rev, and Rewind opens it beside the plan to fork back">Save over the plan</button>` +
+        (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
+  } else if (A.kind === 'revise' && (A.state === 'done' || A.state === 'saving')) {
     const open = ghostIsOpen(A)
     html =
       `Revise Plan: a redraft of ${escapeHtml(A.title)} by ${escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))} in ${secs(A.result.ms || 0)}, ` +
@@ -626,7 +651,7 @@ async function runAgent($item, $subject, slug, kind) {
       A.reportTitle = j.result.reportTitle || A.reportTitle
       const t = j.result.proposedTicks
       if (t) A.ticks = !t.found ? 'The report has no Proposed Ticks section.' : t.none ? 'It proposes no ticks.' : `It proposes ${t.listed.length} tick${t.listed.length === 1 ? '' : 's'}, listed on the report; none was made.`
-      if (kind === 'revise') {
+      if (OVER.has(kind)) {
         try {
           A.plan = await getJSON(`/${slug}.json`)
         } catch (_) {
@@ -634,7 +659,8 @@ async function runAgent($item, $subject, slug, kind) {
         }
       }
       A.state = 'done'
-      openReport($item, A)
+      itemsOf(A)
+      if (kind !== 'redlink' || A.redlink.linked.length) openReport($item, A)
     }
     paintAgent($item)
   }
@@ -642,19 +668,25 @@ async function runAgent($item, $subject, slug, kind) {
 }
 
 // The report's items, once: the ghost reopens with the same ids.
-const itemsOf = A =>
-  A.items ||
-  (A.items =
+const itemsOf = A => {
+  if (A.items) return A.items
+  if (A.kind === 'redlink') {
+    const r = redlinkItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model })
+    A.redlink = { terms: r.terms, linked: r.linked, skipped: r.skipped }
+    return (A.items = r.items)
+  }
+  return (A.items =
     A.kind === 'site'
       ? proposalItems({ markdown: A.result.markdown, planTitle: A.title, site: location.host, model: A.result.model })
       : A.kind === 'revise'
         ? reviseItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model })
         : reportItems({ kind: A.kind, markdown: A.result.markdown, planTitle: A.title, phaseLabel: A.phase ? A.phase.label : '', model: A.result.model }))
+}
 
 function openReport($item, A) {
   const $from = $item.parents('.page').first()
   A.$ghost = openGhost($from, A.reportTitle, itemsOf(A))
-  if (A.kind === 'revise') guardGhost(A.$ghost, 'Save over the plan: overwrite it in place with a rewindable journal', () => saveOver($item, A.$subject))
+  if (OVER.has(A.kind)) guardGhost(A.$ghost, 'Save over the plan: overwrite it in place with a rewindable journal', () => saveOver($item, A.$subject))
 }
 
 // A ghost with the plan's own slug (the revision) or a _rev of it is never
@@ -887,7 +919,7 @@ const closeGhost = $ghost => {
 
 async function saveOver($item, $subject) {
   const A = agentOf($item)
-  if (!A || A.kind !== 'revise' || !A.result || A.state === 'saving') return
+  if (!A || !OVER.has(A.kind) || !A.result || A.state === 'saving') return
   const fail = line => {
     A.state = 'done'
     A.line = line
@@ -899,13 +931,13 @@ async function saveOver($item, $subject) {
   paintAgent($item)
   let out
   try {
-    out = await postJSON('save-revision.json', { slug: A.slug, story: itemsOf(A), model: A.result.model })
+    out = await postJSON('save-revision.json', { slug: A.slug, story: itemsOf(A), model: A.result.model, kind: A.kind })
   } catch (err) {
     return fail(`Could not reach the farm: ${err.message}`)
   }
   if (!out.res.ok) return fail(apiError(out.res, out.body))
   if (!out.body.written) return fail(`Nothing written: ${out.body.why}`)
-  SAVED.set(A.slug, { html: savedHtml('Saved over the plan', out.body) })
+  SAVED.set(A.slug, { html: savedHtml(A.kind === 'redlink' ? 'Red-linked the plan' : 'Saved over the plan', out.body) })
   $item[0].planAgent = null
   closeGhost(A.$ghost)
   reopenPlan($item, $subject)
@@ -1366,8 +1398,20 @@ const render = ($item, item) => {
     .then(() => attachActions($item, opts))
 }
 
+// The editor, from a double click or from the factory (factory.json says
+// editor: true, so wiki-client calls plugins.plan.editor when Plan is chosen).
+// An item with empty text opens with STATUS in the textarea, as a suffix, so
+// the text it started with is still empty: saving it as it stands writes
+// STATUS, journaled as an edit, and only a deliberate deletion of the text
+// removes the item.
+const editText = ($item, item) => {
+  const empty = !String(item.text || '').trim()
+  wiki.textEditor($item, item, empty ? { suffix: DEFAULT_TEXT } : {})
+}
+export const editor = editText
+
 export const bind = ($item, item) => {
-  $item.on('dblclick', () => wiki.textEditor($item, item))
+  $item.on('dblclick', () => editText($item, item))
   // Answer: one delegated handler per element, however often it is bound.
   $item.off('click.planask').on('click.planask', '.plan-ask', e => {
     e.preventDefault()
@@ -1421,5 +1465,5 @@ export const bind = ($item, item) => {
 
 if (typeof window !== 'undefined') {
   window.plugins = window.plugins || {}
-  window.plugins.plan = { emit, bind }
+  window.plugins.plan = { emit, bind, editor }
 }

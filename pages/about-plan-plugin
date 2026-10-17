@@ -24,12 +24,12 @@
     {
       "type": "table",
       "id": "aef99ed22f7f0ebc",
-      "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool: it reads the plan to its left, or lists the plans when nothing to the left is a plan |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |\n| SKILLS a, b | on a plan's status line: the skills Do Next Phase and Revise Plan give the model beside fedwiki-plan, read from ~/.claude/skills on the machine the farm runs on |"
+      "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool: it reads the plan to its left, or lists the plans when nothing to the left is a plan |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |\n| STATUS | the status line, said out loud: on a plan page it reads as a bare item does. It is the default text of a new plan item, so opening the item's editor and saving it unchanged never deletes it; an old item with empty text opens with STATUS already in its editor (since 0.5.0) |\n| SKILLS a, b | on a plan's status line: the skills Do Next Phase and Revise Plan give the model beside fedwiki-plan, read from ~/.claude/skills on the machine the farm runs on |"
     },
     {
       "type": "markdown",
       "id": "88d6d1b9a11c730b",
-      "text": "A trailing colon is allowed (SITE: plan.localhost), the [[Fedwiki DSL Skill]] convention. A bare item, with neither SUBJECT nor SITE, is the status line when it sits on a plan page and the list anywhere else."
+      "text": "A trailing colon is allowed (SITE: plan.localhost), the [[Fedwiki DSL Skill]] convention. A bare item, with neither SUBJECT nor SITE, is the status line when it sits on a plan page and the list anywhere else. A plan's status line carries STATUS from 0.5.0: wiki-client removes an item whose text is saved empty, so the empty status line of earlier plans was one unchanged save from deletion. Now deleting the text is a deliberate act, and the only way the item goes."
     },
     {
       "type": "markdown",
@@ -135,6 +135,21 @@
       "type": "markdown",
       "id": "1934584492cab5a7",
       "text": "The run holds the farm WIP marker from the call until the model has answered or failed, with a note naming it, such as Plan Tool: Do Next Phase demo.localhost/next-demo-plan phase 2, and a heartbeat every minute, and releases it in every case; if someone else holds it live the call is refused with 409 naming them. Jobs live in the farm's long-lived handler process and are mirrored to status/farm-tmp/plan-jobs, so a job whose process has gone reads as failed rather than lost. [[Plan Next Demo]] shows a real run."
+    },
+    {
+      "type": "markdown",
+      "id": "3ecd8e56b4bf2a4e",
+      "text": "# Red-link\n> Terms a reader may not know, made links."
+    },
+    {
+      "type": "markdown",
+      "id": "3c668e2c60307621",
+      "text": "Often the first step on a plan is to link the words that are not understood. **Red-link**, beside Revise Plan on the status line and on the Plan Tool, calls `POST /system/api/plan/redlink.json` with the plan's slug. The door is given only the text Red-link may write in and asked for a list of terms a reader new to the work may not understand, copied as written. The tool then links the first plain mention of each term, once per page, and opens the plan as a ghost with its own title, the line at its top naming the terms linked. The links are red where no page exists yet, ready for a [[Stub]] or for the [[Voice Tool]]. Save over the plan writes it through the journal as a revision is written, so its _rev and Rewind work the same way, and the status line says Red-linked with the date and the model."
+    },
+    {
+      "type": "markdown",
+      "id": "5980af67eba88800",
+      "text": "The model only names the terms; the plugin decides where they go (linkTerms in core.js), so the rule holds whatever the model says. Red-link writes only in markdown items, never in code, terminal, timeline, html, paragraph or plan items. It never writes under the # Open Questions heading, whose red question links, - [ ] [[Question?]] gloss, are made by hand, and never in the Assets and See sections. It skips heading items, fenced blocks, a task line holding a question link anywhere on the page, and anything inside an existing [[link]], `code`, a [text](url) link, an html tag or a url. A term already linked on the page is left alone, and a shorter term never splits a mention of a longer one."
     },
     {
       "type": "markdown",
@@ -782,6 +797,59 @@
         "text": "The status face is a bare item on a plan page: it shows that page's own state, and one at the top of every plan is the plan's status line. The subject face is SUBJECT with a plan to the left: the item looks past ghost pages and tool pages (Selected Plugin Pages, Voice Tool, Plan Tool) to the nearest real page, and when that page is a plan it shows its state headed by its title. The list face is everything else: SITE, SUBJECT with no plan to the left, or a bare item on a page that is not a plan. Since 0.3.0 the state view folds: the summary line stays, with the next phase, the counts of blockers and lints, and a toggle at its head, and the phases, questions and lints beneath it are hidden until the toggle is clicked. The status line on a plan page starts folded, so it is one line plus its buttons; the Plan Tool's own page starts open. The choice is remembered per item for the session."
       },
       "date": 1791808660898
+    },
+    {
+      "type": "edit",
+      "id": "aef99ed22f7f0ebc",
+      "item": {
+        "type": "table",
+        "id": "aef99ed22f7f0ebc",
+        "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool: it reads the plan to its left, or lists the plans when nothing to the left is a plan |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |\n| STATUS | the status line, said out loud: on a plan page it reads as a bare item does. It is the default text of a new plan item, so opening the item's editor and saving it unchanged never deletes it; an old item with empty text opens with STATUS already in its editor (since 0.5.0) |\n| SKILLS a, b | on a plan's status line: the skills Do Next Phase and Revise Plan give the model beside fedwiki-plan, read from ~/.claude/skills on the machine the farm runs on |"
+      },
+      "date": 1792238183396
+    },
+    {
+      "type": "edit",
+      "id": "88d6d1b9a11c730b",
+      "item": {
+        "type": "markdown",
+        "id": "88d6d1b9a11c730b",
+        "text": "A trailing colon is allowed (SITE: plan.localhost), the [[Fedwiki DSL Skill]] convention. A bare item, with neither SUBJECT nor SITE, is the status line when it sits on a plan page and the list anywhere else. A plan's status line carries STATUS from 0.5.0: wiki-client removes an item whose text is saved empty, so the empty status line of earlier plans was one unchanged save from deletion. Now deleting the text is a deliberate act, and the only way the item goes."
+      },
+      "date": 1792238183396
+    },
+    {
+      "type": "add",
+      "id": "3ecd8e56b4bf2a4e",
+      "item": {
+        "type": "markdown",
+        "id": "3ecd8e56b4bf2a4e",
+        "text": "# Red-link\n> Terms a reader may not know, made links."
+      },
+      "after": "1934584492cab5a7",
+      "date": 1792238183396
+    },
+    {
+      "type": "add",
+      "id": "3c668e2c60307621",
+      "item": {
+        "type": "markdown",
+        "id": "3c668e2c60307621",
+        "text": "Often the first step on a plan is to link the words that are not understood. **Red-link**, beside Revise Plan on the status line and on the Plan Tool, calls `POST /system/api/plan/redlink.json` with the plan's slug. The door is given only the text Red-link may write in and asked for a list of terms a reader new to the work may not understand, copied as written. The tool then links the first plain mention of each term, once per page, and opens the plan as a ghost with its own title, the line at its top naming the terms linked. The links are red where no page exists yet, ready for a [[Stub]] or for the [[Voice Tool]]. Save over the plan writes it through the journal as a revision is written, so its _rev and Rewind work the same way, and the status line says Red-linked with the date and the model."
+      },
+      "after": "3ecd8e56b4bf2a4e",
+      "date": 1792238183396
+    },
+    {
+      "type": "add",
+      "id": "5980af67eba88800",
+      "item": {
+        "type": "markdown",
+        "id": "5980af67eba88800",
+        "text": "The model only names the terms; the plugin decides where they go (linkTerms in core.js), so the rule holds whatever the model says. Red-link writes only in markdown items, never in code, terminal, timeline, html, paragraph or plan items. It never writes under the # Open Questions heading, whose red question links, - [ ] [[Question?]] gloss, are made by hand, and never in the Assets and See sections. It skips heading items, fenced blocks, a task line holding a question link anywhere on the page, and anything inside an existing [[link]], `code`, a [text](url) link, an html tag or a url. A term already linked on the page is left alone, and a shorter term never splits a mention of a longer one."
+      },
+      "after": "3c668e2c60307621",
+      "date": 1792238183396
     }
   ],
   "plugin": "plan"
