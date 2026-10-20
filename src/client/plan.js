@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, modelLabel, windowLabel } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, modelLabel, windowLabel, autoLine, AUTO_RULE } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -650,6 +650,10 @@ const secs = ms => {
 
 const ghostIsOpen = A => !!(A && A.$ghost && A.$ghost.hasClass('ghost') && document.contains(A.$ghost[0]))
 
+// Who answered, for the status line: the model, or Auto's pick with its reason
+// ("auto → glm-5.3-flash-pp: 34k tokens, 3 answers").
+const byWhom = (A, model) => (A.auto && A.auto.model ? escapeHtml(autoLine(A.auto)) : `by ${escapeHtml(String(model || '').replace(/^claude-cli:/, ''))}`)
+
 function paintAgent($item) {
   const A = agentOf($item)
   const $line = $item.find('.plan-agent')
@@ -657,7 +661,7 @@ function paintAgent($item) {
   if (!A || !$line.length) return
   const name = AGENT_NAME[A.kind]
   const what = A.phase ? ` on ${escapeHtml(A.phase.label)}` : ''
-  const model = A.model ? ` with ${escapeHtml(String(A.model).replace(/^claude-cli:/, ''))}` : ''
+  const model = A.auto && A.auto.model ? `, ${escapeHtml(autoLine(A.auto))}` : A.model === 'auto' ? ', auto choosing the model' : A.model ? ` with ${escapeHtml(String(A.model).replace(/^claude-cli:/, ''))}` : ''
   let html = ''
   if (A.state === 'posting') html = `${name}: asking the farm…`
   else if (A.state === 'running' && A.kind === 'redlink') {
@@ -672,7 +676,7 @@ function paintAgent($item) {
       .map(([k, n]) => `${n} ${escapeHtml(k)}`)
       .join(', ')
     html =
-      `Revise Site: ${escapeHtml(A.reportTitle)} by ${escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))} in ${secs(A.result.ms || 0)}` +
+      `Revise Site: ${escapeHtml(A.reportTitle)} ${byWhom(A, A.result.model)}, in ${secs(A.result.ms || 0)}` +
       (rows ? `, ${s.rows} pages (${rows}), ${s.untouched || 0} untouched, ${s.names || 0} names to confirm` : '') +
       (open ? `; open as a ghost page, nothing written.` : `; its ghost page is closed.`) +
       ` <button class="plan-go" ${A.state === 'saving' ? 'disabled' : ''} title="Save the proposal as a page, then rewrite the pages it names one at a time through the door, the plan last">Go Ahead</button>` +
@@ -680,7 +684,7 @@ function paintAgent($item) {
       (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
   } else if (A.state === 'applying') {
     const P = A.progress || {}
-    html = `Go Ahead from ${escapeHtml(A.proposalTitle)}` + (P.of ? `: page ${P.n || 0} of ${P.of}${P.title ? `, ${escapeHtml(P.title)}` : ''}` : ': starting') + `… ${secs(Date.now() - A.applyStarted)}`
+    html = `Go Ahead from ${escapeHtml(A.proposalTitle)}` + (P.of ? `: page ${P.n || 0} of ${P.of}${P.title ? `, ${escapeHtml(P.title)}` : ''}` : ': starting') + (P.auto ? `, ${escapeHtml(P.auto)}` : '') + `… ${secs(Date.now() - A.applyStarted)}`
   } else if (A.state === 'applied') html = A.html
   else if (A.kind === 'redlink' && A.state === 'done') {
     const R = A.result || {}
@@ -696,14 +700,14 @@ function paintAgent($item) {
   } else if (A.kind === 'revise' && (A.state === 'done' || A.state === 'saving')) {
     const open = ghostIsOpen(A)
     html =
-      `Revise Plan: a redraft of ${escapeHtml(A.title)} by ${escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))} in ${secs(A.result.ms || 0)}, ` +
+      `Revise Plan: a redraft of ${escapeHtml(A.title)} ${byWhom(A, A.result.model)}, in ${secs(A.result.ms || 0)}, ` +
       (open ? `open as a ghost with the plan's own title; nothing is written until Save.` : `its ghost is closed; Save still writes it.`) +
       ` <button class="plan-save-over" ${A.state === 'saving' ? 'disabled' : ''} title="Save overwrites the plan in place with a rewindable journal: the version it replaces stays in the journal as its _rev, and Rewind opens it beside the plan to fork back">Save over the plan</button>` +
       (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
   } else if (A.state === 'done' || A.state === 'saving') {
     const open = ghostIsOpen(A)
     html =
-      `${name}${what}: ${escapeHtml(A.title)} report by ${escapeHtml(String(A.result.model).replace(/^claude-cli:/, ''))} in ${secs(A.result.ms || 0)}, ` +
+      `${name}${what}: ${escapeHtml(A.title)} report ${byWhom(A, A.result.model)}, in ${secs(A.result.ms || 0)}, ` +
       (open ? `open as the ghost page <b>${escapeHtml(A.reportTitle)}</b>; nothing is written to the plan.` : `its ghost page is closed.`) +
       (A.ticks ? ` ${escapeHtml(A.ticks)}` : '') +
       ` <button class="plan-save" ${A.state === 'saving' ? 'disabled' : ''} title="Save the ghost as a page on this site and link it from the plan">Save and link it</button>` +
@@ -762,6 +766,7 @@ async function runAgent($item, $subject, slug, kind) {
       continue
     }
     A.progress = j.progress || null
+    if (j.auto) A.auto = j.auto
     if (j.status === 'failed') Object.assign(A, { state: 'failed', line: `${AGENT_NAME[kind]} failed: ${j.error}` })
     else if (j.status === 'done') {
       A.result = j.result
@@ -1206,7 +1211,7 @@ function appliedHtml(j, title, slug) {
   if (w.length)
     parts.push(
       `<ul>${w
-        .map(x => `<li>${link(x.title, x.slug)} ${escapeHtml(x.action)} · ${kb(x.before)} → ${kb(x.after)}` + (x.linksDropped ? ` · links dropped: ${escapeHtml(x.linksDropped.join(', '))}` : '') + '</li>')
+        .map(x => `<li>${link(x.title, x.slug)} ${escapeHtml(x.action)} · ${kb(x.before)} → ${kb(x.after)}` + (x.auto ? ` · ${escapeHtml(x.auto)}` : '') + (x.linksDropped ? ` · links dropped: ${escapeHtml(x.linksDropped.join(', '))}` : '') + '</li>')
         .join('')}</ul>`,
     )
   if ((a.refused || []).length) parts.push(`Refused: <ul>${a.refused.map(x => `<li>${escapeHtml(x.title)} — ${escapeHtml(x.why)}</li>`).join('')}</ul>`)
@@ -1561,9 +1566,12 @@ async function showModels($item, opts, item) {
           `<label class="${chosen ? '' : 'plan-chosen'}"><input type="radio" name="${name}" value=""${chosen ? '' : ' checked'}> Farm default` +
           (m.default ? `<span class="plan-model-facts">${escapeHtml(modelLabel(m.default))}, set by ${escapeHtml(m.defaultFrom || 'the farm')}</span>` : '') +
           `</label>` +
+          (m.auto && m.auto.available
+            ? `<label class="${chosen === 'auto' ? 'plan-chosen' : ''}"><input type="radio" name="${name}" value="auto"${chosen === 'auto' ? ' checked' : ''}> Auto` +
+              `<span class="plan-model-facts">${escapeHtml(m.auto.rule || AUTO_RULE)}</span></label>`
+            : '') +
           doors +
           (m.research ? `<p class="plan-meta">⌕ Red-link always researches with ${escapeHtml(modelLabel(m.research))}: only Claude has web search here.</p>` : '') +
-          (m.auto ? `<p class="plan-meta">${escapeHtml(m.auto.note)}</p>` : '') +
           `<p class="plan-meta"><a href="#" class="plan-models-refresh">Ask the doors again</a></p>` +
           `</div>`,
       ),

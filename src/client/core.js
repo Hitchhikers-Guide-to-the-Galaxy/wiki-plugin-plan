@@ -202,11 +202,73 @@ export const face = (opts, { ownTitle = null, leftTitle = null } = {}) => {
 export const modelLabel = id => {
   const m = String(id || '')
   if (!m) return 'farm default'
+  if (m === 'auto') return 'auto'
   if (m.startsWith('openai:')) return `coop · ${m.slice(7).replace(/^llm_/, '')}`
   if (m.startsWith('ollama:')) return `Ollama · ${m.slice(7)}`
   const c = m.replace(/^claude-cli:/, '').match(/^claude-([a-z]+)-(\d+)-(\d+)$/)
   if (c) return `Claude ${c[1][0].toUpperCase()}${c[1].slice(1)} ${c[2]}.${c[3]}`
   return m
+}
+
+// ---------- Auto: how hard a run is (0.11.0) ----------
+//
+// With Auto chosen on Model Settings, the farm picks the model per run. This
+// half decides the TIER from what the server already knows before it asks;
+// the door's autoModel turns the tier into a model it can reach that holds
+// the question. Deterministic, so the same run always picks the same tier.
+//   tokens      the question, system prompt included (the door's estimate)
+//   answers     answered open questions that go in
+//   openPhases  phases with an unticked checkpoint: what a redraft may change
+//   pages       pages of the site that go in whole (Revise Site)
+//   action      Go Ahead's row: Amend, Rewrite or New; isPlan for the plan
+//   queries     answers asked back ("*Answer: Explain more?*"): rewording
+// weight = answers + openPhases/2 + queries (revise); answers + pages/8
+// (counting at most 24 pages) + queries (site); 1/2/3 for Amend/New/Rewrite, +3 for the plan, + answers/2
+// (one page of Go Ahead); checkpoints/2 + answers (next).
+//   careful  a redraft or site revision weighing AUTO.carefulAt or more: Claude
+//   big      over AUTO.bigTokens, AUTO.bigAnswers answers or more (Go Ahead
+//            excepted: every page carries all the answers), a whole site, or
+//            Go Ahead rewriting the plan or a page: a big-window coop model
+//   light    everything else: the loaded coop model
+export const AUTO = { carefulAt: 12, bigTokens: 48000, bigAnswers: 4 }
+export const AUTO_RULE =
+  'Auto picks per run: a loaded coop model for small runs; a big-window coop model over 48k tokens, with 4+ answers, for a whole site or a rewrite; Claude only for a redraft or site revision heavy with answers.'
+
+const ACTION_WEIGHT = { Amend: 1, New: 2, Rewrite: 3 }
+const round1 = n => Math.round(n * 10) / 10
+
+export const autoTier = ({ kind = 'revise', tokens = 0, answers = 0, openPhases = 0, pages = 0, action = '', isPlan = false, queries = 0, checkpoints = 0 } = {}) => {
+  const weight = round1(
+    kind === 'site'
+      ? answers + Math.min(pages, 24) / 8 + queries
+      : kind === 'apply'
+        ? (ACTION_WEIGHT[action] || 1) + (isPlan ? 3 : 0) + answers / 2
+        : kind === 'next'
+          ? checkpoints / 2 + answers
+          : answers + openPhases / 2 + queries,
+  )
+  const facts = [`${tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : tokens} tokens`, `${answers} answer${answers === 1 ? '' : 's'}`]
+  if (kind === 'revise' && openPhases) facts.push(`${openPhases} open phase${openPhases === 1 ? '' : 's'}`)
+  if (kind === 'site' && pages) facts.push(`${pages} page${pages === 1 ? '' : 's'}`)
+  if (kind === 'apply') facts.push(isPlan ? `${action || 'Amend'} the plan` : action || 'Amend')
+  if (kind === 'next' && checkpoints) facts.push(`${checkpoints} checkpoint${checkpoints === 1 ? '' : 's'}`)
+  if (queries) facts.push(`${queries} asked back`)
+  const tier =
+    (kind === 'revise' || kind === 'site') && weight >= AUTO.carefulAt
+      ? 'careful'
+      : tokens > AUTO.bigTokens || (kind !== 'apply' && answers >= AUTO.bigAnswers) || kind === 'site' || (kind === 'apply' && (isPlan || action === 'Rewrite'))
+        ? 'big'
+        : 'light'
+  return { tier, weight, why: facts.join(', ') }
+}
+
+// The status line's words for an Auto pick: "auto → glm-5.3-flash-pp: 34k tokens, 3 answers";
+// a tier other than light is named: "auto → claude-opus-5-5 (careful): …".
+export const autoLine = auto => {
+  if (!auto || !auto.model) return ''
+  const name = String(auto.model).replace(/^(openai:llm_|openai:|ollama:|claude-cli:)/, '')
+  const tier = auto.tier && auto.tier !== 'light' ? ` (${auto.tier})` : ''
+  return `auto → ${name}${tier}: ${auto.why}${auto.note ? ` (${auto.note})` : ''}`
 }
 
 // A context window in tokens, short, as the model names say it: 262144 →

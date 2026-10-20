@@ -44,7 +44,22 @@
     {
       "type": "markdown",
       "id": "b10c9c62b31cbbde",
-      "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning. ⌕ Red-link always uses Claude, because only Claude has web search here. Auto — a model that chooses the model by how hard the question is, to save tokens — is planned, not built."
+      "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning, or Auto to let the farm decide each run. ⌕ Red-link always uses Claude, because only Claude has web search here."
+    },
+    {
+      "type": "markdown",
+      "id": "bb269957bfcd7279",
+      "text": "# Auto\n> The farm picks the model for each run, by how hard the run is."
+    },
+    {
+      "type": "markdown",
+      "id": "64832fa151a575f6",
+      "text": "With Auto chosen, every ✎ Revise Plan, ⧉ Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, the pages of a site, and for Go Ahead the row's action and whether it is the plan. A small run goes to the coop model already loaded, with no cold start. A run over 48 thousand tokens, with four answers or more, a whole site, or a page Go Ahead rewrites goes to a big-window coop model: the loaded one when its window is 200K or more, so the coop's GPUs are not swapped page by page, else the largest window that holds it. Only a redraft or site revision heavy with answers, a weight of 12 or more, goes to Claude. When nothing on the coop holds the question, or the coop does not answer, Auto asks Claude and says so."
+    },
+    {
+      "type": "markdown",
+      "id": "45a47dc7fa28659c",
+      "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and asking it costs nothing. The status line names the pick and why, for example *auto → glm-5.3-flash-pp: 34k tokens, 3 answers, 2 open phases*. The farm can name the big coop model in PLAN_AUTO_BIG and the Claude model in PLAN_AUTO_CAREFUL."
     },
     {
       "type": "markdown",
@@ -122,6 +137,49 @@
       },
       "date": 1792511257326,
       "provenance": "Shipped with wiki-plugin-plan 0.10.0."
+    },
+    {
+      "type": "edit",
+      "id": "b10c9c62b31cbbde",
+      "item": {
+        "type": "markdown",
+        "id": "b10c9c62b31cbbde",
+        "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning, or Auto to let the farm decide each run. ⌕ Red-link always uses Claude, because only Claude has web search here."
+      },
+      "date": 1792512259472
+    },
+    {
+      "type": "add",
+      "id": "bb269957bfcd7279",
+      "item": {
+        "type": "markdown",
+        "id": "bb269957bfcd7279",
+        "text": "# Auto\n> The farm picks the model for each run, by how hard the run is."
+      },
+      "after": "b10c9c62b31cbbde",
+      "date": 1792512259472
+    },
+    {
+      "type": "add",
+      "id": "64832fa151a575f6",
+      "item": {
+        "type": "markdown",
+        "id": "64832fa151a575f6",
+        "text": "With Auto chosen, every ✎ Revise Plan, ⧉ Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, the pages of a site, and for Go Ahead the row's action and whether it is the plan. A small run goes to the coop model already loaded, with no cold start. A run over 48 thousand tokens, with four answers or more, a whole site, or a page Go Ahead rewrites goes to a big-window coop model: the loaded one when its window is 200K or more, so the coop's GPUs are not swapped page by page, else the largest window that holds it. Only a redraft or site revision heavy with answers, a weight of 12 or more, goes to Claude. When nothing on the coop holds the question, or the coop does not answer, Auto asks Claude and says so."
+      },
+      "after": "bb269957bfcd7279",
+      "date": 1792512259472
+    },
+    {
+      "type": "add",
+      "id": "45a47dc7fa28659c",
+      "item": {
+        "type": "markdown",
+        "id": "45a47dc7fa28659c",
+        "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and asking it costs nothing. The status line names the pick and why, for example *auto → glm-5.3-flash-pp: 34k tokens, 3 answers, 2 open phases*. The farm can name the big coop model in PLAN_AUTO_BIG and the Claude model in PLAN_AUTO_CAREFUL."
+      },
+      "after": "64832fa151a575f6",
+      "date": 1792512259472
     }
   ]
 }

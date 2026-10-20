@@ -47,9 +47,9 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
-import { ask, door, isModelId, listModels, contextOf, estimateTokens, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
+import { ask, door, isModelId, listModels, contextOf, estimateTokens, autoModel, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt } from '../src/client/core.js'
+import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt, planState, autoTier, autoLine, AUTO, AUTO_RULE } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
 import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
 
@@ -242,6 +242,7 @@ const RESEARCH_MODEL = 'claude-opus-5-5'
 export const planModel = () => String(process.env.PLAN_MODEL || '').trim() || PLAN_DEFAULT_MODEL
 const chooseModel = model => {
   if (model === undefined || model === null || model === '') return planModel()
+  if (model === 'auto') return 'auto'
   if (!isModelId(model)) throw problem(400, `not a model this farm can ask: ${String(model).slice(0, 80)} — claude-…, claude-cli:claude-…, ollama:… or openai:…`)
   return model
 }
@@ -278,6 +279,40 @@ const askPlan = async (model, content, opts = {}) => {
   return ask(model, content, { timeoutMs: slow ? 15 * 60 * 1000 : RUN_TIMEOUT_MS, ...opts, maxTokens: Math.min(ANSWER_TOKENS, room) })
 }
 
+// ---------- Auto (0.11.0) ----------
+//
+// "auto" is decided per run, after the content is built and measured:
+// autoTier (core.js) reads the run's size and answers and says light, big or
+// careful; the door's autoModel names a model it reaches now that holds the
+// question with AUTO_ROOM to answer in. The pick and its reason go on the
+// job as `auto`, and the job's model becomes the model picked. No pick (too
+// big for every window) fails the run with the reason, never a silent cut.
+const AUTO_ROOM = 16000
+
+/** Auto's pick for one question: {asked, tier, weight, why, model, note, tokens, line}. */
+export const autoPick = async (signals, content, { system = SYSTEM, doors = null } = {}) => {
+  const need = estimateTokens(system) + estimateTokens(content)
+  const t = autoTier({ ...signals, tokens: need })
+  const list = doors || (await listModels()).doors
+  const r = autoModel({ tier: t.tier, need, doors: list, answer: AUTO_ROOM, careful: process.env.PLAN_AUTO_CAREFUL || '', big: process.env.PLAN_AUTO_BIG || '' })
+  const auto = { asked: t.tier, tier: r.tier, weight: t.weight, why: t.why, model: r.model, note: r.note || '', tokens: need }
+  if (!r.model) throw problem(400, `auto found no model for this run (${t.why}): ${r.note}`)
+  return { ...auto, line: autoLine(auto) }
+}
+
+/** What a revise or next run weighs, read off the plan and its questions. */
+const planSignals = (kind, site, page, phase) => {
+  const { questions } = questionsFor(site, page)
+  const st = planState(page)
+  return {
+    kind,
+    answers: questions.filter(q => q.answered).length,
+    queries: questions.filter(q => q.query).length,
+    openPhases: st.phases.filter(p => p.done < p.total).length,
+    checkpoints: phase ? phase.total - phase.done : 0,
+  }
+}
+
 /** The models the Model Settings page offers: each door's, live, and the farm's default. */
 export async function models() {
   const { doors } = await listModels()
@@ -286,7 +321,7 @@ export async function models() {
     defaultFrom: process.env.PLAN_MODEL ? 'PLAN_MODEL' : 'the Plan Tool',
     research: RESEARCH_MODEL,
     doors,
-    auto: { available: false, note: 'Auto — a model chooses the model by how hard the question is — is planned, not built.' },
+    auto: { available: true, rule: AUTO_RULE, thresholds: AUTO, room: AUTO_ROOM },
   }
 }
 const HEARTBEAT_MS = 60 * 1000
@@ -383,14 +418,24 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
       }
       const { content, account } = build ? build() : buildContent({ kind, page, phase, origin, siteDir: site })
       j.context = account
+      let asking = model
+      if (model === 'auto') {
+        const signals =
+          kind === 'site'
+            ? { kind, answers: (account.answers || []).length, queries: (account.queries || []).length, pages: (account.pages || []).length + (account.brief || []).length }
+            : planSignals(kind, site, page, phase)
+        j.auto = await autoPick(signals, content)
+        asking = j.model = j.auto.model
+      }
       persist(j)
-      const out = await askPlan(model, content, { system: SYSTEM, allowTools: false })
+      const out = await askPlan(asking, content, { system: SYSTEM, allowTools: false })
       const ticks = kind === 'next' ? proposedTicks(out.markdown, phase.checkpoints) : null
       j.result = {
         markdown: out.markdown,
         model: out.model,
         ms: out.ms,
         reportTitle: j.reportTitle,
+        ...(j.auto ? { auto: j.auto } : {}),
         ...(ticks ? { proposedTicks: { found: ticks.found, none: ticks.none, listed: ticks.listed, matched: ticks.matched.map(c => c.text) } } : {}),
         ...(kind === 'site' ? { proposal: proposalSummary(out.markdown, page.title, origin) } : {}),
         ...(after ? after(out) : {}),
@@ -934,7 +979,15 @@ export async function applyRevision({ slug, plan, model: chosen, origin, status 
             isPlan: w.isPlan,
             origin,
           })
-          const out = await askPlan(model, content, { system: SYSTEM, allowTools: false })
+          let asking = model
+          let auto = null
+          if (model === 'auto') {
+            auto = await autoPick({ kind: 'apply', answers: answers.pages.length, action: w.action, isPlan: w.isPlan }, content)
+            asking = auto.model
+            j.progress = { ...j.progress, auto: auto.line }
+            persist(j)
+          }
+          const out = await askPlan(asking, content, { system: SYSTEM, allowTools: false })
           const old = before || { title: w.title, story: [], journal: [] }
           const story = storyFromReply(old, out.markdown)
           if (!story.some(it => it.type === 'markdown' && String(it.text || '').trim())) throw new Error('the door answered no page')
@@ -960,7 +1013,7 @@ export async function applyRevision({ slug, plan, model: chosen, origin, status 
           writeAtomic(status, file, body)
           wrote++
           const dropped = before ? linksOf(before).filter(t => !linksOf(page).includes(t)) : []
-          const entry = { title: w.title, slug: w.slug, action: w.action, ...(w.asked !== w.action ? { asked: w.asked } : {}), before: bytesBefore, after: Buffer.byteLength(body), journal: count(actions), model: out.model, ms: out.ms }
+          const entry = { title: w.title, slug: w.slug, action: w.action, ...(w.asked !== w.action ? { asked: w.asked } : {}), before: bytesBefore, after: Buffer.byteLength(body), journal: count(actions), model: out.model, ms: out.ms, ...(auto ? { auto: auto.line } : {}) }
           if (dropped.length) entry.linksDropped = dropped
           if (w.isPlan) {
             const md = planMarkdown(page)

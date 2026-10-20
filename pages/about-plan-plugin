@@ -218,6 +218,21 @@
     },
     {
       "type": "markdown",
+      "id": "d89f431abe39c6cc",
+      "text": "# Auto\n> 0.11.0: the model chosen per run, by a rule, to save tokens."
+    },
+    {
+      "type": "markdown",
+      "id": "74a5eb6ec114d208",
+      "text": "Auto is a choice on [[Model Settings]], the model value `auto`. The server decides each run after building its question: autoTier in core.js weighs the run from what it already knows, the question's tokens (the door's estimate), the answered questions, the open phases, the pages of a site, and for Go Ahead the row's action and whether it is the plan, and answers light, big or careful. The door's autoModel (wiki-claude-door 0.3.0) turns the tier into a model it reaches now whose window holds the question with 16,000 tokens to answer: light is a loaded coop model; big is a loaded coop model whose window is 200K or more, else the coop model with the largest window, cold or not, so a Go Ahead of mixed pages does not swap models on the coop's GPUs page by page; careful is Claude. A light run nothing loaded can hold goes big; a run the coop cannot hold, or a coop that does not answer, goes to Claude, and the reason says so."
+    },
+    {
+      "type": "markdown",
+      "id": "938c5ecc73167ae5",
+      "text": "Big is a question over 48,000 tokens, four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), or Go Ahead rewriting a page or the plan. Careful is a Revise Plan or Revise Site whose weight, answers plus half the open phases (or an eighth of the pages, counting at most 24) plus questions asked back, is 12 or more; Go Ahead pages are weighed one by one and never go to Claude on weight. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → glm-5.3-flash-pp: 34k tokens, 3 answers*; each Go Ahead page carries its own. PLAN_AUTO_BIG and PLAN_AUTO_CAREFUL name the farm's big coop model and its Claude model. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built, since it would read the question to save reading it."
+    },
+    {
+      "type": "markdown",
       "id": "3d73cc7bfe1f2bd9",
       "text": "# Next\n> Phase 6: ship it and show it."
     },
@@ -1072,6 +1087,39 @@
         "text": "# See\n\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
       },
       "date": 1792511708578
+    },
+    {
+      "type": "add",
+      "id": "d89f431abe39c6cc",
+      "item": {
+        "type": "markdown",
+        "id": "d89f431abe39c6cc",
+        "text": "# Auto\n> 0.11.0: the model chosen per run, by a rule, to save tokens."
+      },
+      "after": "1bd71e9f2b9382b3",
+      "date": 1792512259472
+    },
+    {
+      "type": "add",
+      "id": "74a5eb6ec114d208",
+      "item": {
+        "type": "markdown",
+        "id": "74a5eb6ec114d208",
+        "text": "Auto is a choice on [[Model Settings]], the model value `auto`. The server decides each run after building its question: autoTier in core.js weighs the run from what it already knows, the question's tokens (the door's estimate), the answered questions, the open phases, the pages of a site, and for Go Ahead the row's action and whether it is the plan, and answers light, big or careful. The door's autoModel (wiki-claude-door 0.3.0) turns the tier into a model it reaches now whose window holds the question with 16,000 tokens to answer: light is a loaded coop model; big is a loaded coop model whose window is 200K or more, else the coop model with the largest window, cold or not, so a Go Ahead of mixed pages does not swap models on the coop's GPUs page by page; careful is Claude. A light run nothing loaded can hold goes big; a run the coop cannot hold, or a coop that does not answer, goes to Claude, and the reason says so."
+      },
+      "after": "d89f431abe39c6cc",
+      "date": 1792512259472
+    },
+    {
+      "type": "add",
+      "id": "938c5ecc73167ae5",
+      "item": {
+        "type": "markdown",
+        "id": "938c5ecc73167ae5",
+        "text": "Big is a question over 48,000 tokens, four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), or Go Ahead rewriting a page or the plan. Careful is a Revise Plan or Revise Site whose weight, answers plus half the open phases (or an eighth of the pages, counting at most 24) plus questions asked back, is 12 or more; Go Ahead pages are weighed one by one and never go to Claude on weight. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → glm-5.3-flash-pp: 34k tokens, 3 answers*; each Go Ahead page carries its own. PLAN_AUTO_BIG and PLAN_AUTO_CAREFUL name the farm's big coop model and its Claude model. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built, since it would read the question to save reading it."
+      },
+      "after": "74a5eb6ec114d208",
+      "date": 1792512259472
     }
   ],
   "plugin": "plan"
