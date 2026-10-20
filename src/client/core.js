@@ -272,7 +272,15 @@ export const autoLine = auto => {
   if (!auto || !auto.model) return ''
   const name = String(auto.model).replace(/^(openai:llm_|openai:|ollama:|claude-cli:)/, '')
   const tier = auto.tier && auto.tier !== 'light' ? ` (${auto.tier})` : ''
-  return `auto → ${name}${tier}: ${auto.why}${auto.note ? ` (${auto.note})` : ''}`
+  const c = auto.classifier
+  const said = !c
+    ? ''
+    : c.tier
+      ? ` · classifier ${c.decided ? 'said' : 'advised'} ${c.tier}${auto.ruled && c.tier !== auto.ruled ? `, the rule ${auto.ruled}` : ''}${c.reason ? `: ${c.reason}` : ''}`
+      : c.skipped
+        ? ` · classifier skipped: ${String(c.skipped).slice(0, 120)}`
+        : ''
+  return `auto → ${name}${tier}: ${auto.why}${auto.note ? ` (${auto.note})` : ''}${said}`
 }
 
 // A context window in tokens, short, as the model names say it: 262144 →

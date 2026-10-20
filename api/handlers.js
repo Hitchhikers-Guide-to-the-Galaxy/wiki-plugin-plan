@@ -47,7 +47,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
-import { ask, door, isModelId, listModels, contextOf, estimateTokens, autoModel, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
+import { ask, door, isModelId, listModels, contextOf, estimateTokens, autoModel, classifyTier, classifierModel, tokensLabel, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
 
 import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt, planState, autoTier, autoLine, AUTO, AUTO_RULE } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
@@ -290,14 +290,73 @@ const askPlan = async (model, content, opts = {}) => {
 // big for every window) fails the run with the reason, never a silent cut.
 const AUTO_ROOM = 16000
 
-/** Auto's pick for one question: {asked, tier, weight, why, model, note, tokens, line}. */
-export const autoPick = async (signals, content, { system = SYSTEM, doors = null } = {}) => {
+// ---------- the classifier call (0.13.0, Auto Model Plan Phase 6) ----------
+//
+// Before the real call, a coop model that is already loaded reads a short
+// summary of the run (autoSummary: its kind, its size, its phases, the
+// questions going in, the plan's opening) and says light or big with a
+// reason — the door's classifyTier. PLAN_AUTO_CLASSIFIER says what its word
+// is worth: `decide` (the default: its tier is sent, the rule's kept beside
+// it as `ruled`), `advise` (recorded on the job, the rule decides) or `off`
+// (no call). When it does not decide — nothing loaded, the coop down, a
+// timeout, neither word — the rule stands and the job says why it was
+// skipped. Its tokens are spent on the coop; Phase 7 asks whether they are
+// worth it, so both tiers are kept on every job.
+const CLASSIFIER_MODES = ['off', 'advise', 'decide']
+export const classifierMode = () => {
+  const m = String(process.env.PLAN_AUTO_CLASSIFIER || 'decide').toLowerCase()
+  return CLASSIFIER_MODES.includes(m) ? m : 'decide'
+}
+const RUN_NAMES = { revise: 'Revise Plan', site: 'Revise Site', apply: 'Go Ahead, one page', next: 'Do Next Phase' }
+const oneLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n)
+
+/** What the classifier reads: a few hundred tokens about the run, never the question itself. */
+export const autoSummary = ({ kind = 'revise', page = null, phase = null, questions = [], account = {}, action = '', isPlan = false, title = '' } = {}) => {
+  const lines = [`Run: ${RUN_NAMES[kind] || kind}${page ? ` of "${page.title}"` : title ? ` on "${title}"` : ''}`]
+  if (kind === 'apply') lines.push(`Action: ${action || 'Amend'}${isPlan ? ' — this page is the plan itself' : ''}`)
+  if (page) {
+    const st = planState(page)
+    const open = st.phases.filter(p => p.done < p.total)
+    lines.push(`Phases: ${st.phases.length}, open ${open.length}${open.length ? ` (${open.map(p => `${p.line}: ${p.done}/${p.total} done`).join(', ')})` : ''}`)
+    const opener = (page.story || []).find(i => i && i.type === 'markdown' && (i.text || '').trim() && !/^#/.test((i.text || '').trim()))
+    if (opener) lines.push(`Opening: ${oneLine(opener.text, 400)}`)
+  }
+  if (phase) {
+    const cps = (phase.checkpoints || []).map(c => (typeof c === 'string' ? c : c.text))
+    lines.push(`Phase to do: ${phase.label} — ${cps.length} checkpoint${cps.length === 1 ? '' : 's'}: ${oneLine(cps.join('; '), 600)}`)
+  }
+  const answered = questions.filter(q => q.answered)
+  const fromAccount = !questions.length && Array.isArray(account.answers) ? account.answers.map(a => (typeof a === 'string' ? { title: a } : a)) : []
+  const list = answered.length ? answered : fromAccount
+  lines.push(`Answered questions going in: ${list.length}${list.length ? '\n' + list.map(q => `- ${q.title}${q.answer ? ` — ${oneLine(q.answer, 160)}` : q.inline ? '' : ' (an answer page)'}`).join('\n') : ''}`)
+  const asked = questions.filter(q => q.query).map(q => q.title)
+  const askedBack = asked.length ? asked : Array.isArray(account.queries) ? account.queries : []
+  if (askedBack.length) lines.push(`Asked back, not answered: ${askedBack.join('; ')}`)
+  if (kind === 'site') {
+    const shown = account.pages || []
+    const brief = account.brief || []
+    lines.push(`Pages of the site going in: ${shown.length} in full, ${brief.length} in brief${shown.length ? ` — ${oneLine(shown.map(p => p.title).slice(0, 30).join('; '), 600)}` : ''}`)
+  }
+  return lines.join('\n')
+}
+
+/** Auto's pick for one question: {asked, tier, weight, why, model, note, tokens, ruled, classifier?, line}. */
+export const autoPick = async (signals, content, { system = SYSTEM, doors = null, summary = '', classify = classifyTier } = {}) => {
   const need = estimateTokens(system) + estimateTokens(content)
-  const t = autoTier({ ...signals, tokens: need, bigTokens: +process.env.PLAN_AUTO_BIG_TOKENS || AUTO.bigTokens })
+  const ruled = autoTier({ ...signals, tokens: need, bigTokens: +process.env.PLAN_AUTO_BIG_TOKENS || AUTO.bigTokens })
   const list = doors || (await listModels()).doors
+  const mode = classifierMode()
+  let t = ruled
+  let classifier = null
+  if (mode !== 'off' && String(summary).trim()) {
+    const c = await classify({ summary: `Question: ${tokensLabel(need)} tokens\n${summary}`, doors: list, model: process.env.PLAN_AUTO_CLASSIFIER_MODEL || '' })
+    const decided = mode === 'decide' && !!c.tier
+    classifier = { mode, tier: c.tier || null, reason: c.reason || '', model: c.model || '', ms: c.ms || 0, ...(c.usage ? { usage: c.usage } : {}), ...(c.skipped ? { skipped: c.skipped } : {}), decided }
+    if (decided && c.tier !== ruled.tier) t = { ...ruled, tier: c.tier }
+  }
   const r = autoModel({ tier: t.tier, need, doors: list, answer: AUTO_ROOM, light: process.env.PLAN_AUTO_LIGHT || '', big: process.env.PLAN_AUTO_BIG || '' })
-  const auto = { asked: t.tier, tier: r.tier, weight: t.weight, why: t.why, model: r.model, note: r.note || '', tokens: need }
-  if (!r.model) throw problem(400, `auto found no model for this run (${t.why}): ${r.note}`)
+  const auto = { asked: t.tier, tier: r.tier, weight: ruled.weight, why: ruled.why, model: r.model, note: r.note || '', tokens: need, ruled: ruled.tier, ...(classifier ? { classifier } : {}) }
+  if (!r.model) throw problem(400, `auto found no model for this run (${ruled.why}): ${r.note}`)
   return { ...auto, line: autoLine(auto) }
 }
 
@@ -322,7 +381,13 @@ export async function models() {
     defaultFrom: process.env.PLAN_MODEL ? 'PLAN_MODEL' : 'the Plan Tool',
     research: RESEARCH_MODEL,
     doors,
-    auto: { available: true, rule: AUTO_RULE, thresholds: AUTO, room: AUTO_ROOM },
+    auto: {
+      available: true,
+      rule: AUTO_RULE + (classifierMode() === 'off' ? '' : ` A loaded coop model reads a summary of the run first and ${classifierMode() === 'decide' ? 'decides' : 'advises'} the tier.`),
+      thresholds: AUTO,
+      room: AUTO_ROOM,
+      classifier: { mode: classifierMode(), model: (classifierModel(doors, process.env.PLAN_AUTO_CLASSIFIER_MODEL || '') || {}).id || null },
+    },
   }
 }
 const HEARTBEAT_MS = 60 * 1000
@@ -425,7 +490,8 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
           kind === 'site'
             ? { kind, answers: (account.answers || []).length, queries: (account.queries || []).length, pages: (account.pages || []).length + (account.brief || []).length }
             : planSignals(kind, site, page, phase)
-        j.auto = await autoPick(signals, content)
+        const summary = autoSummary({ kind, page, phase, questions: kind === 'site' ? [] : questionsFor(site, page).questions, account })
+        j.auto = await autoPick(signals, content, { summary })
         asking = j.model = j.auto.model
       }
       persist(j)
@@ -983,7 +1049,9 @@ export async function applyRevision({ slug, plan, model: chosen, origin, status 
           let asking = model
           let auto = null
           if (model === 'auto') {
-            auto = await autoPick({ kind: 'apply', answers: answers.pages.length, action: w.action, isPlan: w.isPlan }, content)
+            auto = await autoPick({ kind: 'apply', answers: answers.pages.length, action: w.action, isPlan: w.isPlan }, content, {
+              summary: autoSummary({ kind: 'apply', page: before, title: w.title, action: w.action, isPlan: w.isPlan, account: { answers: answers.pages.map(a => ({ title: a.title, inline: !!a.inline })) } }),
+            })
             asking = auto.model
             j.progress = { ...j.progress, auto: auto.line }
             persist(j)

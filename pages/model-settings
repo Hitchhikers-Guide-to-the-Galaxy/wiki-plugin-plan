@@ -4,7 +4,7 @@
     {
       "type": "paragraph",
       "id": "9f76871f34575ab1",
-      "text": "Which model the Plan Tool asks when it uses one: ✎ Revise Plan, ⧉ Revise Site and Go Ahead. Opened from the ⚙ chip on a plan's status line; the choice is kept in this browser, for this site."
+      "text": "Which model the Plan Tool asks when it uses one: \u270e Revise Plan, \u29c9 Revise Site and Go Ahead. Opened from the \u2699 chip on a plan's status line; the choice is kept in this browser, for this site."
     },
     {
       "type": "plan",
@@ -24,12 +24,12 @@
     {
       "type": "markdown",
       "id": "6607e789bc0d4d8b",
-      "text": "The Plan Tool keeps no conversation with a model. Every run builds its question afresh from the pages — the plan, its answered questions, the skills it names and the pages it links, up to 120 kB — and sends it whole. Changing model between runs therefore loads nothing extra into the new one: the next run sends what it would have sent anyway. The warning in the Claude app is about a long chat, whose whole history must be read again, uncached, by the new model; there is no such history here."
+      "text": "The Plan Tool keeps no conversation with a model. Every run builds its question afresh from the pages \u2014 the plan, its answered questions, the skills it names and the pages it links, up to 120 kB \u2014 and sends it whole. Changing model between runs therefore loads nothing extra into the new one: the next run sends what it would have sent anyway. The warning in the Claude app is about a long chat, whose whole history must be read again, uncached, by the new model; there is no such history here."
     },
     {
       "type": "markdown",
       "id": "b8a16ed453fc7017",
-      "text": "What does matter is the window. A plan's question is often 20–35 thousand tokens. The coop's big models (GLM-5.3 Flash, DeepSeek-V4) and Claude hold that easily; the 32K models and Ollama only just, or not at all. A model too small for the question is refused before anything is sent, with the sizes, rather than answering from a plan cut short."
+      "text": "What does matter is the window. A plan's question is often 20\u201335 thousand tokens. The coop's big models (GLM-5.3 Flash, DeepSeek-V4) and Claude hold that easily; the 32K models and Ollama only just, or not at all. A model too small for the question is refused before anything is sent, with the sizes, rather than answering from a plan cut short."
     },
     {
       "type": "markdown",
@@ -44,7 +44,7 @@
     {
       "type": "markdown",
       "id": "b10c9c62b31cbbde",
-      "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose a Claude model for a redraft that needs careful reasoning (Claude Fable 5.1 is the strongest), or Auto to let the farm decide each run. ⌕ Red-link always uses Claude, because only Claude has web search here."
+      "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose a Claude model for a redraft that needs careful reasoning (Claude Fable 5.1 is the strongest), or Auto to let the farm decide each run. \u2315 Red-link always uses Claude, because only Claude has web search here."
     },
     {
       "type": "markdown",
@@ -54,12 +54,17 @@
     {
       "type": "markdown",
       "id": "64832fa151a575f6",
-      "text": "With Auto chosen, every ✎ Revise Plan, ⧉ Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, and for Go Ahead the row's action and whether it is the plan. A big run goes to Claude Fable 5.1: a question over 48 thousand tokens, four answers or more, a whole site, a page or the plan that Go Ahead rewrites, or a redraft heavy with answers and open phases. Everything smaller goes to the coop's auto-big, which picks the model for its own hardware. A question too big for Claude's window goes to the coop's roomiest model; a small one the coop cannot take, or a coop that does not answer, goes to Claude, and the reason says so."
+      "text": "With Auto chosen, every \u270e Revise Plan, \u29c9 Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, and for Go Ahead the row's action and whether it is the plan. A big run goes to Claude Fable 5.1: a question over 48 thousand tokens, four answers or more, a whole site, a page or the plan that Go Ahead rewrites, or a redraft heavy with answers and open phases. Everything smaller goes to the coop's auto-big, which picks the model for its own hardware. A question too big for Claude's window goes to the coop's roomiest model; a small one the coop cannot take, or a coop that does not answer, goes to Claude, and the reason says so."
+    },
+    {
+      "type": "markdown",
+      "id": "bab17233fc6bbbdc",
+      "text": "Before the real call, a coop model that is already loaded reads a short summary of the run \u2014 its kind, its size, its phases, the questions going in, the plan's opening, a few hundred tokens \u2014 and says light or big with a reason: the classifier call (0.13.0). Its word decides the tier, and the rule's own tier is kept beside it on the job, so the status line reads *auto \u2192 claude-fable-5-1 (big): 18k tokens, 4 answers, 3 open phases \u00b7 classifier said big: four answers to weave in*. When it cannot decide \u2014 no coop model loaded, the coop down, twenty seconds gone, an answer that is neither word \u2014 the rule stands and the line says why it was skipped. The farm's PLAN_AUTO_CLASSIFIER turns it to *advise* (recorded, the rule decides) or *off*; this page's Auto line says which. The classifier's tokens are spent on the coop, about 500 a run."
     },
     {
       "type": "markdown",
       "id": "45a47dc7fa28659c",
-      "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and choosing costs nothing. The status line names the pick and why, for example *auto → auto-big: 9k tokens, 2 answers (routes to glm-5.3-flash-pp)* or *auto → claude-fable-5-1 (big): 52k tokens, 5 answers*. The farm can name another Claude model in PLAN_AUTO_BIG, another coop router in PLAN_AUTO_LIGHT, and move the 48 thousand token line with PLAN_AUTO_BIG_TOKENS."
+      "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and choosing costs nothing. The status line names the pick and why, for example *auto \u2192 auto-big: 9k tokens, 2 answers (routes to glm-5.3-flash-pp)* or *auto \u2192 claude-fable-5-1 (big): 52k tokens, 5 answers*. The farm can name another Claude model in PLAN_AUTO_BIG, another coop router in PLAN_AUTO_LIGHT, and move the 48 thousand token line with PLAN_AUTO_BIG_TOKENS."
     },
     {
       "type": "markdown",
@@ -81,7 +86,7 @@
           {
             "type": "paragraph",
             "id": "9f76871f34575ab1",
-            "text": "Which model the Plan Tool asks when it uses one: ✎ Revise Plan, ⧉ Revise Site and Go Ahead. Opened from the ⚙ chip on a plan's status line; the choice is kept in this browser, for this site."
+            "text": "Which model the Plan Tool asks when it uses one: \u270e Revise Plan, \u29c9 Revise Site and Go Ahead. Opened from the \u2699 chip on a plan's status line; the choice is kept in this browser, for this site."
           },
           {
             "type": "plan",
@@ -101,12 +106,12 @@
           {
             "type": "markdown",
             "id": "6607e789bc0d4d8b",
-            "text": "The Plan Tool keeps no conversation with a model. Every run builds its question afresh from the pages — the plan, its answered questions, the skills it names and the pages it links, up to 120 kB — and sends it whole. Changing model between runs therefore loads nothing extra into the new one: the next run sends what it would have sent anyway. The warning in the Claude app is about a long chat, whose whole history must be read again, uncached, by the new model; there is no such history here."
+            "text": "The Plan Tool keeps no conversation with a model. Every run builds its question afresh from the pages \u2014 the plan, its answered questions, the skills it names and the pages it links, up to 120 kB \u2014 and sends it whole. Changing model between runs therefore loads nothing extra into the new one: the next run sends what it would have sent anyway. The warning in the Claude app is about a long chat, whose whole history must be read again, uncached, by the new model; there is no such history here."
           },
           {
             "type": "markdown",
             "id": "b8a16ed453fc7017",
-            "text": "What does matter is the window. A plan's question is often 20–35 thousand tokens. The coop's big models (GLM-5.3 Flash, DeepSeek-V4) and Claude hold that easily; the 32K models and Ollama only just, or not at all. A model too small for the question is refused before anything is sent, with the sizes, rather than answering from a plan cut short."
+            "text": "What does matter is the window. A plan's question is often 20\u201335 thousand tokens. The coop's big models (GLM-5.3 Flash, DeepSeek-V4) and Claude hold that easily; the 32K models and Ollama only just, or not at all. A model too small for the question is refused before anything is sent, with the sizes, rather than answering from a plan cut short."
           },
           {
             "type": "markdown",
@@ -121,7 +126,7 @@
           {
             "type": "markdown",
             "id": "b10c9c62b31cbbde",
-            "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning. ⌕ Red-link always uses Claude, because only Claude has web search here. Auto — a model that chooses the model by how hard the question is, to save tokens — is planned, not built."
+            "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning. \u2315 Red-link always uses Claude, because only Claude has web search here. Auto \u2014 a model that chooses the model by how hard the question is, to save tokens \u2014 is planned, not built."
           },
           {
             "type": "markdown",
@@ -144,7 +149,7 @@
       "item": {
         "type": "markdown",
         "id": "b10c9c62b31cbbde",
-        "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning, or Auto to let the farm decide each run. ⌕ Red-link always uses Claude, because only Claude has web search here."
+        "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning, or Auto to let the farm decide each run. \u2315 Red-link always uses Claude, because only Claude has web search here."
       },
       "date": 1792512259472
     },
@@ -165,7 +170,7 @@
       "item": {
         "type": "markdown",
         "id": "64832fa151a575f6",
-        "text": "With Auto chosen, every ✎ Revise Plan, ⧉ Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, the pages of a site, and for Go Ahead the row's action and whether it is the plan. A small run goes to the coop model already loaded, with no cold start. A run over 48 thousand tokens, with four answers or more, a whole site, or a page Go Ahead rewrites goes to a big-window coop model: the loaded one when its window is 200K or more, so the coop's GPUs are not swapped page by page, else the largest window that holds it. Only a redraft or site revision heavy with answers, a weight of 12 or more, goes to Claude. When nothing on the coop holds the question, or the coop does not answer, Auto asks Claude and says so."
+        "text": "With Auto chosen, every \u270e Revise Plan, \u29c9 Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, the pages of a site, and for Go Ahead the row's action and whether it is the plan. A small run goes to the coop model already loaded, with no cold start. A run over 48 thousand tokens, with four answers or more, a whole site, or a page Go Ahead rewrites goes to a big-window coop model: the loaded one when its window is 200K or more, so the coop's GPUs are not swapped page by page, else the largest window that holds it. Only a redraft or site revision heavy with answers, a weight of 12 or more, goes to Claude. When nothing on the coop holds the question, or the coop does not answer, Auto asks Claude and says so."
       },
       "after": "bb269957bfcd7279",
       "date": 1792512259472
@@ -176,7 +181,7 @@
       "item": {
         "type": "markdown",
         "id": "45a47dc7fa28659c",
-        "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and asking it costs nothing. The status line names the pick and why, for example *auto → glm-5.3-flash-pp: 34k tokens, 3 answers, 2 open phases*. The farm can name the big coop model in PLAN_AUTO_BIG and the Claude model in PLAN_AUTO_CAREFUL."
+        "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and asking it costs nothing. The status line names the pick and why, for example *auto \u2192 glm-5.3-flash-pp: 34k tokens, 3 answers, 2 open phases*. The farm can name the big coop model in PLAN_AUTO_BIG and the Claude model in PLAN_AUTO_CAREFUL."
       },
       "after": "64832fa151a575f6",
       "date": 1792512259472
@@ -187,7 +192,7 @@
       "item": {
         "type": "markdown",
         "id": "b10c9c62b31cbbde",
-        "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose a Claude model for a redraft that needs careful reasoning (Claude Fable 5.1 is the strongest), or Auto to let the farm decide each run. ⌕ Red-link always uses Claude, because only Claude has web search here."
+        "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose a Claude model for a redraft that needs careful reasoning (Claude Fable 5.1 is the strongest), or Auto to let the farm decide each run. \u2315 Red-link always uses Claude, because only Claude has web search here."
       },
       "date": 1792527043723
     },
@@ -207,7 +212,7 @@
       "item": {
         "type": "markdown",
         "id": "64832fa151a575f6",
-        "text": "With Auto chosen, every ✎ Revise Plan, ⧉ Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, and for Go Ahead the row's action and whether it is the plan. A big run goes to Claude Fable 5.1: a question over 48 thousand tokens, four answers or more, a whole site, a page or the plan that Go Ahead rewrites, or a redraft heavy with answers and open phases. Everything smaller goes to the coop's auto-big, which picks the model for its own hardware. A question too big for Claude's window goes to the coop's roomiest model; a small one the coop cannot take, or a coop that does not answer, goes to Claude, and the reason says so."
+        "text": "With Auto chosen, every \u270e Revise Plan, \u29c9 Revise Site and each page of Go Ahead is weighed before it is sent: the size of its question in tokens, the answered questions that go in, the open phases a redraft may change, and for Go Ahead the row's action and whether it is the plan. A big run goes to Claude Fable 5.1: a question over 48 thousand tokens, four answers or more, a whole site, a page or the plan that Go Ahead rewrites, or a redraft heavy with answers and open phases. Everything smaller goes to the coop's auto-big, which picks the model for its own hardware. A question too big for Claude's window goes to the coop's roomiest model; a small one the coop cannot take, or a coop that does not answer, goes to Claude, and the reason says so."
       },
       "date": 1792527043723
     },
@@ -217,9 +222,21 @@
       "item": {
         "type": "markdown",
         "id": "45a47dc7fa28659c",
-        "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and choosing costs nothing. The status line names the pick and why, for example *auto → auto-big: 9k tokens, 2 answers (routes to glm-5.3-flash-pp)* or *auto → claude-fable-5-1 (big): 52k tokens, 5 answers*. The farm can name another Claude model in PLAN_AUTO_BIG, another coop router in PLAN_AUTO_LIGHT, and move the 48 thousand token line with PLAN_AUTO_BIG_TOKENS."
+        "text": "The rule is fixed, not a model's guess, so the same run always picks the same model, and choosing costs nothing. The status line names the pick and why, for example *auto \u2192 auto-big: 9k tokens, 2 answers (routes to glm-5.3-flash-pp)* or *auto \u2192 claude-fable-5-1 (big): 52k tokens, 5 answers*. The farm can name another Claude model in PLAN_AUTO_BIG, another coop router in PLAN_AUTO_LIGHT, and move the 48 thousand token line with PLAN_AUTO_BIG_TOKENS."
       },
       "date": 1792527043723
+    },
+    {
+      "type": "add",
+      "id": "bab17233fc6bbbdc",
+      "item": {
+        "type": "markdown",
+        "id": "bab17233fc6bbbdc",
+        "text": "Before the real call, a coop model that is already loaded reads a short summary of the run \u2014 its kind, its size, its phases, the questions going in, the plan's opening, a few hundred tokens \u2014 and says light or big with a reason: the classifier call (0.13.0). Its word decides the tier, and the rule's own tier is kept beside it on the job, so the status line reads *auto \u2192 claude-fable-5-1 (big): 18k tokens, 4 answers, 3 open phases \u00b7 classifier said big: four answers to weave in*. When it cannot decide \u2014 no coop model loaded, the coop down, twenty seconds gone, an answer that is neither word \u2014 the rule stands and the line says why it was skipped. The farm's PLAN_AUTO_CLASSIFIER turns it to *advise* (recorded, the rule decides) or *off*; this page's Auto line says which. The classifier's tokens are spent on the coop, about 500 a run."
+      },
+      "after": "64832fa151a575f6",
+      "date": 1792528536299,
+      "provenance": "Auto Model Plan, Phase 6 \u2014 Claude Code, 2026-10-20"
     }
   ]
 }

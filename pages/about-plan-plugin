@@ -4,12 +4,12 @@
     {
       "type": "markdown",
       "id": "452360c0e34e1124",
-      "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the ☰ menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
+      "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the \u2630 menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
     },
     {
       "type": "markdown",
       "id": "28d2927462811fe0",
-      "text": "## Repositories\n\n- GitHub — https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm — https://www.npmjs.com/package/wiki-plugin-plan"
+      "text": "## Repositories\n\n- GitHub \u2014 https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm \u2014 https://www.npmjs.com/package/wiki-plugin-plan"
     },
     {
       "type": "plan",
@@ -54,7 +54,7 @@
     {
       "type": "markdown",
       "id": "4b93d3def7d0b6ab",
-      "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: …*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+      "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: \u2026*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
     },
     {
       "type": "markdown",
@@ -209,12 +209,12 @@
     {
       "type": "markdown",
       "id": "96b9244852e9f79a",
-      "text": "The status line is one row of icons: ⟳ Update Plan, ✓ Finish Plan and ▶ Do Next Phase ask no model; past the bar, ✎ Revise Plan, ⧉ Revise Site and ⌕ Red-link do. Each icon's name and purpose is its tooltip. The ⚙ chip at the end names the model ✎ and ⧉ (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` — the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
+      "text": "The status line is one row of icons: \u27f3 Update Plan, \u2713 Finish Plan and \u25b6 Do Next Phase ask no model; past the bar, \u270e Revise Plan, \u29c9 Revise Site and \u2315 Red-link do. Each icon's name and purpose is its tooltip. The \u2699 chip at the end names the model \u270e and \u29c9 (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` \u2014 the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
     },
     {
       "type": "markdown",
       "id": "1bd71e9f2b9382b3",
-      "text": "Every run is one request built afresh from the pages, so changing model between runs costs nothing extra: there is no conversation to carry. Before asking, the farm checks the model's window holds the question with room to answer, and refuses a model too small with the sizes, rather than have it answer from a plan cut short. A coop answer gets up to 32,000 tokens, its reasoning included, and one cut off by that limit fails rather than passing as short. ⌕ Red-link always researches with Claude, the only door with web search. A redraft that drops the plan's question links or task lines says so on the ghost's first line, which Save leaves out, before anything is saved."
+      "text": "Every run is one request built afresh from the pages, so changing model between runs costs nothing extra: there is no conversation to carry. Before asking, the farm checks the model's window holds the question with room to answer, and refuses a model too small with the sizes, rather than have it answer from a plan cut short. A coop answer gets up to 32,000 tokens, its reasoning included, and one cut off by that limit fails rather than passing as short. \u2315 Red-link always researches with Claude, the only door with web search. A redraft that drops the plan's question links or task lines says so on the ghost's first line, which Save leaves out, before anything is saved."
     },
     {
       "type": "markdown",
@@ -229,7 +229,12 @@
     {
       "type": "markdown",
       "id": "938c5ecc73167ae5",
-      "text": "Big is a question over 48,000 tokens (PLAN_AUTO_BIG_TOKENS moves the line), four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), Go Ahead rewriting a page or the plan, or a Revise Plan whose weight, answers plus half the open phases plus questions asked back, is 12 or more. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → claude-fable-5-1 (big): 52k tokens, 5 answers*; each Go Ahead page carries its own. Fable runs get the coop's 15 minutes rather than 7, since Fable may think for minutes. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built. Fable needs Claude Code 2.1.251 or newer on the farm's machine."
+      "text": "Big is a question over 48,000 tokens (PLAN_AUTO_BIG_TOKENS moves the line), four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), Go Ahead rewriting a page or the plan, or a Revise Plan whose weight, answers plus half the open phases plus questions asked back, is 12 or more. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto \u2192 claude-fable-5-1 (big): 52k tokens, 5 answers*; each Go Ahead page carries its own. Fable runs get the coop's 15 minutes rather than 7, since Fable may think for minutes. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built. Fable needs Claude Code 2.1.251 or newer on the farm's machine."
+    },
+    {
+      "type": "markdown",
+      "id": "aac85e26df367b49",
+      "text": "The classifier call (0.13.0, [[Auto Model Plan]] Phase 6) sits between the rule and the door. autoSummary in handlers.js writes a few hundred tokens about the run \u2014 the kind, the size of the question, the phases and which are open, the plan's opening line, the answered questions with their answers, the questions asked back, for a site its pages, for Go Ahead the action \u2014 and the door's classifyTier (wiki-claude-door 0.5.0) reads it on a coop model that is already loaded, never cold-starting one, at temperature 0, and answers one line, light or big with a reason. PLAN_AUTO_CLASSIFIER is *decide* by default: the classifier's tier is sent and the rule's is kept on the job as `ruled`; *advise* records it and lets the rule decide; *off* makes no call. PLAN_AUTO_CLASSIFIER_MODEL (or the door's CLAUDE_DOOR_CLASSIFIER) names the model, which must be loaded. Not deciding \u2014 nothing loaded, the coop down, twenty seconds gone, neither word \u2014 leaves the rule standing with `skipped` saying why. Stress tested on 20 October 2026 against the fifteen plans of the laptop farm: median 2.3 s a call, a burst of eight inside 40 s, 26 of 27 answers agreeing with the rule once the rubric said an ordinary Revise Plan is light, five repeats of one summary identical at temperature 0, and one summary \u2014 this plan's own, about classifying \u2014 that sets GLM thinking past the timeout, so the rule stood. The script is scripts/stress-classifier.mjs; the runs are on [[Auto Classifier Stress Test]]."
     },
     {
       "type": "markdown",
@@ -239,7 +244,7 @@
     {
       "type": "markdown",
       "id": "f80c178da6af3127",
-      "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where ☰ shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
+      "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where \u2630 shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
     },
     {
       "type": "markdown",
@@ -256,7 +261,7 @@
           {
             "type": "markdown",
             "id": "452360c0e34e1124",
-            "text": "This plugin, type: plan, reads the state of a site's plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap; the item lists them newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup. It is the item behind the [[Plan Tool]] in the ☰ menu."
+            "text": "This plugin, type: plan, reads the state of a site's plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap; the item lists them newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup. It is the item behind the [[Plan Tool]] in the \u2630 menu."
           },
           {
             "type": "plan",
@@ -311,7 +316,7 @@
         ]
       },
       "date": 1791663153607,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -319,7 +324,7 @@
       "item": {
         "type": "markdown",
         "id": "452360c0e34e1124",
-        "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the ☰ menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
+        "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the \u2630 menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
       },
       "date": 1791664527861,
       "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
@@ -482,7 +487,7 @@
         "text": "In the list, a plan's ticks are counted as the state view counts them: the checkpoints of its phases, the same done over total its status line and the Plan Tool show, so a plan reads one fraction in every face. The [[Plan Index]] board keeps its own rule and counts every task line on the page, Open Questions included, so the two can differ for one plan. Open questions are the unticked task lines in the section headed `# Open Questions`, which runs to the next heading, counted apart. The order is the latest dated journal entry, newest first, with the title as the tiebreak and the sitemap date as the fallback."
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -494,7 +499,7 @@
       },
       "after": "e62bcb49b80a1398",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -506,7 +511,7 @@
       },
       "after": "9421e8b9fd9be369",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -518,7 +523,7 @@
       },
       "after": "537b317e1ae61ce3",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -530,7 +535,7 @@
       },
       "after": "7bf3f444ac5b95d4",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -541,7 +546,7 @@
         "text": "# Next\n> Phase 4: Do Next Phase."
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -552,7 +557,7 @@
         "text": "Phase 4 adds Do Next Phase, the agentic write: the plan and its next phase go to the farm's Claude door, and the answer comes back as a ghost page holding a phase report and proposed ticks, never written to the plan. Revise Plan uses the same door. The [[Plan Tool Plan]] carries the order."
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -563,7 +568,7 @@
         "text": "# See\n\n- [[Plan Tool]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -574,7 +579,7 @@
         "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool: it reads the plan to its left, or lists the plans when nothing to the left is a plan |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |\n| SKILLS a, b | on a plan's status line: the skills Do Next Phase and Revise Plan give the model beside fedwiki-plan, read from ~/.claude/skills on the machine the farm runs on |"
       },
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -586,7 +591,7 @@
       },
       "after": "4f78e5575a09defb",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -598,7 +603,7 @@
       },
       "after": "4b1648a795e6fb22",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -610,7 +615,7 @@
       },
       "after": "f3c25edf2403956f",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -622,7 +627,7 @@
       },
       "after": "1b775a9d60f3a471",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -634,7 +639,7 @@
       },
       "after": "f8025429eae60cf8",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -646,7 +651,7 @@
       },
       "after": "ad94e9772526b935",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -657,7 +662,7 @@
         "text": "# Next\n> Phase 5: Finish Plan."
       },
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -668,7 +673,7 @@
         "text": "Phase 5 adds Finish Plan, which appears only when every checkpoint is ticked and asks for a conclusion and a demo link before it writes the Conclusion section, and hands a red question link to the [[Voice Tool]] to answer. The [[Plan Tool Plan]] carries the order."
       },
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -735,7 +740,7 @@
       "item": {
         "type": "markdown",
         "id": "f80c178da6af3127",
-        "text": "Phase 6 publishes wiki-plugin-plan 0.1.0 to GitHub and npm, installs it on the Pi5 so the ☰ menu shows the Plan Tool there, writes the public help page on plugin.fedwiki.club, builds the Plan Tool Demo page, and writes the Conclusion of the [[Plan Tool Plan]] itself."
+        "text": "Phase 6 publishes wiki-plugin-plan 0.1.0 to GitHub and npm, installs it on the Pi5 so the \u2630 menu shows the Plan Tool there, writes the public help page on plugin.fedwiki.club, builds the Plan Tool Demo page, and writes the Conclusion of the [[Plan Tool Plan]] itself."
       },
       "date": 1791671776893,
       "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 5, 2026-10-11"
@@ -806,7 +811,7 @@
       "item": {
         "type": "markdown",
         "id": "28d2927462811fe0",
-        "text": "## Repositories\n\n- GitHub — https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm — https://www.npmjs.com/package/wiki-plugin-plan"
+        "text": "## Repositories\n\n- GitHub \u2014 https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm \u2014 https://www.npmjs.com/package/wiki-plugin-plan"
       },
       "after": "452360c0e34e1124",
       "date": 1791780967348,
@@ -818,7 +823,7 @@
       "item": {
         "type": "markdown",
         "id": "f80c178da6af3127",
-        "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where ☰ shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
+        "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where \u2630 shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
       },
       "date": 1791780967348,
       "provenance": "Edited by Claude Code (claude-fable-5-1) in dialogue with David Bovill, 2026-10-12, for the 0.2.0 release: Repositories section and release note."
@@ -1010,7 +1015,7 @@
       "item": {
         "type": "markdown",
         "id": "4b93d3def7d0b6ab",
-        "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: …*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+        "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: \u2026*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
       },
       "date": 1792269722512
     },
@@ -1062,7 +1067,7 @@
       "item": {
         "type": "markdown",
         "id": "96b9244852e9f79a",
-        "text": "The status line is one row of icons: ⟳ Update Plan, ✓ Finish Plan and ▶ Do Next Phase ask no model; past the bar, ✎ Revise Plan, ⧉ Revise Site and ⌕ Red-link do. Each icon's name and purpose is its tooltip. The ⚙ chip at the end names the model ✎ and ⧉ (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` — the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
+        "text": "The status line is one row of icons: \u27f3 Update Plan, \u2713 Finish Plan and \u25b6 Do Next Phase ask no model; past the bar, \u270e Revise Plan, \u29c9 Revise Site and \u2315 Red-link do. Each icon's name and purpose is its tooltip. The \u2699 chip at the end names the model \u270e and \u29c9 (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` \u2014 the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
       },
       "after": "bb4a9dcee7653e6a",
       "date": 1792511708578
@@ -1073,7 +1078,7 @@
       "item": {
         "type": "markdown",
         "id": "1bd71e9f2b9382b3",
-        "text": "Every run is one request built afresh from the pages, so changing model between runs costs nothing extra: there is no conversation to carry. Before asking, the farm checks the model's window holds the question with room to answer, and refuses a model too small with the sizes, rather than have it answer from a plan cut short. A coop answer gets up to 32,000 tokens, its reasoning included, and one cut off by that limit fails rather than passing as short. ⌕ Red-link always researches with Claude, the only door with web search. A redraft that drops the plan's question links or task lines says so on the ghost's first line, which Save leaves out, before anything is saved."
+        "text": "Every run is one request built afresh from the pages, so changing model between runs costs nothing extra: there is no conversation to carry. Before asking, the farm checks the model's window holds the question with room to answer, and refuses a model too small with the sizes, rather than have it answer from a plan cut short. A coop answer gets up to 32,000 tokens, its reasoning included, and one cut off by that limit fails rather than passing as short. \u2315 Red-link always researches with Claude, the only door with web search. A redraft that drops the plan's question links or task lines says so on the ghost's first line, which Save leaves out, before anything is saved."
       },
       "after": "96b9244852e9f79a",
       "date": 1792511708578
@@ -1116,7 +1121,7 @@
       "item": {
         "type": "markdown",
         "id": "938c5ecc73167ae5",
-        "text": "Big is a question over 48,000 tokens, four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), or Go Ahead rewriting a page or the plan. Careful is a Revise Plan or Revise Site whose weight, answers plus half the open phases (or an eighth of the pages, counting at most 24) plus questions asked back, is 12 or more; Go Ahead pages are weighed one by one and never go to Claude on weight. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → glm-5.3-flash-pp: 34k tokens, 3 answers*; each Go Ahead page carries its own. PLAN_AUTO_BIG and PLAN_AUTO_CAREFUL name the farm's big coop model and its Claude model. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built, since it would read the question to save reading it."
+        "text": "Big is a question over 48,000 tokens, four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), or Go Ahead rewriting a page or the plan. Careful is a Revise Plan or Revise Site whose weight, answers plus half the open phases (or an eighth of the pages, counting at most 24) plus questions asked back, is 12 or more; Go Ahead pages are weighed one by one and never go to Claude on weight. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto \u2192 glm-5.3-flash-pp: 34k tokens, 3 answers*; each Go Ahead page carries its own. PLAN_AUTO_BIG and PLAN_AUTO_CAREFUL name the farm's big coop model and its Claude model. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built, since it would read the question to save reading it."
       },
       "after": "74a5eb6ec114d208",
       "date": 1792512259472
@@ -1147,9 +1152,21 @@
       "item": {
         "type": "markdown",
         "id": "938c5ecc73167ae5",
-        "text": "Big is a question over 48,000 tokens (PLAN_AUTO_BIG_TOKENS moves the line), four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), Go Ahead rewriting a page or the plan, or a Revise Plan whose weight, answers plus half the open phases plus questions asked back, is 12 or more. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → claude-fable-5-1 (big): 52k tokens, 5 answers*; each Go Ahead page carries its own. Fable runs get the coop's 15 minutes rather than 7, since Fable may think for minutes. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built. Fable needs Claude Code 2.1.251 or newer on the farm's machine."
+        "text": "Big is a question over 48,000 tokens (PLAN_AUTO_BIG_TOKENS moves the line), four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), Go Ahead rewriting a page or the plan, or a Revise Plan whose weight, answers plus half the open phases plus questions asked back, is 12 or more. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto \u2192 claude-fable-5-1 (big): 52k tokens, 5 answers*; each Go Ahead page carries its own. Fable runs get the coop's 15 minutes rather than 7, since Fable may think for minutes. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built. Fable needs Claude Code 2.1.251 or newer on the farm's machine."
       },
       "date": 1792527043723
+    },
+    {
+      "type": "add",
+      "id": "aac85e26df367b49",
+      "item": {
+        "type": "markdown",
+        "id": "aac85e26df367b49",
+        "text": "The classifier call (0.13.0, [[Auto Model Plan]] Phase 6) sits between the rule and the door. autoSummary in handlers.js writes a few hundred tokens about the run \u2014 the kind, the size of the question, the phases and which are open, the plan's opening line, the answered questions with their answers, the questions asked back, for a site its pages, for Go Ahead the action \u2014 and the door's classifyTier (wiki-claude-door 0.5.0) reads it on a coop model that is already loaded, never cold-starting one, at temperature 0, and answers one line, light or big with a reason. PLAN_AUTO_CLASSIFIER is *decide* by default: the classifier's tier is sent and the rule's is kept on the job as `ruled`; *advise* records it and lets the rule decide; *off* makes no call. PLAN_AUTO_CLASSIFIER_MODEL (or the door's CLAUDE_DOOR_CLASSIFIER) names the model, which must be loaded. Not deciding \u2014 nothing loaded, the coop down, twenty seconds gone, neither word \u2014 leaves the rule standing with `skipped` saying why. Stress tested on 20 October 2026 against the fifteen plans of the laptop farm: median 2.3 s a call, a burst of eight inside 40 s, 26 of 27 answers agreeing with the rule once the rubric said an ordinary Revise Plan is light, five repeats of one summary identical at temperature 0, and one summary \u2014 this plan's own, about classifying \u2014 that sets GLM thinking past the timeout, so the rule stood. The script is scripts/stress-classifier.mjs; the runs are on [[Auto Classifier Stress Test]]."
+      },
+      "after": "938c5ecc73167ae5",
+      "date": 1792528536301,
+      "provenance": "Auto Model Plan, Phase 6 \u2014 Claude Code, 2026-10-20"
     }
   ],
   "plugin": "plan"
