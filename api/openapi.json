@@ -44,7 +44,7 @@
             "description": "Not a slug, or the page is not a plan."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -61,6 +61,7 @@
         "summary": "Do Next Phase: ask the Claude door for a report on the plan's next phase, as a job",
         "description": "Reads the plan page on this site and chooses its next phase, the first with an unticked checkpoint, or the phase named. The content is the plan rendered as markdown, the phase's heading and checkpoints marked out, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked for a fixed shape: a one-paragraph summary; one section per checkpoint of the phase saying what to do, how to verify it and whether the pages already show it done; and a closing # Proposed Ticks section listing verbatim the checkpoints it judges done, or none. The result is kept in the job; nothing is written to the plan or any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Do Next Phase <site>/<slug> phase N) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
         "x-fedwiki-context": [
           "origin",
           "status",
@@ -97,7 +98,7 @@
             "description": "Not a slug, not a plan, no such phase, or every checkpoint already ticked."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -114,6 +115,7 @@
         "summary": "Revise Plan: ask the Claude door to redraft the plan given its answered questions, as a job",
         "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job and nothing is written: the tool opens it as a ghost with the plan's own title, carrying the plan's opener, its plan item second, the redrafted body and the plan's own timeline, Assets and See unchanged, and Save over the plan (save-revision.json) writes it. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
         "x-fedwiki-context": [
           "origin",
           "status",
@@ -146,7 +148,7 @@
             "description": "Not a slug, or the page is not a plan."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -161,8 +163,9 @@
       "post": {
         "operationId": "reviseSite",
         "summary": "Revise Site: ask the Claude door for a Revision Proposal for the whole site, given the answered questions, as a job",
-        "description": "Reads the plan page on this site and its open questions, from the plan and from the page it links as Open Questions, and refuses with 400 until at least one has an answer page. The content is every answered question's page first, then every page on the site in sitemap order, the plan among them, each rendered as markdown, up to 120 kB; a page past the budget goes in as its title and first paragraph, and the account says which. Answer pages lead and are not repeated; the Open Questions page, pages whose journal forks from or credits another site, and earlier revision proposals are left out and named to the model as untouched. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door as Do Next Phase reaches it. It is asked for a Revision Proposal in exactly four parts: # The tone shift, two or three sentences; # Pages, one table Page | Action | Reason with Action one of Keep, Amend, Rewrite or New, in the order the revision should run, the plan last; # Untouched, each page it will not touch and why; and # Names, every personal name, place name or venue in the answer pages as an unticked - [ ] Name \u2014 Answer Page line, meaning not confirmed to travel. The proposal is kept in the job, titled Revision Proposal (dated when that page exists); the client opens it as a ghost page with Go Ahead and Pause, and nothing is written to any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Site <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "description": "Reads the plan page on this site and its open questions, from the plan and from the page it links as Open Questions, and refuses with 400 until at least one has an answer page. The content is every answered question's page first, then every page on the site in sitemap order, the plan among them, each rendered as markdown, up to 120 kB; a page past the budget goes in as its title and first paragraph, and the account says which. Answer pages lead and are not repeated; the Open Questions page, pages whose journal forks from or credits another site, and earlier revision proposals are left out and named to the model as untouched. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door as Do Next Phase reaches it. It is asked for a Revision Proposal in exactly four parts: # The tone shift, two or three sentences; # Pages, one table Page | Action | Reason with Action one of Keep, Amend, Rewrite or New, in the order the revision should run, the plan last; # Untouched, each page it will not touch and why; and # Names, every personal name, place name or venue in the answer pages as an unticked - [ ] Name — Answer Page line, meaning not confirmed to travel. The proposal is kept in the job, titled Revision Proposal (dated when that page exists); the client opens it as a ghost page with Go Ahead and Pause, and nothing is written to any page. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Site <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
         "x-fedwiki-context": [
           "origin",
           "status",
@@ -195,7 +198,7 @@
             "description": "Not a slug, not a plan, or no open question has an answer page yet."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -212,6 +215,7 @@
         "summary": "Go Ahead: rewrite the pages a saved Revision Proposal names, one at a time through the Claude door, the plan last, as a job",
         "description": "Reads the saved proposal page on this site and refuses with 400 if it has no Page | Action | Reason table or says it has been applied. The plan is the one given, else the first plan the proposal links. Under the farm WIP marker, held for the whole run with the note plan: revise site <site> and a heartbeat every minute, each row is decided: Keep is skipped; Amend, Rewrite and New are done in the table's order, the plan last; and, whatever the table says, a page is never deleted and these are never written, each refusal named in the account: an answer page, the Open Questions page, a page whose journal forks from or credits another site, a page listed under Untouched, a revision proposal, a row whose page does not exist unless it asks for New. For each page the door is given the proposal's tone shift and that page's row, the answer pages, the page as it stands with each item that is not markdown shown as a keep line, the house rules (headings # with a > strap, no title heading, every wikilink kept, # See last) and the names not yet confirmed. The reply becomes the page's story: markdown items one per paragraph, heading or bullet, pipe tables as table items, and every item that is not markdown (table, timeline, diagram, assets, audio, the plan's status line) brought back whole by its id, never dropped. A page whose reply carries a name still unticked under # Names on the proposal, and that the page did not carry before, is not written: name not confirmed. Each page is written whole (temp file and rename) with journal entries as the wiki shapes them, remove, add, edit and move, each with the provenance Revised by the Plan Tool (Revise Site) from <proposal>, drawing on: <answer pages>; a New page gets a create. The plan's markdown asset is re-rendered after the plan. The proposal gains a closing line saying it was applied, and the site's index is reset. The account lists each page written with its bytes before and after and its journal entries, each refused with why, each failed, and each kept.",
         "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
         "x-fedwiki-context": [
           "origin",
           "status",
@@ -248,7 +252,7 @@
             "description": "Not a slug, not a proposal, already applied, or no plan named or linked."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -289,7 +293,7 @@
             "description": "Not a job id."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites."
           },
           "404": {
             "description": "No such job on this site."
@@ -345,7 +349,7 @@
             "description": "Not a slug, not a plan, a checkpoint still unticked (named), no conclusion or no demo given, or no page of the demo's title on this farm."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -415,7 +419,7 @@
             "description": "Not a slug, not a plan, no story, an item without a type or id or twice, no plan item, or a page forked from or credited to another site."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -467,7 +471,7 @@
             "description": "Not a slug, or the page is not a plan."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."
@@ -481,6 +485,7 @@
         "summary": "Red-link: research each of the plan's red links on the web and write its page, as a job",
         "description": "Reads the plan page on this site and collects its links: [[wikilinks]] in markdown, paragraph and html items (outside ``` fences) and timeline event labels. A link is red when no page with its slug is on any site of this farm or of the farms named in WIKI_EXTRA_FARMS, and it is not one of the installed plugins' own pages. Question links (a title ending in ?) and everything under the # Open Questions heading are never written: a page behind a question marks it answered, and that is a person's act. Up to 6 red links a run are taken one at a time. For each, the Claude door is asked, through the Claude Code CLI with WebSearch and WebFetch and no other tool, to research it from its primary sources and write its page in full; the page is written at once as a new page on this site, the name as its makers write it, opening with a line saying it is AI generated and researched on the web for this plan, commands as terminal items, a Links section of sources and a See section back to the plan, with a journal of one create carrying its provenance. A page whose slug exists anywhere on the farm by then is skipped, never overwritten. The job's progress names the page in hand; its result lists the pages written, skipped and failed, and meta how many red links remain and the questions left alone. 400 when the plan has no red links. The run holds the farm WIP marker, named Plan Tool: Red-link <site>/<slug>. An untouched stub of Red-link's own on this site (one create in its journal, with Red-link's stub provenance) counts as still missing: it is researched and written over the stub through the journal, the stub kept as rev0; a stub anyone has edited is left alone.",
         "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
         "x-fedwiki-context": [
           "origin",
           "status",
@@ -513,7 +518,7 @@
             "description": "Not a slug, the page is not a plan, or it has no red links."
           },
           "403": {
-            "description": "Not a private site, or the caller may not edit this site (the farm's write gate)."
+            "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
           },
           "404": {
             "description": "No such page on this site."

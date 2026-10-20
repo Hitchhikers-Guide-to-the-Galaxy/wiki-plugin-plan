@@ -4,12 +4,12 @@
     {
       "type": "markdown",
       "id": "452360c0e34e1124",
-      "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the \u2630 menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
+      "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the ☰ menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
     },
     {
       "type": "markdown",
       "id": "28d2927462811fe0",
-      "text": "## Repositories\n\n- GitHub \u2014 https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm \u2014 https://www.npmjs.com/package/wiki-plugin-plan"
+      "text": "## Repositories\n\n- GitHub — https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm — https://www.npmjs.com/package/wiki-plugin-plan"
     },
     {
       "type": "plan",
@@ -54,7 +54,7 @@
     {
       "type": "markdown",
       "id": "4b93d3def7d0b6ab",
-      "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: \u2026*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+      "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: …*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
     },
     {
       "type": "markdown",
@@ -199,7 +199,7 @@
     {
       "type": "markdown",
       "id": "6c0f38003040c3e7",
-      "text": "Whatever the table says, Go Ahead never deletes a page and never writes an answer page, the Open Questions page, which stays the record of what was asked, a page forked from or credited to another site, or a page listed under Untouched; each refusal is named in the account. A page that would carry a name whose box is still unticked, and did not carry it before, is not written: name not confirmed. The run holds the farm WIP marker throughout as plan: revise site and the site's name. On a public farm both operations stay shut until the farm's operator lists plan.reviseSite and plan.applyRevision in FARM_API_PUBLIC_WRITES."
+      "text": "Whatever the table says, Go Ahead never deletes a page and never writes an answer page, the Open Questions page, which stays the record of what was asked, a page forked from or credited to another site, or a page listed under Untouched; each refusal is named in the account. A page that would carry a name whose box is still unticked, and did not carry it before, is not written: name not confirmed. The run holds the farm WIP marker throughout as plan: revise site and the site's name. Both operations spend the farm's model, so on a public site they follow the farm owner's spend policy: FARM_API_SPEND=authors opens them to the site's signed-in owner, the default keeps them to private sites. Save over the plan, Update, Finish and Render are plain writes, open to the site's owner on any site unless the farm lists them in FARM_API_PUBLIC_REFUSE."
     },
     {
       "type": "markdown",
@@ -209,7 +209,7 @@
     {
       "type": "markdown",
       "id": "f80c178da6af3127",
-      "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where \u2630 shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
+      "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where ☰ shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
     },
     {
       "type": "markdown",
@@ -226,7 +226,7 @@
           {
             "type": "markdown",
             "id": "452360c0e34e1124",
-            "text": "This plugin, type: plan, reads the state of a site's plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap; the item lists them newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup. It is the item behind the [[Plan Tool]] in the \u2630 menu."
+            "text": "This plugin, type: plan, reads the state of a site's plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap; the item lists them newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup. It is the item behind the [[Plan Tool]] in the ☰ menu."
           },
           {
             "type": "plan",
@@ -281,7 +281,7 @@
         ]
       },
       "date": 1791663153607,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -289,7 +289,7 @@
       "item": {
         "type": "markdown",
         "id": "452360c0e34e1124",
-        "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the \u2630 menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
+        "text": "This plugin, type: plan, reads the state of plans off the plan pages themselves. A plan is a page whose title ends in Plan or Roadmap. On a plan page the item is that plan's status line; beside a plan, as the [[Plan Tool]] in the ☰ menu, it reads the plan to its left; anywhere else it lists the site's plans newest edit first, each with its ticks done over total and its count of open questions, and each title opens the plan in the lineup."
       },
       "date": 1791664527861,
       "provenance": "Claude Code (claude-opus-5-5), Phase 2 of the Plan Tool Plan: the three faces and the state view."
@@ -452,7 +452,7 @@
         "text": "In the list, a plan's ticks are counted as the state view counts them: the checkpoints of its phases, the same done over total its status line and the Plan Tool show, so a plan reads one fraction in every face. The [[Plan Index]] board keeps its own rule and counts every task line on the page, Open Questions included, so the two can differ for one plan. Open questions are the unticked task lines in the section headed `# Open Questions`, which runs to the next heading, counted apart. The order is the latest dated journal entry, newest first, with the title as the tiebreak and the sitemap date as the fallback."
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -464,7 +464,7 @@
       },
       "after": "e62bcb49b80a1398",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -476,7 +476,7 @@
       },
       "after": "9421e8b9fd9be369",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -488,7 +488,7 @@
       },
       "after": "537b317e1ae61ce3",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -500,7 +500,7 @@
       },
       "after": "7bf3f444ac5b95d4",
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -511,7 +511,7 @@
         "text": "# Next\n> Phase 4: Do Next Phase."
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -522,7 +522,7 @@
         "text": "Phase 4 adds Do Next Phase, the agentic write: the plan and its next phase go to the farm's Claude door, and the answer comes back as a ghost page holding a phase report and proposed ticks, never written to the plan. Revise Plan uses the same door. The [[Plan Tool Plan]] carries the order."
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -533,7 +533,7 @@
         "text": "# See\n\n- [[Plan Tool]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
       },
       "date": 1791667625315,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 3 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -544,7 +544,7 @@
         "text": "CAPTION Plan item commands\n\n| Command | Meaning |\n|---|---|\n| SUBJECT | the item is the Plan Tool: it reads the plan to its left, or lists the plans when nothing to the left is a plan |\n| SITE domain | list the plans of another site, read across origins from its sitemap and page JSON |\n| LIMIT n | show only the n most recently edited plans |\n| SKILLS a, b | on a plan's status line: the skills Do Next Phase and Revise Plan give the model beside fedwiki-plan, read from ~/.claude/skills on the machine the farm runs on |"
       },
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -556,7 +556,7 @@
       },
       "after": "4f78e5575a09defb",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -568,7 +568,7 @@
       },
       "after": "4b1648a795e6fb22",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -580,7 +580,7 @@
       },
       "after": "f3c25edf2403956f",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -592,7 +592,7 @@
       },
       "after": "1b775a9d60f3a471",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -604,7 +604,7 @@
       },
       "after": "f8025429eae60cf8",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -616,7 +616,7 @@
       },
       "after": "ad94e9772526b935",
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -627,7 +627,7 @@
         "text": "# Next\n> Phase 5: Finish Plan."
       },
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -638,7 +638,7 @@
         "text": "Phase 5 adds Finish Plan, which appears only when every checkpoint is ticked and asks for a conclusion and a demo link before it writes the Conclusion section, and hands a red question link to the [[Voice Tool]] to answer. The [[Plan Tool Plan]] carries the order."
       },
       "date": 1791670108625,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5), Phase 4 of the [[Plan Tool Plan]]: Do Next Phase and Revise Plan. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "add",
@@ -705,7 +705,7 @@
       "item": {
         "type": "markdown",
         "id": "f80c178da6af3127",
-        "text": "Phase 6 publishes wiki-plugin-plan 0.1.0 to GitHub and npm, installs it on the Pi5 so the \u2630 menu shows the Plan Tool there, writes the public help page on plugin.fedwiki.club, builds the Plan Tool Demo page, and writes the Conclusion of the [[Plan Tool Plan]] itself."
+        "text": "Phase 6 publishes wiki-plugin-plan 0.1.0 to GitHub and npm, installs it on the Pi5 so the ☰ menu shows the Plan Tool there, writes the public help page on plugin.fedwiki.club, builds the Plan Tool Demo page, and writes the Conclusion of the [[Plan Tool Plan]] itself."
       },
       "date": 1791671776893,
       "provenance": "Claude Code (Opus 5.5), Plan Tool Plan Phase 5, 2026-10-11"
@@ -776,7 +776,7 @@
       "item": {
         "type": "markdown",
         "id": "28d2927462811fe0",
-        "text": "## Repositories\n\n- GitHub \u2014 https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm \u2014 https://www.npmjs.com/package/wiki-plugin-plan"
+        "text": "## Repositories\n\n- GitHub — https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-plan\n- npm — https://www.npmjs.com/package/wiki-plugin-plan"
       },
       "after": "452360c0e34e1124",
       "date": 1791780967348,
@@ -788,7 +788,7 @@
       "item": {
         "type": "markdown",
         "id": "f80c178da6af3127",
-        "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where \u2630 shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
+        "text": "Phase 6 ships it: wiki-plugin-plan 0.2.0, with Revise Site, is on GitHub and npm and installed on the Pi5, where ☰ shows the Plan Tool on every site. What remains is the public help page [[Plan Plugin]] on plugin.fedwiki.club, the Plan Tool Demo built with the fedwiki-demo skill, and the Conclusion on the [[Plan Tool Plan]]."
       },
       "date": 1791780967348,
       "provenance": "Edited by Claude Code (claude-fable-5-1) in dialogue with David Bovill, 2026-10-12, for the 0.2.0 release: Repositories section and release note."
@@ -980,7 +980,7 @@
       "item": {
         "type": "markdown",
         "id": "4b93d3def7d0b6ab",
-        "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: \u2026*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
+        "text": "Open Questions are the task lines of the Open Questions section that hold a link whose title ends in a question mark. A question is answered in one of two ways: a page exists behind its link, or the line itself carries the answer after the link, written `*Answer: …*` (also `**Answer:**` or plain `Answer:`), as on the [https://dns.private.fish/view/resource-map-plan Resource Map Plan]. A reply on the line that ends in a question mark, such as *Answer: Explain more?*, asks back: the view lists it as asked back, it stays a blocker, and Revise Plan rewords that question instead of acting on it. The view says how many questions are answered and how, and links the rest; the tick on a question line is the author's own mark and is reported beside the count, never taken as the answer."
       },
       "date": 1792269722512
     },
@@ -1004,6 +1004,16 @@
         "text": "Before 0.9.0, Do Next Phase asked for a fixed shape: a one-paragraph summary, one section per checkpoint saying what to do, how to verify it and whether the pages already show it done, and a closing Proposed Ticks section. The next.json operation still answers that way, but the tool no longer calls it."
       },
       "date": 1792272348026
+    },
+    {
+      "type": "edit",
+      "id": "6c0f38003040c3e7",
+      "item": {
+        "type": "markdown",
+        "id": "6c0f38003040c3e7",
+        "text": "Whatever the table says, Go Ahead never deletes a page and never writes an answer page, the Open Questions page, which stays the record of what was asked, a page forked from or credited to another site, or a page listed under Untouched; each refusal is named in the account. A page that would carry a name whose box is still unticked, and did not carry it before, is not written: name not confirmed. The run holds the farm WIP marker throughout as plan: revise site and the site's name. Both operations spend the farm's model, so on a public site they follow the farm owner's spend policy: FARM_API_SPEND=authors opens them to the site's signed-in owner, the default keeps them to private sites. Save over the plan, Update, Finish and Render are plain writes, open to the site's owner on any site unless the farm lists them in FARM_API_PUBLIC_REFUSE."
+      },
+      "date": 1792507074310
     }
   ],
   "plugin": "plan"
