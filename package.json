@@ -27,7 +27,7 @@
   "author": "David Bovill",
   "license": "MIT",
   "dependencies": {
-    "@fortyfoxes/wiki-claude-door": "^0.1.0"
+    "@fortyfoxes/wiki-claude-door": "^0.2.1"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"
