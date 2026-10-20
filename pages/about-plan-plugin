@@ -219,17 +219,17 @@
     {
       "type": "markdown",
       "id": "d89f431abe39c6cc",
-      "text": "# Auto\n> 0.11.0: the model chosen per run, by a rule, to save tokens."
+      "text": "# Auto\n> 0.11.0, rule changed in 0.12.0: Claude for the big runs, the coop's routing for the rest."
     },
     {
       "type": "markdown",
       "id": "74a5eb6ec114d208",
-      "text": "Auto is a choice on [[Model Settings]], the model value `auto`. The server decides each run after building its question: autoTier in core.js weighs the run from what it already knows, the question's tokens (the door's estimate), the answered questions, the open phases, the pages of a site, and for Go Ahead the row's action and whether it is the plan, and answers light, big or careful. The door's autoModel (wiki-claude-door 0.3.0) turns the tier into a model it reaches now whose window holds the question with 16,000 tokens to answer: light is a loaded coop model; big is a loaded coop model whose window is 200K or more, else the coop model with the largest window, cold or not, so a Go Ahead of mixed pages does not swap models on the coop's GPUs page by page; careful is Claude. A light run nothing loaded can hold goes big; a run the coop cannot hold, or a coop that does not answer, goes to Claude, and the reason says so."
+      "text": "Auto is a choice on [[Model Settings]], the model value `auto`. The server decides each run after building its question: autoTier in core.js weighs the run from what it already knows, the question's tokens (the door's estimate), the answered questions, the open phases, the pages of a site, and for Go Ahead the row's action and whether it is the plan, and answers light or big. The door's autoModel (wiki-claude-door 0.4.0) turns the tier into a model it reaches now whose window holds the question with 16,000 tokens to answer: big is Claude, Fable 5.1 unless PLAN_AUTO_BIG names another; light is the coop's own router, llm_auto-big, which picks the model for its hardware. David's rule, 20 October 2026: we route the big runs to Claude ourselves, and let the coop route the small ones. A question too big for Claude's window goes to the coop's roomiest model; a light run the coop cannot take, or a coop that does not answer, goes to Claude, and the reason says so."
     },
     {
       "type": "markdown",
       "id": "938c5ecc73167ae5",
-      "text": "Big is a question over 48,000 tokens, four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), or Go Ahead rewriting a page or the plan. Careful is a Revise Plan or Revise Site whose weight, answers plus half the open phases (or an eighth of the pages, counting at most 24) plus questions asked back, is 12 or more; Go Ahead pages are weighed one by one and never go to Claude on weight. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → glm-5.3-flash-pp: 34k tokens, 3 answers*; each Go Ahead page carries its own. PLAN_AUTO_BIG and PLAN_AUTO_CAREFUL name the farm's big coop model and its Claude model. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built, since it would read the question to save reading it."
+      "text": "Big is a question over 48,000 tokens (PLAN_AUTO_BIG_TOKENS moves the line), four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), Go Ahead rewriting a page or the plan, or a Revise Plan whose weight, answers plus half the open phases plus questions asked back, is 12 or more. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → claude-fable-5-1 (big): 52k tokens, 5 answers*; each Go Ahead page carries its own. Fable runs get the coop's 15 minutes rather than 7, since Fable may think for minutes. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built. Fable needs Claude Code 2.1.251 or newer on the farm's machine."
     },
     {
       "type": "markdown",
@@ -1120,6 +1120,36 @@
       },
       "after": "74a5eb6ec114d208",
       "date": 1792512259472
+    },
+    {
+      "type": "edit",
+      "id": "d89f431abe39c6cc",
+      "item": {
+        "type": "markdown",
+        "id": "d89f431abe39c6cc",
+        "text": "# Auto\n> 0.11.0, rule changed in 0.12.0: Claude for the big runs, the coop's routing for the rest."
+      },
+      "date": 1792527043723
+    },
+    {
+      "type": "edit",
+      "id": "74a5eb6ec114d208",
+      "item": {
+        "type": "markdown",
+        "id": "74a5eb6ec114d208",
+        "text": "Auto is a choice on [[Model Settings]], the model value `auto`. The server decides each run after building its question: autoTier in core.js weighs the run from what it already knows, the question's tokens (the door's estimate), the answered questions, the open phases, the pages of a site, and for Go Ahead the row's action and whether it is the plan, and answers light or big. The door's autoModel (wiki-claude-door 0.4.0) turns the tier into a model it reaches now whose window holds the question with 16,000 tokens to answer: big is Claude, Fable 5.1 unless PLAN_AUTO_BIG names another; light is the coop's own router, llm_auto-big, which picks the model for its hardware. David's rule, 20 October 2026: we route the big runs to Claude ourselves, and let the coop route the small ones. A question too big for Claude's window goes to the coop's roomiest model; a light run the coop cannot take, or a coop that does not answer, goes to Claude, and the reason says so."
+      },
+      "date": 1792527043723
+    },
+    {
+      "type": "edit",
+      "id": "938c5ecc73167ae5",
+      "item": {
+        "type": "markdown",
+        "id": "938c5ecc73167ae5",
+        "text": "Big is a question over 48,000 tokens (PLAN_AUTO_BIG_TOKENS moves the line), four answers or more (Go Ahead excepted, since every page carries all the answers), a whole site (Revise Site), Go Ahead rewriting a page or the plan, or a Revise Plan whose weight, answers plus half the open phases plus questions asked back, is 12 or more. The pick and its reason are kept on the job as `auto` and shown on the status line, *auto → claude-fable-5-1 (big): 52k tokens, 5 answers*; each Go Ahead page carries its own. Fable runs get the coop's 15 minutes rather than 7, since Fable may think for minutes. The rule is deterministic and tested (test/auto.test.js); a classifier model call ahead of the real one is not built. Fable needs Claude Code 2.1.251 or newer on the farm's machine."
+      },
+      "date": 1792527043723
     }
   ],
   "plugin": "plan"

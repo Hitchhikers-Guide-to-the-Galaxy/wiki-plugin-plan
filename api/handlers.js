@@ -275,16 +275,17 @@ const askPlan = async (model, content, opts = {}) => {
         'choose a model with a larger window (⚙ Model Settings) — GLM-5.3 Flash or DeepSeek-V4 on the coop, or Claude',
     )
   }
-  const slow = !isClaudeModel(model) // a cold start on the coop's GPUs takes minutes
+  const slow = !isClaudeModel(model) || /fable/.test(model) // a cold start on the coop's GPUs takes minutes; Fable thinks for minutes
   return ask(model, content, { timeoutMs: slow ? 15 * 60 * 1000 : RUN_TIMEOUT_MS, ...opts, maxTokens: Math.min(ANSWER_TOKENS, room) })
 }
 
 // ---------- Auto (0.11.0) ----------
 //
 // "auto" is decided per run, after the content is built and measured:
-// autoTier (core.js) reads the run's size and answers and says light, big or
-// careful; the door's autoModel names a model it reaches now that holds the
-// question with AUTO_ROOM to answer in. The pick and its reason go on the
+// autoTier (core.js) reads the run's size and answers and says light or big
+// (0.12.0); the door's autoModel names a model it reaches now that holds the
+// question with AUTO_ROOM to answer in: the coop's router (llm_auto-big, or
+// PLAN_AUTO_LIGHT) for light, Claude (Fable 5.1, or PLAN_AUTO_BIG) for big. The pick and its reason go on the
 // job as `auto`, and the job's model becomes the model picked. No pick (too
 // big for every window) fails the run with the reason, never a silent cut.
 const AUTO_ROOM = 16000
@@ -292,9 +293,9 @@ const AUTO_ROOM = 16000
 /** Auto's pick for one question: {asked, tier, weight, why, model, note, tokens, line}. */
 export const autoPick = async (signals, content, { system = SYSTEM, doors = null } = {}) => {
   const need = estimateTokens(system) + estimateTokens(content)
-  const t = autoTier({ ...signals, tokens: need })
+  const t = autoTier({ ...signals, tokens: need, bigTokens: +process.env.PLAN_AUTO_BIG_TOKENS || AUTO.bigTokens })
   const list = doors || (await listModels()).doors
-  const r = autoModel({ tier: t.tier, need, doors: list, answer: AUTO_ROOM, careful: process.env.PLAN_AUTO_CAREFUL || '', big: process.env.PLAN_AUTO_BIG || '' })
+  const r = autoModel({ tier: t.tier, need, doors: list, answer: AUTO_ROOM, light: process.env.PLAN_AUTO_LIGHT || '', big: process.env.PLAN_AUTO_BIG || '' })
   const auto = { asked: t.tier, tier: r.tier, weight: t.weight, why: t.why, model: r.model, note: r.note || '', tokens: need }
   if (!r.model) throw problem(400, `auto found no model for this run (${t.why}): ${r.note}`)
   return { ...auto, line: autoLine(auto) }
