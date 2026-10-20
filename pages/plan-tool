@@ -14,7 +14,7 @@
     {
       "type": "markdown",
       "id": "9101f3208b7b4818",
-      "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Red-link** finds the links on the plan with no page behind them, researches each on the web and writes its page. Question links are left for their answers.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
+      "text": "- **⟳ Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **✓ Finish Plan** appears when every checkpoint is ticked: the Conclusion and the demo link; no model.\n- **▶ Do Next Phase** puts the plan's Do Phase button after the next phase, for a watched Claude Code session.\n- **✎ Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **⧉ Revise Site** asks the model for a revision of the whole site from the answered questions.\n- **⌕ Red-link** finds the links on the plan with no page behind them, researches each on the web and writes its page. Question links are left for their answers. Always Claude: only Claude has web search here.\n- **⚙ model** names the model ✎ and ⧉ ask, and opens [[Model Settings]] to change it; the farm's default is the LLM coop.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
     },
     {
       "type": "paragraph",
@@ -46,7 +46,7 @@
         ]
       },
       "date": 1791663153607,
-      "provenance": "Authored by an AI agent \u2014 Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
+      "provenance": "Authored by an AI agent — Claude Code (claude-opus-5-5) via the [[fedwiki-create-plugin]] and [[fedwiki-plugin-hamburger]] skills, Phase 1 of the [[Plan Tool Plan]]. [https://claude.com/claude-code Claude Code]"
     },
     {
       "type": "edit",
@@ -130,6 +130,16 @@
         "text": "- **Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **Red-link** finds the links on the plan with no page behind them, researches each on the web and writes its page. Question links are left for their answers.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
       },
       "date": 1792245408992
+    },
+    {
+      "type": "edit",
+      "id": "9101f3208b7b4818",
+      "item": {
+        "type": "markdown",
+        "id": "9101f3208b7b4818",
+        "text": "- **⟳ Update Plan** ticks what the answers settled and re-renders the markdown; no model.\n- **✓ Finish Plan** appears when every checkpoint is ticked: the Conclusion and the demo link; no model.\n- **▶ Do Next Phase** puts the plan's Do Phase button after the next phase, for a watched Claude Code session.\n- **✎ Revise Plan** asks the model to redraft the plan, on a ghost with the plan's own title.\n- **⧉ Revise Site** asks the model for a revision of the whole site from the answered questions.\n- **⌕ Red-link** finds the links on the plan with no page behind them, researches each on the web and writes its page. Question links are left for their answers. Always Claude: only Claude has web search here.\n- **⚙ model** names the model ✎ and ⧉ ask, and opens [[Model Settings]] to change it; the farm's default is the LLM coop.\n- **Save over the plan** overwrites it with a rewindable journal: the version replaced is its _rev, and **Rewind** opens it beside the plan as a ghost: fork it to rewind, or close it."
+      },
+      "date": 1792511708576
     }
   ]
 }

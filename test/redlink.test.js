@@ -11,6 +11,9 @@ import path from 'node:path'
 
 import { planLinks, redLinksOf, parseResearch, researchedStory, researchedPage, asSlug, isUntouchedStub, storyAt } from '../src/client/core.js'
 
+// These runs stand in for the Claude CLI: name Claude, not the coop default (0.10.0).
+process.env.PLAN_MODEL = 'claude-opus-5-5'
+
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'plan-stubs-'))
 process.env.WIKI_WIP_DIR = scratch()
 const { buildResearchContent } = await import('../api/prompt.js')

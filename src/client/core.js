@@ -34,13 +34,13 @@
 // subject is true only for an explicit SUBJECT line; face() below decides
 // what a bare item does from the page it sits on. SKILLS and STATUS do not
 // change the face: a status item that names skills is still the status line.
-export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS']
+export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS']
 
 /** The text a new plan item carries, and the text an empty one is given when its editor opens. */
 export const DEFAULT_TEXT = 'STATUS'
 
 export const parse = text => {
-  const out = { subject: false, status: false, site: null, limit: null, skills: [], caption: '', commands: 0 }
+  const out = { subject: false, status: false, models: false, site: null, limit: null, skills: [], caption: '', commands: 0 }
   const caption = []
   for (const raw of (text || '').split('\n')) {
     const line = raw.trim()
@@ -53,6 +53,7 @@ export const parse = text => {
     out.commands++
     if (key === 'SUBJECT') out.subject = true
     if (key === 'STATUS') out.status = true
+    if (key === 'MODELS') out.models = true
     if (key === 'SITE') out.site = (args[0] || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null
     if (key === 'LIMIT') {
       const n = parseInt(args[0], 10)
@@ -187,15 +188,39 @@ export const summarise = (entry, page) => {
 // list    — everything else: SITE, SUBJECT with no plan to the left, or a bare
 //           item on a page that is not a plan. The Phase 1 list.
 export const face = (opts, { ownTitle = null, leftTitle = null } = {}) => {
+  if (opts.models) return 'models'
   if (opts.site) return 'list'
   if (opts.subject) return isPlanTitle(leftTitle) ? 'subject' : 'list'
   return isPlanTitle(ownTitle) ? 'status' : 'list'
 }
 
+// ---------- models (0.10.0) ----------
+//
+// A short name for a model id, for the ⚙ chip and the Model Settings rows:
+// openai:llm_auto-big → "coop · auto-big", claude-opus-5-5 → "Claude Opus 5.5",
+// ollama:qwen3:4b → "Ollama · qwen3:4b"; '' is the farm's default.
+export const modelLabel = id => {
+  const m = String(id || '')
+  if (!m) return 'farm default'
+  if (m.startsWith('openai:')) return `coop · ${m.slice(7).replace(/^llm_/, '')}`
+  if (m.startsWith('ollama:')) return `Ollama · ${m.slice(7)}`
+  const c = m.replace(/^claude-cli:/, '').match(/^claude-([a-z]+)-(\d+)-(\d+)$/)
+  if (c) return `Claude ${c[1][0].toUpperCase()}${c[1].slice(1)} ${c[2]}.${c[3]}`
+  return m
+}
+
+// A context window in tokens, short, as the model names say it: 262144 →
+// "262K", 384000 → "384K", but 32768 → "32K" and 8192 → "8K".
+export const windowLabel = n => {
+  if (!n) return ''
+  const k = n % 1024 === 0 && n <= 131072 ? n / 1024 : Math.round(n / 1000)
+  return `${k}K`
+}
+
 // Tool pages the look-left walks past: audionote's TOOL_SLUGS (voice.js) plus
 // this plugin's own Plan Tool, so a Voice Tool or the ☰ menu between the plan
 // and the Plan Tool does not hide the plan.
-export const TOOL_SLUGS = new Set(['selected-plugin-pages', 'voice-tool', 'search-tool', 'like-this-page', 'plan-tool'])
+export const TOOL_SLUGS = new Set(['selected-plugin-pages', 'voice-tool', 'search-tool', 'like-this-page', 'plan-tool', 'model-settings'])
 
 // wiki-client's asSlug (lib/page.js): whitespace to hyphens, every other
 // character outside [A-Za-z0-9-] deleted. The browser uses wiki.asSlug when it
@@ -1460,6 +1485,32 @@ const modelExtra = (it, oldIds) => {
  * page) with the plan's timeline and other non-text items back in their
  * sections, and the plan's Assets and See sections unchanged at the end.
  */
+// ---------- what a redraft dropped (0.10.0) ----------
+//
+// A smaller model's redraft can come back whole in shape but without the
+// Open Questions (measured 20 Oct 2026: GLM-5.3 Flash on the Mood Board Plan
+// kept 36 of 36 checkpoints and 0 of 9 questions). Saved, that deletes the
+// questions the plan is revised from. So the ghost says, before Save, which
+// question links and how many task lines the redraft lost.
+const QUESTION_LINK = /\[\[([^\]]+\?)\]\]/g
+const TASK_LINE = /^\s*[-*] \[[ xX]\]/gm
+const textOf = story => (story || []).filter(it => TEXT_TYPES.has(it.type)).map(it => String(it.text || '')).join('\n')
+export const revisionLosses = (page, story) => {
+  const before = textOf(page && page.story)
+  const after = textOf(story)
+  const qs = text => [...new Set([...text.matchAll(QUESTION_LINK)].map(m => m[1]))]
+  const kept = new Set(qs(after))
+  const lostQuestions = qs(before).filter(q => !kept.has(q))
+  const tasks = { before: (before.match(TASK_LINE) || []).length, after: (after.match(TASK_LINE) || []).length }
+  const parts = []
+  if (lostQuestions.length) {
+    const shown = lostQuestions.slice(0, 3).map(q => `"${q}"`).join(', ')
+    parts.push(`it drops ${lostQuestions.length} of the plan's ${qs(before).length} questions (${shown}${lostQuestions.length > 3 ? ', …' : ''})`)
+  }
+  if (tasks.after < tasks.before) parts.push(`it has ${tasks.after} task lines where the plan has ${tasks.before}`)
+  return { lostQuestions, tasks, warning: parts.length ? `${parts.join('; ')}. Revise again with a stronger model (⚙), or save and add them back by hand.` : '' }
+}
+
 export const reviseItems = ({ page, markdown, model = '', date = today(), id = randomHex }) => {
   const title = String((page && page.title) || '')
   const { plans, body, tail } = planParts(page)
@@ -1498,10 +1549,13 @@ export const reviseItems = ({ page, markdown, model = '', date = today(), id = r
   }
 
   const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
+  const lost = revisionLosses(page, out)
   const line = {
     type: 'markdown',
     id: id(),
-    text: `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${by}, ${date}. Save over the plan writes this page, less this line, over [[${title}]] in place through its journal: the version it replaces stays in the journal as its _rev, and Rewind opens that beside the plan to fork back.`,
+    text:
+      `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${by}, ${date}. Save over the plan writes this page, less this line, over [[${title}]] in place through its journal: the version it replaces stays in the journal as its _rev, and Rewind opens that beside the plan to fork back.` +
+      (lost.warning ? `\n\n**Check before you save:** ${lost.warning}` : ''),
   }
   const opener = out.length && TEXT_TYPES.has(out[0].type) && !isHeadingItem(out[0]) ? [out.shift()] : []
   return [line, ...opener, ...plans.map(it => ({ ...it })), ...out, ...tail.map(it => ({ ...it }))]

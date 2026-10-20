@@ -11,6 +11,9 @@ import path from 'node:path'
 
 import { inlineAnswer, questionsOf, tickAnswered, planState } from '../src/client/core.js'
 
+// These runs stand in for the Claude CLI: name Claude, not the coop default (0.10.0).
+process.env.PLAN_MODEL = 'claude-opus-5-5'
+
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'plan-inline-'))
 process.env.WIKI_WIP_DIR = scratch()
 const { buildContent, buildSiteContent } = await import('../api/prompt.js')

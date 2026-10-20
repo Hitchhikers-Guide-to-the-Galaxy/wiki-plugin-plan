@@ -10,6 +10,9 @@ import path from 'node:path'
 
 import { parse, face, skillsOf, phasesOf, choosePhase, reportTitle, splitMarkdown, reportItems, proposedTicks, linkAfter, addAction } from '../src/client/core.js'
 
+// These runs stand in for the Claude CLI: name Claude, not the coop default (0.10.0).
+process.env.PLAN_MODEL = 'claude-opus-5-5'
+
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'plan-agent-'))
 process.env.WIKI_WIP_DIR = scratch()
 const { claim, release, heartbeat } = await import('../api/wip.js')
@@ -276,4 +279,75 @@ test('revise, a failing door, refusals before any claim, and a job orphaned on d
   const o = await job({ id: orphan, ...ctx })
   assert.equal(o.status, 'failed')
   assert.match(o.error, /has gone/)
+})
+
+// 0.10.0: which model. The coop by default (PLAN_MODEL overrides it), a chosen
+// model asked by name, an id the door does not know refused before any claim,
+// and a model whose window cannot hold the plan refused with the sizes.
+import http from 'node:http'
+
+test('model: the coop by default, a chosen model asked, a bad id refused, a too-small window refused', async () => {
+  const { planModel, models } = await import('../api/handlers.js')
+  const kept = process.env.PLAN_MODEL
+  delete process.env.PLAN_MODEL
+  assert.equal(planModel(), 'openai:llm_auto-big')
+  process.env.PLAN_MODEL = 'openai:llm_big'
+  assert.equal(planModel(), 'openai:llm_big')
+
+  const asked = []
+  const server = http.createServer((req, res) => {
+    let body = ''
+    req.on('data', c => (body += c))
+    req.on('end', () => {
+      res.setHeader('Content-Type', 'application/json')
+      if (req.url === '/v1/models') {
+        return res.end(JSON.stringify({ data: [
+          { id: 'llm_tiny', name: 'Tiny', context_length: 2000, status: { value: 'loaded' } },
+          { id: 'llm_big', name: 'Big', context_length: 262144, status: { value: 'loaded' } },
+        ] }))
+      }
+      const b = JSON.parse(body)
+      asked.push({ model: b.model, max_tokens: b.max_tokens })
+      res.end(JSON.stringify({ model: b.model, choices: [{ message: { content: REPORT }, finish_reason: 'stop' }], usage: {} }))
+    })
+  })
+  await new Promise(r => server.listen(0, '127.0.0.1', r))
+  process.env.CLAUDE_DOOR_OPENAI_URL = `http://127.0.0.1:${server.address().port}`
+  process.env.CLAUDE_DOOR_OLLAMA_URL = 'http://127.0.0.1:9' // nothing there: listed with an error
+  try {
+    const f = farm()
+    process.env.PLAN_SKILLS_DIR = f.skills
+    const ctx = { origin: 'toy.localhost', status: f.status, farmRoot: f.root }
+    const listing = await models()
+    assert.equal(listing.default, 'openai:llm_big')
+    assert.equal(listing.defaultFrom, 'PLAN_MODEL')
+    assert.deepEqual(listing.doors.find(d => d.door === 'openai').models.map(m => [m.id, m.contextLength]), [['openai:llm_tiny', 2000], ['openai:llm_big', 262144]])
+    assert.ok(listing.doors.find(d => d.door === 'ollama').error)
+
+    // left out: the farm's default, asked with room to answer
+    const a = await revise({ slug: 'toy-plan', ...ctx })
+    assert.equal(a.model, 'openai:llm_big')
+    const doneA = await until(async () => { const j = await job({ id: a.job, ...ctx }); return j.status !== 'running' && j })
+    assert.equal(doneA.status, 'done', doneA.error)
+    assert.equal(doneA.result.model, 'openai:llm_big')
+    assert.deepEqual(asked.pop(), { model: 'llm_big', max_tokens: 32000 })
+
+    // a window smaller than the question: refused, with the sizes, nothing asked
+    const t = await revise({ slug: 'toy-plan', model: 'openai:llm_tiny', ...ctx })
+    const doneT = await until(async () => { const j = await job({ id: t.job, ...ctx }); return j.status !== 'running' && j })
+    assert.equal(doneT.status, 'failed')
+    assert.match(doneT.error, /openai:llm_tiny holds about 2,000 tokens and this question is about [\d,]+: choose a model with a larger window/)
+    assert.equal(asked.length, 0)
+
+    // an id the door does not know: 400 before any claim
+    await assert.rejects(revise({ slug: 'toy-plan', model: 'gpt; rm -rf', ...ctx }), e => e.status === 400 && /not a model this farm can ask/.test(e.message))
+    const marker = JSON.parse(fs.readFileSync(path.join(process.env.WIKI_WIP_DIR, 'AGENT-WIP.json'), 'utf8'))
+    assert.equal(marker.status, 'DONE')
+  } finally {
+    server.close()
+    delete process.env.CLAUDE_DOOR_OPENAI_URL
+    delete process.env.CLAUDE_DOOR_OLLAMA_URL
+    if (kept === undefined) delete process.env.PLAN_MODEL
+    else process.env.PLAN_MODEL = kept
+  }
 })

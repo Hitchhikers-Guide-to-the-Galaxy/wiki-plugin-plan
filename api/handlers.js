@@ -47,7 +47,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
-import { ask, defaultModel, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
+import { ask, door, isModelId, listModels, contextOf, estimateTokens, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
 
 import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
@@ -224,6 +224,71 @@ export async function update({ slug, origin, status, farmRoot } = {}) {
 const jobs = new Map()
 const JOB_TTL_MS = 24 * 60 * 60 * 1000
 const RUN_TIMEOUT_MS = 7 * 60 * 1000
+
+// ---------- which model (0.10.0) ----------
+//
+// Every model question the Plan Tool asks is ONE request: the plan, its
+// answers, the skills and linked pages, built fresh from the pages each time
+// (buildContent, ≤120 kB). Nothing of an earlier run is carried, so changing
+// the model between runs costs nothing extra — there is no conversation to
+// load into the new one.
+//
+// The default is the LLM coop's open models (llm_auto-big: whichever big GPU
+// model is already loaded), the farm's PLAN_MODEL when set. A caller may name
+// another, any id the door accepts. Red-link researches the web, and only the
+// Claude CLI has tools here, so it always goes by a Claude model.
+const PLAN_DEFAULT_MODEL = 'openai:llm_auto-big'
+const RESEARCH_MODEL = 'claude-opus-5-5'
+export const planModel = () => String(process.env.PLAN_MODEL || '').trim() || PLAN_DEFAULT_MODEL
+const chooseModel = model => {
+  if (model === undefined || model === null || model === '') return planModel()
+  if (!isModelId(model)) throw problem(400, `not a model this farm can ask: ${String(model).slice(0, 80)} — claude-…, claude-cli:claude-…, ollama:… or openai:…`)
+  return model
+}
+const isClaudeModel = model => /^(claude-cli:)?claude-/.test(model)
+
+// Room to answer in: a redraft of a long plan, and a reasoning model's
+// thinking, both come out of it.
+const ANSWER_TOKENS = 32000
+const LEAST_ANSWER = 4096
+
+/**
+ * Ask, having checked the model can hold the question. A model whose window
+ * (the door's listModels) is smaller than the question plus room to answer is
+ * refused before anything is sent, with the sizes, rather than answering from
+ * a silently truncated plan. An unknown window is not refused.
+ */
+const askPlan = async (model, content, opts = {}) => {
+  const need = estimateTokens(opts.system || '') + estimateTokens(content)
+  let window = isClaudeModel(model) ? 200000 : null // known; asking the doors would only wait on them
+  if (!window) {
+    try {
+      window = await contextOf(model)
+    } catch {}
+  }
+  const room = window ? window - need : ANSWER_TOKENS
+  if (window && room < LEAST_ANSWER) {
+    throw problem(
+      400,
+      `${model} holds about ${window.toLocaleString('en')} tokens and this question is about ${need.toLocaleString('en')}: ` +
+        'choose a model with a larger window (⚙ Model Settings) — GLM-5.3 Flash or DeepSeek-V4 on the coop, or Claude',
+    )
+  }
+  const slow = !isClaudeModel(model) // a cold start on the coop's GPUs takes minutes
+  return ask(model, content, { timeoutMs: slow ? 15 * 60 * 1000 : RUN_TIMEOUT_MS, ...opts, maxTokens: Math.min(ANSWER_TOKENS, room) })
+}
+
+/** The models the Model Settings page offers: each door's, live, and the farm's default. */
+export async function models() {
+  const { doors } = await listModels()
+  return {
+    default: planModel(),
+    defaultFrom: process.env.PLAN_MODEL ? 'PLAN_MODEL' : 'the Plan Tool',
+    research: RESEARCH_MODEL,
+    doors,
+    auto: { available: false, note: 'Auto — a model chooses the model by how hard the question is — is planned, not built.' },
+  }
+}
 const HEARTBEAT_MS = 60 * 1000
 const JOB_ID = /^[a-f0-9]{16}$/
 
@@ -273,11 +338,11 @@ const readPlan = (status, origin, slug) => {
  * everything after it is the job's, and the marker is released in a finally
  * whatever happens. The heartbeat keeps the claim fresh while the model works.
  */
-const start = ({ kind, origin, status, slug, site, page, phase, session, title = null, build = null, holdOff = null, meta = null, after = null, run = null }) => {
+const start = ({ kind, origin, status, slug, site, page, phase, session, title = null, build = null, holdOff = null, meta = null, after = null, run = null, model: chosen = '' }) => {
   forget()
   const scope = `${origin}/${slug}`
+  const model = chooseModel(chosen) // before the claim: a bad id is a 400, not a held marker
   const wip = claim({ session, scope, holdOff: holdOff || `${session}: a model is reading the plan; the report opens as a ghost page and nothing is written to the plan` })
-  const model = defaultModel('claude-opus-5-5')
   const id = crypto.randomBytes(8).toString('hex')
   const j = {
     id,
@@ -319,7 +384,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
       const { content, account } = build ? build() : buildContent({ kind, page, phase, origin, siteDir: site })
       j.context = account
       persist(j)
-      const out = await ask(model, content, { system: SYSTEM, timeoutMs: RUN_TIMEOUT_MS, allowTools: false })
+      const out = await askPlan(model, content, { system: SYSTEM, allowTools: false })
       const ticks = kind === 'next' ? proposedTicks(out.markdown, phase.checkpoints) : null
       j.result = {
         markdown: out.markdown,
@@ -358,7 +423,7 @@ const proposalSummary = (markdown, planTitle, origin) => {
 }
 
 /** Do Next Phase: the plan's next phase (or the one named) to the door, as a job. */
-export async function next({ slug, phase, origin, status } = {}) {
+export async function next({ slug, phase, model, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
   const chosen = choosePhase(p.page, phase)
   if (!chosen) {
@@ -367,14 +432,14 @@ export async function next({ slug, phase, origin, status } = {}) {
   }
   const which = chosen.number === null ? chosen.heading : chosen.number
   const session = `Plan Tool: Do Next Phase ${origin}/${p.slug} phase ${which}`
-  return start({ kind: 'next', origin, status, slug: p.slug, site: p.site, page: p.page, phase: chosen, session })
+  return start({ kind: 'next', origin, status, slug: p.slug, site: p.site, page: p.page, phase: chosen, session, model })
 }
 
 /** Revise Plan: the whole plan to the door, asked to redraft it given the answered questions. */
-export async function revise({ slug, origin, status } = {}) {
+export async function revise({ slug, model, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
   const session = `Plan Tool: Revise Plan ${origin}/${p.slug}`
-  return start({ kind: 'revise', origin, status, slug: p.slug, site: p.site, page: p.page, phase: null, session })
+  return start({ kind: 'revise', origin, status, slug: p.slug, site: p.site, page: p.page, phase: null, session, model })
 }
 
 // ======================================================================
@@ -468,7 +533,7 @@ const siteTitles = site => {
 }
 
 /** Red-link: research each red link of the plan on the web and write its page, as a job. */
-export async function redlink({ slug, origin, status, farmRoot } = {}) {
+export async function redlink({ slug, model, origin, status, farmRoot } = {}) {
   const p = readPlan(status, origin, slug)
   const found = redLinksOf(p.page, knownSlugs(farmRoot, p.site))
   // The plan's links to untouched stubs of Red-link's own on this site count as missing too.
@@ -497,6 +562,9 @@ export async function redlink({ slug, origin, status, farmRoot } = {}) {
     title: p.page.title,
     meta: { red: todo.map(r => r.title), stubs: todo.filter(r => r.stub).map(r => r.title), more: found.red.length + stubs.length - todo.length, questions: found.questions, held: found.held, existing: found.existing },
     holdOff: `${session}: researching the plan's red links on the web and writing their pages, one at a time`,
+    // Research needs tools, and only the Claude CLI has them: a Claude model
+    // chosen is used, any other gives way to RESEARCH_MODEL.
+    model: model && isModelId(model) && isClaudeModel(model) ? model : RESEARCH_MODEL,
     run: async (j, model) => {
       // Research needs the CLI: the API road has no tools.
       const how = /^claude-(?!cli:)/.test(model) ? `claude-cli:${model}` : model
@@ -663,7 +731,7 @@ const proposalTitle = (site, date = today()) => {
 }
 
 /** Revise Site: the answers and every page of the site to the door, asked for a revision proposal, as a job. */
-export async function reviseSite({ slug, origin, status } = {}) {
+export async function reviseSite({ slug, model, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
   const { questions } = questionsFor(p.site, p.page)
   if (!questions.some(q => q.answered)) {
@@ -682,6 +750,7 @@ export async function reviseSite({ slug, origin, status } = {}) {
     title: proposalTitle(p.site),
     holdOff: `${session}: a model is reading the whole site; the proposal opens as a ghost page and nothing is written`,
     build: () => buildSiteContent({ page: p.page, origin, siteDir: p.site }),
+    model,
   })
 }
 
@@ -708,7 +777,7 @@ const planOfProposal = (site, proposal, plan) => {
 const count = actions => actions.reduce((n, a) => ({ ...n, [a.type]: (n[a.type] || 0) + 1 }), {})
 
 /** Go Ahead: the saved proposal's rows to the door one page at a time, each written whole and journaled, the plan last; as a job. */
-export async function applyRevision({ slug, plan, origin, status } = {}) {
+export async function applyRevision({ slug, plan, model: chosen, origin, status } = {}) {
   const s = checkSlug(slug)
   const site = siteDir(status)
   const proposalFile = path.join(site, 'pages', s)
@@ -721,8 +790,8 @@ export async function applyRevision({ slug, plan, origin, status } = {}) {
 
   forget()
   const session = `plan: revise site ${origin}`
+  const model = chooseModel(chosen)
   const wip = claim({ session, scope: origin, holdOff: `Go Ahead is rewriting pages of ${origin} from ${peek.title}, one at a time, the plan last; do not edit them until it is done` })
-  const model = defaultModel('claude-opus-5-5')
   const id = crypto.randomBytes(8).toString('hex')
   const j = {
     id,
@@ -865,7 +934,7 @@ export async function applyRevision({ slug, plan, origin, status } = {}) {
             isPlan: w.isPlan,
             origin,
           })
-          const out = await ask(model, content, { system: SYSTEM, timeoutMs: RUN_TIMEOUT_MS, allowTools: false })
+          const out = await askPlan(model, content, { system: SYSTEM, allowTools: false })
           const old = before || { title: w.title, story: [], journal: [] }
           const story = storyFromReply(old, out.markdown)
           if (!story.some(it => it.type === 'markdown' && String(it.text || '').trim())) throw new Error('the door answered no page')

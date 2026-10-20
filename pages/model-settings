@@ -1,0 +1,127 @@
+{
+  "title": "Model Settings",
+  "story": [
+    {
+      "type": "paragraph",
+      "id": "9f76871f34575ab1",
+      "text": "Which model the Plan Tool asks when it uses one: ✎ Revise Plan, ⧉ Revise Site and Go Ahead. Opened from the ⚙ chip on a plan's status line; the choice is kept in this browser, for this site."
+    },
+    {
+      "type": "plan",
+      "id": "0fe8ce266a669cbb",
+      "text": "MODELS"
+    },
+    {
+      "type": "markdown",
+      "id": "f060751a1e43b74d",
+      "text": "# Changing Model"
+    },
+    {
+      "type": "markdown",
+      "id": "4c8a4897e6691488",
+      "text": "> Each run is one request, so a change costs nothing."
+    },
+    {
+      "type": "markdown",
+      "id": "6607e789bc0d4d8b",
+      "text": "The Plan Tool keeps no conversation with a model. Every run builds its question afresh from the pages — the plan, its answered questions, the skills it names and the pages it links, up to 120 kB — and sends it whole. Changing model between runs therefore loads nothing extra into the new one: the next run sends what it would have sent anyway. The warning in the Claude app is about a long chat, whose whole history must be read again, uncached, by the new model; there is no such history here."
+    },
+    {
+      "type": "markdown",
+      "id": "b8a16ed453fc7017",
+      "text": "What does matter is the window. A plan's question is often 20–35 thousand tokens. The coop's big models (GLM-5.3 Flash, DeepSeek-V4) and Claude hold that easily; the 32K models and Ollama only just, or not at all. A model too small for the question is refused before anything is sent, with the sizes, rather than answering from a plan cut short."
+    },
+    {
+      "type": "markdown",
+      "id": "f03094752b9755e7",
+      "text": "# Defaults"
+    },
+    {
+      "type": "markdown",
+      "id": "0fda2ee9ac7a8543",
+      "text": "> The coop first; Claude when the work needs it."
+    },
+    {
+      "type": "markdown",
+      "id": "b10c9c62b31cbbde",
+      "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning. ⌕ Red-link always uses Claude, because only Claude has web search here. Auto — a model that chooses the model by how hard the question is, to save tokens — is planned, not built."
+    },
+    {
+      "type": "markdown",
+      "id": "fac5064a9816cd15",
+      "text": "# See"
+    },
+    {
+      "type": "markdown",
+      "id": "c346c9c2a99e119b",
+      "text": "- [[Plan Tool]]\n- [[About Plan Plugin]]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "Model Settings",
+        "story": [
+          {
+            "type": "paragraph",
+            "id": "9f76871f34575ab1",
+            "text": "Which model the Plan Tool asks when it uses one: ✎ Revise Plan, ⧉ Revise Site and Go Ahead. Opened from the ⚙ chip on a plan's status line; the choice is kept in this browser, for this site."
+          },
+          {
+            "type": "plan",
+            "id": "0fe8ce266a669cbb",
+            "text": "MODELS"
+          },
+          {
+            "type": "markdown",
+            "id": "f060751a1e43b74d",
+            "text": "# Changing Model"
+          },
+          {
+            "type": "markdown",
+            "id": "4c8a4897e6691488",
+            "text": "> Each run is one request, so a change costs nothing."
+          },
+          {
+            "type": "markdown",
+            "id": "6607e789bc0d4d8b",
+            "text": "The Plan Tool keeps no conversation with a model. Every run builds its question afresh from the pages — the plan, its answered questions, the skills it names and the pages it links, up to 120 kB — and sends it whole. Changing model between runs therefore loads nothing extra into the new one: the next run sends what it would have sent anyway. The warning in the Claude app is about a long chat, whose whole history must be read again, uncached, by the new model; there is no such history here."
+          },
+          {
+            "type": "markdown",
+            "id": "b8a16ed453fc7017",
+            "text": "What does matter is the window. A plan's question is often 20–35 thousand tokens. The coop's big models (GLM-5.3 Flash, DeepSeek-V4) and Claude hold that easily; the 32K models and Ollama only just, or not at all. A model too small for the question is refused before anything is sent, with the sizes, rather than answering from a plan cut short."
+          },
+          {
+            "type": "markdown",
+            "id": "f03094752b9755e7",
+            "text": "# Defaults"
+          },
+          {
+            "type": "markdown",
+            "id": "0fda2ee9ac7a8543",
+            "text": "> The coop first; Claude when the work needs it."
+          },
+          {
+            "type": "markdown",
+            "id": "b10c9c62b31cbbde",
+            "text": "Farm default means the farm's PLAN_MODEL, else the coop's auto-big, which uses whichever big model is already loaded on its GPUs. Choose Claude for a redraft that needs careful reasoning. ⌕ Red-link always uses Claude, because only Claude has web search here. Auto — a model that chooses the model by how hard the question is, to save tokens — is planned, not built."
+          },
+          {
+            "type": "markdown",
+            "id": "fac5064a9816cd15",
+            "text": "# See"
+          },
+          {
+            "type": "markdown",
+            "id": "c346c9c2a99e119b",
+            "text": "- [[Plan Tool]]\n- [[About Plan Plugin]]"
+          }
+        ]
+      },
+      "date": 1792511257326,
+      "provenance": "Shipped with wiki-plugin-plan 0.10.0."
+    }
+  ]
+}

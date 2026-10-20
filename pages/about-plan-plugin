@@ -203,6 +203,21 @@
     },
     {
       "type": "markdown",
+      "id": "bb4a9dcee7653e6a",
+      "text": "# Which Model\n> 0.10.0: the coop by default, Claude when the work needs it."
+    },
+    {
+      "type": "markdown",
+      "id": "96b9244852e9f79a",
+      "text": "The status line is one row of icons: ⟳ Update Plan, ✓ Finish Plan and ▶ Do Next Phase ask no model; past the bar, ✎ Revise Plan, ⧉ Revise Site and ⌕ Red-link do. Each icon's name and purpose is its tooltip. The ⚙ chip at the end names the model ✎ and ⧉ (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` — the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
+    },
+    {
+      "type": "markdown",
+      "id": "1bd71e9f2b9382b3",
+      "text": "Every run is one request built afresh from the pages, so changing model between runs costs nothing extra: there is no conversation to carry. Before asking, the farm checks the model's window holds the question with room to answer, and refuses a model too small with the sizes, rather than have it answer from a plan cut short. A coop answer gets up to 32,000 tokens, its reasoning included, and one cut off by that limit fails rather than passing as short. ⌕ Red-link always researches with Claude, the only door with web search. A redraft that drops the plan's question links or task lines says so on the ghost's first line, which Save leaves out, before anything is saved."
+    },
+    {
+      "type": "markdown",
       "id": "3d73cc7bfe1f2bd9",
       "text": "# Next\n> Phase 6: ship it and show it."
     },
@@ -214,7 +229,7 @@
     {
       "type": "markdown",
       "id": "a180150d09b7d386",
-      "text": "# See\n\n- [[Plan Tool]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
+      "text": "# See\n\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
     }
   ],
   "journal": [
@@ -1014,6 +1029,49 @@
         "text": "Whatever the table says, Go Ahead never deletes a page and never writes an answer page, the Open Questions page, which stays the record of what was asked, a page forked from or credited to another site, or a page listed under Untouched; each refusal is named in the account. A page that would carry a name whose box is still unticked, and did not carry it before, is not written: name not confirmed. The run holds the farm WIP marker throughout as plan: revise site and the site's name. Both operations spend the farm's model, so on a public site they follow the farm owner's spend policy: FARM_API_SPEND=authors opens them to the site's signed-in owner, the default keeps them to private sites. Save over the plan, Update, Finish and Render are plain writes, open to the site's owner on any site unless the farm lists them in FARM_API_PUBLIC_REFUSE."
       },
       "date": 1792507074310
+    },
+    {
+      "type": "add",
+      "id": "bb4a9dcee7653e6a",
+      "item": {
+        "type": "markdown",
+        "id": "bb4a9dcee7653e6a",
+        "text": "# Which Model\n> 0.10.0: the coop by default, Claude when the work needs it."
+      },
+      "after": "6c0f38003040c3e7",
+      "date": 1792511708578
+    },
+    {
+      "type": "add",
+      "id": "96b9244852e9f79a",
+      "item": {
+        "type": "markdown",
+        "id": "96b9244852e9f79a",
+        "text": "The status line is one row of icons: ⟳ Update Plan, ✓ Finish Plan and ▶ Do Next Phase ask no model; past the bar, ✎ Revise Plan, ⧉ Revise Site and ⌕ Red-link do. Each icon's name and purpose is its tooltip. The ⚙ chip at the end names the model ✎ and ⧉ (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` — the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
+      },
+      "after": "bb4a9dcee7653e6a",
+      "date": 1792511708578
+    },
+    {
+      "type": "add",
+      "id": "1bd71e9f2b9382b3",
+      "item": {
+        "type": "markdown",
+        "id": "1bd71e9f2b9382b3",
+        "text": "Every run is one request built afresh from the pages, so changing model between runs costs nothing extra: there is no conversation to carry. Before asking, the farm checks the model's window holds the question with room to answer, and refuses a model too small with the sizes, rather than have it answer from a plan cut short. A coop answer gets up to 32,000 tokens, its reasoning included, and one cut off by that limit fails rather than passing as short. ⌕ Red-link always researches with Claude, the only door with web search. A redraft that drops the plan's question links or task lines says so on the ghost's first line, which Save leaves out, before anything is saved."
+      },
+      "after": "96b9244852e9f79a",
+      "date": 1792511708578
+    },
+    {
+      "type": "edit",
+      "id": "a180150d09b7d386",
+      "item": {
+        "type": "markdown",
+        "id": "a180150d09b7d386",
+        "text": "# See\n\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
+      },
+      "date": 1792511708578
     }
   ],
   "plugin": "plan"

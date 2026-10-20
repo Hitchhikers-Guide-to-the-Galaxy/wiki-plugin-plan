@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, modelLabel, windowLabel } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -93,6 +93,17 @@ const STYLE = `
 .plan-tool .plan-actions-note{color:#a35a00}
 .plan-tool .plan-update{margin-top:8px;font-size:85%;color:#555}
 .plan-tool .plan-update button{font-size:inherit}
+.plan-tool .plan-update button.plan-icon{font-size:140%;line-height:1.1;min-width:1.8em;padding:1px 5px;margin:0 1px;border:1px solid #ccc;border-radius:4px;background:#fafafa;cursor:pointer}
+.plan-tool .plan-update button.plan-icon:hover{background:#eef4ff;border-color:#9ab}
+.plan-tool .plan-update .plan-sep{display:inline-block;width:1px;height:1.2em;background:#ddd;vertical-align:middle;margin:0 5px}
+.plan-tool a.plan-model{color:#555;text-decoration:none;border:1px solid #ccc;border-radius:10px;padding:1px 7px;margin-left:4px;white-space:nowrap;cursor:pointer;font-size:95%}
+.plan-tool a.plan-model:hover{background:#eef4ff;border-color:#9ab}
+.plan-tool .plan-models h4{margin:10px 0 2px;font-size:90%;color:#333}
+.plan-tool .plan-models .plan-door-note{color:#777;font-size:80%;margin:0 0 3px}
+.plan-tool .plan-models label{display:block;margin:2px 0;cursor:pointer}
+.plan-tool .plan-models .plan-model-facts{color:#777;font-size:80%;margin-left:.3em}
+.plan-tool .plan-models .plan-model-warm{color:#2a6}
+.plan-tool .plan-models .plan-chosen{font-weight:bold}
 .plan-tool .plan-answer{margin-left:.4em}
 .plan-tool .plan-answer.plan-refused{color:#a00}
 .plan-tool .plan-agent{display:block;margin-top:4px}
@@ -330,15 +341,22 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   if ($subject.hasClass('ghost') || $subject.hasClass('local')) return
   const slug = slugOf($subject)
   const next = st && st.next !== -1 ? st.phases[st.next].line : ''
+  // One row of icons (0.10.0): the name and what it does are the tooltip, so
+  // the row stays one line. Left of the bar, no model; right of it, the model
+  // the ⚙ chip names, which opens Model Settings beside the plan.
+  const icon = (cls, glyph, name, what) => `<button class="plan-icon ${cls}" aria-label="${name}" title="${name} — ${what}">${glyph}</button>`
   const $box = $(
-    `<div class="plan-update"><button class="plan-update-go" title="Update Plan ticks what the answers settled and re-renders the plan's markdown asset; no model, written on the page">Update Plan</button>` +
-      (next ? ` <button class="plan-next-go" title="Put the plan's Do Phase button just after ${escapeHtml(next)}: clicking it opens a Claude Code session on this laptop and types the phase in, and you watch and approve the work there">Do Next Phase</button>` : '') +
-      ` <button class="plan-revise-go" title="Revise Plan asks the model to redraft the plan from its answers, on a ghost with the plan's own title; Save overwrites the plan with a rewindable journal">Revise Plan</button>` +
-      ` <button class="plan-redlink-go" title="Red-link finds the links on the plan that have no page behind them, researches each on the web and writes its page, a new page with one journaled create; question links are left for their answers">Red-link</button>` +
+    `<div class="plan-update">` +
+      icon('plan-update-go', '⟳', 'Update Plan', "ticks what the answers settled and re-renders the plan's markdown asset; no model, written on the page") +
+      (st && st.complete ? icon('plan-finish-go', '✓', 'Finish Plan', "every checkpoint is ticked: write the plan's Conclusion section and its demo link") : '') +
+      (next ? icon('plan-next-go', '▶', 'Do Next Phase', `put the plan's Do Phase button just after ${escapeHtml(next)}: clicking it opens a Claude Code session on this laptop and types the phase in, and you watch and approve the work there`) : '') +
+      `<span class="plan-sep"></span>` +
+      icon('plan-revise-go', '✎', 'Revise Plan', "the model redrafts the plan from its answers, on a ghost with the plan's own title; Save overwrites the plan with a rewindable journal") +
       (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
-        ? ` <button class="plan-site-go" title="Ask the Claude door for a Revision Proposal for the whole site from the answered questions: it opens as a ghost page with Go Ahead and Pause, and nothing is written until Go Ahead">Revise Site</button>`
+        ? icon('plan-site-go', '⧉', 'Revise Site', 'the model proposes a revision of the whole site from the answered questions: a ghost page with Go Ahead and Pause, nothing written until Go Ahead')
         : '') +
-      (st && st.complete ? ` <button class="plan-finish-go" title="Every checkpoint is ticked: write the plan's Conclusion section and its demo link">Finish Plan</button>` : '') +
+      icon('plan-redlink-go', '⌕', 'Red-link', "researches each link on the plan that has no page behind it, on the web, and writes its page; question links are left for their answers; always Claude, which alone has web search here") +
+      modelChip() +
       `<span class="plan-answer"></span><span class="plan-agent"></span><span class="plan-finish"></span></div>`,
   )
   const last = answerOf($item)
@@ -350,6 +368,11 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
     e.preventDefault()
     runUpdate($item, $subject, slug, $box)
   })
+  $box.on('click', '.plan-model', e => {
+    e.preventDefault()
+    wiki.doInternalLink(MODEL_SETTINGS, $item.parents('.page').first())
+  })
+  paintChips()
   $box.on('click', '.plan-next-go', e => {
     e.preventDefault()
     placeButton($item, $subject, slug, $box)
@@ -705,7 +728,7 @@ async function runAgent($item, $subject, slug, kind) {
       credentials: 'include',
       cache: 'no-cache',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ slug }),
+      body: JSON.stringify({ slug, ...(chosenModel() ? { model: chosenModel() } : {}) }),
     })
     body = await res.json().catch(() => null)
   } catch (err) {
@@ -1121,7 +1144,7 @@ async function goAhead($item, $subject, planSlug, proposalSlug) {
       credentials: 'include',
       cache: 'no-cache',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ slug, plan: planSlug }),
+      body: JSON.stringify({ slug, plan: planSlug, ...(chosenModel() ? { model: chosenModel() } : {}) }),
     })
     body = await res.json().catch(() => null)
   } catch (err) {
@@ -1457,6 +1480,106 @@ function attachIndexCheck($item, site) {
   })
 }
 
+// ---------- which model (0.10.0) ----------
+//
+// The model Revise Plan, Revise Site and Go Ahead ask is chosen on the Model
+// Settings page (a plan item with MODELS, shipped as a page of this plugin)
+// and kept in this browser, per site. Nothing chosen means the farm's
+// default: the LLM coop (openai:llm_auto-big), or the farm's PLAN_MODEL.
+// Every run is one request built fresh from the pages, so changing model
+// between runs carries no conversation and costs nothing extra.
+const MODEL_KEY = 'plan:model'
+const MODEL_SETTINGS = 'Model Settings'
+const chosenModel = () => {
+  try {
+    return localStorage.getItem(MODEL_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+const chooseModel = id => {
+  try {
+    if (id) localStorage.setItem(MODEL_KEY, id)
+    else localStorage.removeItem(MODEL_KEY)
+  } catch {}
+  paintChips()
+}
+// models.json once a session: the farm's default (for the chip) and the doors
+let MODELS = null
+const modelsNow = (fresh = false) => {
+  if (!MODELS || fresh) MODELS = getJSON('/system/api/plan/models.json').catch(err => ({ error: err.message }))
+  return MODELS
+}
+const modelChip = () =>
+  `<a class="plan-model" title="Which model ✎ and ⧉ ask — open Model Settings to change it"><span aria-hidden="true">⚙</span> <span class="plan-model-name">${escapeHtml(chosenModel() ? modelLabel(chosenModel()) : 'farm default')}</span></a>`
+const paintChips = () => {
+  const mine = chosenModel()
+  const set = text => $('.plan-tool .plan-model-name').text(text)
+  if (mine) return set(modelLabel(mine))
+  set('farm default')
+  modelsNow().then(m => m && m.default && !chosenModel() && set(modelLabel(m.default)))
+}
+
+const modelRow = (name, m, chosen) => {
+  const facts = [
+    m.contextLength ? `${windowLabel(m.contextLength)} context` : '',
+    m.selector && m.routesTo ? `routes to ${modelLabel(m.routesTo).replace(/^coop · /, '')} now` : '',
+    m.loaded === true ? '<span class="plan-model-warm">loaded</span>' : m.loaded === false ? 'cold — the first run waits while it loads' : '',
+    m.reasoning ? 'reasons' : '',
+  ].filter(Boolean)
+  return (
+    `<label class="${m.id === chosen ? 'plan-chosen' : ''}"><input type="radio" name="${name}" value="${escapeHtml(m.id)}"${m.id === chosen ? ' checked' : ''}> ` +
+    `${escapeHtml(m.name || modelLabel(m.id))}<span class="plan-model-facts">${facts.join(' · ')}</span></label>`
+  )
+}
+
+const DOORS = {
+  openai: ['Coop', "open models on the LLM coop's GPUs: no per-use cost; the big ones hold a whole site"],
+  claude: ['Claude', "on the farm's Claude account: the strongest reasoning, and it counts against that account's limits"],
+  ollama: ['Ollama', 'a small model on a machine nearby: for short questions, not a whole plan'],
+}
+
+async function showModels($item, opts, item) {
+  const name = `plan-model-${item.id}`
+  const paint = m => {
+    const chosen = chosenModel()
+    const doors = (m.doors || [])
+      .map(d => {
+        const [title, note] = DOORS[d.door] || [d.door, '']
+        const rows = d.models.length
+          ? d.models.map(x => modelRow(name, x, chosen)).join('')
+          : `<p class="plan-door-note plan-refused">${escapeHtml(d.error || 'no models')}</p>`
+        return `<h4>${escapeHtml(title)}</h4><p class="plan-door-note">${escapeHtml(note)}</p>${rows}`
+      })
+      .join('')
+    $item.html(
+      shell(
+        opts,
+        `<div class="plan-models">` +
+          `<p class="plan-meta">The model ✎ Revise Plan, ⧉ Revise Site and Go Ahead ask, kept in this browser for ${escapeHtml(location.host)}.</p>` +
+          (m.error ? `<p class="plan-error">Could not ask the farm which models it reaches: ${escapeHtml(m.error)}</p>` : '') +
+          `<label class="${chosen ? '' : 'plan-chosen'}"><input type="radio" name="${name}" value=""${chosen ? '' : ' checked'}> Farm default` +
+          (m.default ? `<span class="plan-model-facts">${escapeHtml(modelLabel(m.default))}, set by ${escapeHtml(m.defaultFrom || 'the farm')}</span>` : '') +
+          `</label>` +
+          doors +
+          (m.research ? `<p class="plan-meta">⌕ Red-link always researches with ${escapeHtml(modelLabel(m.research))}: only Claude has web search here.</p>` : '') +
+          (m.auto ? `<p class="plan-meta">${escapeHtml(m.auto.note)}</p>` : '') +
+          `<p class="plan-meta"><a href="#" class="plan-models-refresh">Ask the doors again</a></p>` +
+          `</div>`,
+      ),
+    )
+    $item.find(`input[name="${name}"]`).on('change', e => {
+      chooseModel(e.target.value)
+      paint(m)
+    })
+    $item.find('.plan-models-refresh').on('click', e => {
+      e.preventDefault()
+      modelsNow(true).then(paint)
+    })
+  }
+  paint(await modelsNow())
+}
+
 // ---------- the item ----------
 
 // Which face, and the page whose state it reads.
@@ -1470,13 +1593,14 @@ const resolve = ($item, opts) => {
 export const emit = ($item, item) => {
   const opts = parse(item.text)
   const { which, $subject } = resolve($item, opts)
-  const what = which === 'list' ? `the plans on ${escapeHtml(opts.site || location.host)}` : `${escapeHtml(titleOfPage($subject))}`
+  const what = which === 'models' ? 'the models this farm can ask' : which === 'list' ? `the plans on ${escapeHtml(opts.site || location.host)}` : `${escapeHtml(titleOfPage($subject))}`
   $item.html(shell(opts, `<p class="plan-meta">Reading ${what}…</p>`))
 }
 
 const render = ($item, item) => {
   const opts = parse(item.text)
   const { which, $subject } = resolve($item, opts)
+  if (which === 'models') return showModels($item, opts, item)
   if (which === 'list') {
     const note = opts.subject ? 'Nothing to the left is a plan, so: ' : ''
     return showList($item, opts, note).then(() => attachActions($item, opts))

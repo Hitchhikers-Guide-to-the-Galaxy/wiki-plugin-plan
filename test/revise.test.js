@@ -517,6 +517,9 @@ test('reviseSite and applyRevision refuse before any claim', async () => {
 // ======================================================================
 
 import { reportTitle, reviseItems, revisedStory, REVISE_LINE_RE, storyAt, writeRevision, reconcileJournal, lastRevision, revLabel, rewindPage } from '../src/client/core.js'
+
+// These runs stand in for the Claude CLI: name Claude, not the coop default (0.10.0).
+process.env.PLAN_MODEL = 'claude-opus-5-5'
 const handlers8 = await import('../api/handlers.js')
 const { saveRevision } = handlers8
 

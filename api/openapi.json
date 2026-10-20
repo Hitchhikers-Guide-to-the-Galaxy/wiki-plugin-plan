@@ -84,6 +84,10 @@
                   "phase": {
                     "type": "string",
                     "description": "Optional: the phase to report on, as its number (2) or its heading (Phase 2). By default the next phase."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model to ask, any id the door accepts (claude-…, claude-cli:claude-…, ollama:…, openai:…); left out, the farm's PLAN_MODEL, else openai:llm_auto-big (the LLM coop)."
                   }
                 }
               }
@@ -134,6 +138,10 @@
                   "slug": {
                     "type": "string",
                     "description": "The plan page on this site, by slug, e.g. next-demo-plan."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model to ask, any id the door accepts (claude-…, claude-cli:claude-…, ollama:…, openai:…); left out, the farm's PLAN_MODEL, else openai:llm_auto-big (the LLM coop)."
                   }
                 }
               }
@@ -184,6 +192,10 @@
                   "slug": {
                     "type": "string",
                     "description": "The plan page on this site, by slug, e.g. rain-garden-plan."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model to ask, any id the door accepts (claude-…, claude-cli:claude-…, ollama:…, openai:…); left out, the farm's PLAN_MODEL, else openai:llm_auto-big (the LLM coop)."
                   }
                 }
               }
@@ -238,6 +250,10 @@
                   "plan": {
                     "type": "string",
                     "description": "Optional: the plan's slug; by default the first plan the proposal links."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model to ask, any id the door accepts (claude-…, claude-cli:claude-…, ollama:…, openai:…); left out, the farm's PLAN_MODEL, else openai:llm_auto-big (the LLM coop)."
                   }
                 }
               }
@@ -504,6 +520,10 @@
                   "slug": {
                     "type": "string",
                     "description": "The plan page on this site, by slug, e.g. next-demo-plan."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "A Claude model to research with; any other gives way to claude-opus-5-5, since only the Claude CLI has the web tools Red-link needs."
                   }
                 }
               }
@@ -525,6 +545,19 @@
           },
           "409": {
             "description": "The farm WIP marker is held live by someone else; it is named, and nothing was started."
+          }
+        }
+      }
+    },
+    "/models.json": {
+      "get": {
+        "operationId": "models",
+        "summary": "The models the Plan Tool can ask, from each door, live; and the farm's default",
+        "description": "For the Model Settings page. Lists the LLM coop's text models (context window, loaded or cold, reasoning; llm_auto-big names the model it would route to now), the Claude models (by the farm's key or the CLI's login) and the Ollama models, each door asked live and briefly; a door that does not answer carries an error. default is the farm's PLAN_MODEL, else openai:llm_auto-big; research is the model Red-link always uses. Every Plan Tool question is one request built fresh from the pages, so changing model between runs carries no conversation and costs nothing extra.",
+        "x-fedwiki-read-only": true,
+        "responses": {
+          "200": {
+            "description": "{ default, defaultFrom, research, doors: [{ door, url?, error?, models: [{ id, name, contextLength, loaded?, reasoning?, selector?, routesTo? }] }], auto }"
           }
         }
       }
