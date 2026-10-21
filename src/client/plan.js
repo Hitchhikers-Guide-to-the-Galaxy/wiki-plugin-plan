@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -126,6 +126,29 @@ const STYLE = `
 .plan-tool .plan-index-report p{margin:4px 0}
 .plan-tool .plan-index-report ul{margin:0 0 4px}
 .plan-tool .plan-index-report .plan-refused{color:#a00}
+.plan-tool .plan-revise .plan-refused{color:#a00}
+.plan-tool .plan-ways{margin:4px 0 8px}
+.plan-tool .plan-way{display:block;border:1px solid #ddd;border-radius:5px;padding:5px 8px 5px 26px;margin:4px 0;cursor:pointer;position:relative;background:#fff}
+.plan-tool .plan-way input{position:absolute;left:7px;top:8px;margin:0}
+.plan-tool .plan-way:hover{border-color:#9ab;background:#f7faff}
+.plan-tool .plan-way.plan-chosen{border-color:#2a63bd;background:#eef4ff}
+.plan-tool .plan-way-name{display:block;font-weight:bold}
+.plan-tool .plan-way-what{display:block;font-size:85%;color:#444;margin-top:1px}
+.plan-tool .plan-way-fact{display:block;font-size:80%;color:#a35a00;margin-top:2px}
+.plan-tool .plan-direction{margin:6px 0;font-size:90%}
+.plan-tool .plan-direction-label{font-weight:bold;margin-bottom:2px}
+.plan-tool .plan-direction-need{font-weight:normal;color:#777;font-size:90%}
+.plan-tool .plan-direction-text{width:100%;box-sizing:border-box;font-size:inherit;font-family:inherit;resize:vertical;border:1px solid #ccc;border-radius:4px;padding:4px}
+.plan-tool .plan-direction-main .plan-direction-text{border-color:#2a63bd;min-height:7em}
+.plan-tool .plan-direction-row{display:flex;align-items:center;gap:8px;margin-top:3px}
+.plan-tool .plan-direction-count{color:#777;font-size:85%}
+.plan-tool .plan-speak{font-size:inherit;border:1px solid #9c9;border-radius:4px;background:#f6fbf6;cursor:pointer;padding:2px 8px}
+.plan-tool .plan-revise-row{display:flex;align-items:center;gap:6px;margin:8px 0 2px;flex-wrap:wrap}
+.plan-tool .plan-revise-run{font-size:100%;padding:4px 12px;border-radius:5px;border:1px solid #2559a8;background:linear-gradient(#3a7ce0,#2a63bd);color:#fff;cursor:pointer}
+.plan-tool .plan-revise-run:disabled{background:#c9d4e6;border-color:#b5c2d6;cursor:default}
+.plan-tool .plan-revise .plan-agent{font-size:85%;color:#555}
+.plan-tool .plan-revise .plan-agent button{font-size:inherit}
+.plan-tool .plan-revise-how{margin-top:8px}
 `
 
 const shell = (opts, body) =>
@@ -235,7 +258,8 @@ const revisedHtml = (rev, title) => {
   const rewind = ` <button class="plan-rewind" data-rev="${rev.previous}" title="Open ${escapeHtml(label)} beside the plan as a ghost with the plan's title: fork it to rewind, or close it; nothing is written until you fork">Rewind</button>`
   // A rewind the plugin wrote before Rewind became a ghost to fork (0.4.0 drafts) still reads as one.
   const by = rev.model ? ` by ${escapeHtml(rev.model)}` : ''
-  const what = rev.kind === 'rewind' && Number.isInteger(rev.to) ? `Rewound ${day} to ${escapeHtml(revLabel(title, rev.to))}` : rev.kind === 'terms' || rev.kind === 'redlink' ? `Linked terms ${day}${by}` : `Revised ${day}${by}`
+  const way = rev.mode ? `, ${escapeHtml(reviseHowText(rev.mode))}` : ''
+  const what = rev.kind === 'rewind' && Number.isInteger(rev.to) ? `Rewound ${day} to ${escapeHtml(revLabel(title, rev.to))}` : rev.kind === 'terms' || rev.kind === 'redlink' ? `Linked terms ${day}${by}` : `Revised ${day}${way}${way && by ? ',' : ''}${by}`
   return `<p class="plan-revised">${what} · the version it replaced: ${link}${rewind}</p>`
 }
 
@@ -351,7 +375,7 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
       (st && st.complete ? icon('plan-finish-go', '✓', 'Finish Plan', "every checkpoint is ticked: write the plan's Conclusion section and its demo link") : '') +
       (next ? icon('plan-next-go', '▶', 'Do Next Phase', `put the plan's Do Phase button just after ${escapeHtml(next)}: clicking it opens a Claude Code session on this laptop and types the phase in, and you watch and approve the work there`) : '') +
       `<span class="plan-sep"></span>` +
-      icon('plan-revise-go', '✎', 'Revise Plan', "the model redrafts the plan from its answers, on a ghost with the plan's own title; Save overwrites the plan with a rewindable journal") +
+      icon('plan-revise-go', '✎', 'Revise Plan', "opens the Revise Plan tool beside the plan: choose how the model redrafts it — from the answers, from your direction (typed or spoken), to catch up with the work, or tidy only; the redraft is a ghost with the plan's own title, and forking it saves it over the plan through the journal") +
       (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
         ? icon('plan-site-go', '⧉', 'Revise Site', 'the model proposes a revision of the whole site from the answered questions: a ghost page with Go Ahead and Pause, nothing written until Go Ahead')
         : '') +
@@ -379,7 +403,7 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   })
   $box.on('click', '.plan-revise-go', e => {
     e.preventDefault()
-    runAgent($item, $subject, slug, 'revise')
+    wiki.doInternalLink(REVISE_PLAN, $item.parents('.page').first())
   })
   $box.on('click', '.plan-redlink-go', e => {
     e.preventDefault()
@@ -664,9 +688,9 @@ const byWhom = (A, model) => (A.auto && A.auto.model ? escapeHtml(autoLine(A.aut
 function paintAgent($item) {
   const A = agentOf($item)
   const $line = $item.find('.plan-agent')
-  $item.find('.plan-next-go, .plan-revise-go, .plan-site-go, .plan-redlink-go').prop('disabled', busy(A))
+  $item.find('.plan-next-go, .plan-revise-go, .plan-site-go, .plan-redlink-go, .plan-revise-run').prop('disabled', busy(A))
   if (!A || !$line.length) return
-  const name = AGENT_NAME[A.kind]
+  const name = A.kind === 'revise' && A.how ? `Revise Plan, ${reviseHowText(A.how.mode)}` : AGENT_NAME[A.kind]
   const what = A.phase ? ` on ${escapeHtml(A.phase.label)}` : ''
   const model = A.auto && A.auto.model ? `, ${escapeHtml(autoLine(A.auto))}` : A.model === 'auto' ? ', auto choosing the model' : A.model ? ` with ${escapeHtml(String(A.model).replace(/^claude-cli:/, ''))}` : ''
   let html = ''
@@ -707,8 +731,8 @@ function paintAgent($item) {
   } else if (A.kind === 'revise' && (A.state === 'done' || A.state === 'saving')) {
     const open = ghostIsOpen(A)
     html =
-      `Revise Plan: a redraft of ${escapeHtml(A.title)} ${byWhom(A, A.result.model)}, in ${secs(A.result.ms || 0)}, ` +
-      (open ? `open as a ghost with the plan's own title; nothing is written until Save.` : `its ghost is closed; Save still writes it.`) +
+      `${name}: a redraft of ${escapeHtml(A.title)} ${byWhom(A, A.result.model)}, in ${secs(A.result.ms || 0)}, ` +
+      (open ? `open as a ghost with the plan's own title; nothing is written until you fork it or Save.` : `its ghost is closed; Save still writes it.`) +
       ` <button class="plan-save-over" ${A.state === 'saving' ? 'disabled' : ''} title="Save overwrites the plan in place with a rewindable journal: the version it replaces stays in the journal as its _rev, and Rewind opens it beside the plan to fork back">Save over the plan</button>` +
       (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
   } else if (A.state === 'done' || A.state === 'saving') {
@@ -725,10 +749,10 @@ function paintAgent($item) {
 
 const apiError = (res, body) => `${res.status}: ${(body && body.error) || `the farm answered ${res.status}`}`
 
-async function runAgent($item, $subject, slug, kind) {
+async function runAgent($item, $subject, slug, kind, how = null) {
   if (busy(agentOf($item))) return
   SAVED.delete(slug)
-  const A = { kind, slug, state: 'posting', started: Date.now(), line: '', $subject }
+  const A = { kind, slug, state: 'posting', started: Date.now(), line: '', $subject, ...(how ? { how } : {}) }
   $item[0].planAgent = A
   paintAgent($item)
   let res
@@ -739,7 +763,7 @@ async function runAgent($item, $subject, slug, kind) {
       credentials: 'include',
       cache: 'no-cache',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ slug, ...(chosenModel() ? { model: chosenModel() } : {}) }),
+      body: JSON.stringify({ slug, ...(chosenModel() ? { model: chosenModel() } : {}), ...(how || {}) }),
     })
     body = await res.json().catch(() => null)
   } catch (err) {
@@ -804,7 +828,7 @@ const itemsOf = A => {
     A.kind === 'site'
       ? proposalItems({ markdown: A.result.markdown, planTitle: A.title, site: location.host, model: A.result.model })
       : A.kind === 'revise'
-        ? reviseItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model })
+        ? reviseItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model, ...(A.how || {}) })
         : reportItems({ kind: A.kind, markdown: A.result.markdown, planTitle: A.title, phaseLabel: A.phase ? A.phase.label : '', model: A.result.model }))
 }
 
@@ -1031,7 +1055,9 @@ function reopenPlan($item, $subject) {
     $subject.remove()
     wiki.doInternalLink(title, null)
   }
-  if (toolAfter) setTimeout(() => wiki.doInternalLink('Plan Tool', $('.page').last()), 600)
+  // The Plan Tool opens again after the plan; the Revise Plan page does not:
+  // the plan's own status line now says what was saved.
+  if (toolAfter && slugOf($tool) === 'plan-tool') setTimeout(() => wiki.doInternalLink('Plan Tool', $('.page').last()), 600)
 }
 
 const closeGhost = $ghost => {
@@ -1056,7 +1082,7 @@ async function saveOver($item, $subject) {
   paintAgent($item)
   let out
   try {
-    out = await postJSON('save-revision.json', { slug: A.slug, story: itemsOf(A), model: A.result.model, kind: A.kind })
+    out = await postJSON('save-revision.json', { slug: A.slug, story: itemsOf(A), model: A.result.model, kind: A.kind, ...(A.how || {}) })
   } catch (err) {
     return fail(`Could not reach the farm: ${err.message}`)
   }
@@ -1595,20 +1621,219 @@ async function showModels($item, opts, item) {
   paint(await modelsNow())
 }
 
+// ---------- the Revise Plan page (0.15.0) ----------
+//
+// ✎ on a plan's status line opens this page beside the plan instead of
+// starting a run: a plan item with REVISE, shipped as a page of this plugin,
+// that looks left for the plan. It offers the four ways (REVISE_WAYS in
+// core.js, reviseAsk in api/prompt.js) with what each does, a box for the
+// owner's direction, typed or spoken through the Voice Tool, the model chip,
+// and Revise. The run is runAgent's, so the redraft opens to the right as a
+// ghost with the plan's own title, and its fork flag saves it over the plan
+// through the journal (guardGhost → saveOver), the old version its _rev.
+//
+// The form's choice and text are kept per plan in sessionStorage, so a
+// re-render or a trip to the Voice Tool loses nothing. The Voice Tool hands a
+// spoken direction back by the plan.direction event, or failing that by
+// sessionStorage (DIRECTION_KEY), read when this page renders.
+const REVISE_PLAN = 'Revise Plan'
+const RETURN_KEY = 'audionote.returnTo' // read by the Voice Tool (wiki-plugin-audionote 0.10.0)
+const DIRECTION_EVENT = 'plan:direction'
+const DIRECTION_KEY = slug => `plan.direction:${location.host}/${slug}`
+const FORM_KEY = slug => `plan.revise:${location.host}/${slug}`
+
+const WAY_GLYPH = { answers: '⟲', direction: '🎙', correct: '✓', tidy: '¶' }
+const WAY_WHAT = {
+  answers: 'Weave in what the answered questions decided. Only what an answer justifies changes; a question answered with a question is reworded so it says plainly what is being decided.',
+  direction: 'Say or type how the plan should change — add or drop a phase, split or merge, reorder, change the approach, correct a mistake. The model carries out your words; the answers still stand unless you say otherwise.',
+  correct: 'Check the plan against its phase reports, demos and linked pages: tick what they show done, reword steps that were done differently, correct stale facts. No new work is added.',
+  tidy: 'The house format only — one heading level with straps, one checkpoint per item, questions as red links. Nothing the plan says changes. A small job: the coop model does it well.',
+}
+
+const readForm = slug => {
+  try {
+    return JSON.parse(sessionStorage.getItem(FORM_KEY(slug)) || 'null') || {}
+  } catch {
+    return {}
+  }
+}
+const keepForm = (slug, f) => {
+  try {
+    sessionStorage.setItem(FORM_KEY(slug), JSON.stringify(f))
+  } catch {}
+}
+const takeVoiced = slug => {
+  try {
+    const t = sessionStorage.getItem(DIRECTION_KEY(slug))
+    if (t !== null) sessionStorage.removeItem(DIRECTION_KEY(slug))
+    return t
+  } catch {
+    return null
+  }
+}
+// Spoken words join what is typed already, a blank line between.
+const joinDirection = (had, more) => [String(had || '').trim(), String(more || '').trim()].filter(Boolean).join('\n\n')
+
+// What the plan offers each way, from its state: shown beneath the way.
+const wayFacts = (page, st) => {
+  const qs = st.questions || []
+  const titles = (page.story || []).flatMap(it => wikilinksIn(String((it && it.text) || '')))
+  const records = [...new Set(titles.filter(t => /\b(Report|Demo)$/.test(t)))]
+  return {
+    answers: qs.length
+      ? `${st.answered} of ${qs.length} question${qs.length === 1 ? '' : 's'} answered${st.queried ? `, ${st.queried} asked back` : ''}${st.answered ? '' : ' — nothing yet for this way to work from'}`
+      : 'the plan has no open questions — nothing for this way to work from',
+    direction: '',
+    correct: records.length ? `${records.length} report or demo page${records.length === 1 ? '' : 's'} linked, besides the plan's other links` : "no report or demo page linked: it checks against the plan's other links only",
+    tidy: '',
+  }
+}
+
+const reviseRefusal = $subject => {
+  if (!$subject) return null
+  if (!isHere($subject)) return 'is on another site: open it on its own site to revise it there'
+  if ($subject.hasClass('ghost')) return 'is a ghost, not a saved page'
+  if ($subject.hasClass('local')) return 'is a local draft in this browser, not saved on the site'
+  if (ownerHere() === false) return `can be revised only by the owner of ${location.host}: log in first`
+  return null
+}
+
+async function showRevise($item, opts, item) {
+  const { $subject, $left } = resolve($item, opts)
+  const $page = $item.parents('.page').first()
+  if (!$subject) {
+    const what = $left ? `The page to the left, <b>${escapeHtml(titleOfPage($left))}</b>, is not a plan.` : 'There is no page to the left.'
+    return $item.html(shell(opts, `<p class="plan-meta">${what} Open this page from a plan: press ✎ on the plan's status line, and it opens here beside it.</p>`))
+  }
+  const title = titleOfPage($subject)
+  const slug = slugOf($subject)
+  const link = internal(title, slug, siteOfPage($subject))
+  let page
+  try {
+    page = await pageJson($subject)
+  } catch (err) {
+    return $item.html(shell(opts, `<p class="plan-error">Could not read ${escapeHtml(title)}: ${escapeHtml(err.message)}</p>`))
+  }
+  const site = siteOfPage($subject)
+  const st = planState(page, await knownSlugs(site), asSlug, await linkedQuestions(page, site))
+  const facts = wayFacts(page, st)
+  const refused = reviseRefusal($subject)
+  const name = `plan-way-${item.id}`
+  const form = readForm(slug)
+  const voiced = takeVoiced(slug)
+  if (voiced) Object.assign(form, { direction: joinDirection(form.direction, voiced), mode: !form.mode || form.mode === 'answers' ? 'direction' : form.mode })
+  const mode = REVISE_WAYS[form.mode] ? form.mode : 'answers'
+  keepForm(slug, { ...form, mode })
+
+  const way = key =>
+    `<label class="plan-way${key === mode ? ' plan-chosen' : ''}"><input type="radio" name="${name}" value="${key}"${key === mode ? ' checked' : ''}>` +
+    `<span class="plan-way-name">${WAY_GLYPH[key]} ${escapeHtml(REVISE_WAYS[key].label)}</span>` +
+    `<span class="plan-way-what">${escapeHtml(WAY_WHAT[key])}</span>` +
+    (facts[key] ? `<span class="plan-way-fact">${escapeHtml(facts[key])}</span>` : '') +
+    `</label>`
+
+  $item.html(
+    shell(
+      opts,
+      `<div class="plan-revise">` +
+        `<p class="plan-subject">Revise ${link}</p>` +
+        (refused ? `<p class="plan-refused">${escapeHtml(title)} ${escapeHtml(refused)}.</p>` : '') +
+        `<div class="plan-ways">${Object.keys(REVISE_WAYS).map(way).join('')}</div>` +
+        `<div class="plan-direction">` +
+        `<div class="plan-direction-label">Your direction <span class="plan-direction-need"></span></div>` +
+        `<textarea class="plan-direction-text" rows="5" placeholder="For example: merge Phases 2 and 3; drop the Taiga wiki pull, it moves to its own plan; add a phase for the 4 November meeting, after Phase 1."></textarea>` +
+        `<div class="plan-direction-row"><button class="plan-speak" title="Open the Voice Tool beside this page with the question Direction for ${escapeHtml(title)}: speak (or type), then press its ↩ Use as the direction button and the words land in this box">🎙 Speak it…</button>` +
+        `<span class="plan-direction-count"></span></div>` +
+        `</div>` +
+        `<div class="plan-revise-row"><button class="plan-revise-run" title="Ask the model for the redraft. It opens to the right as a ghost with the plan's own title; nothing is written until you fork it">✎ Revise</button>${modelChip()}</div>` +
+        `<span class="plan-agent"></span>` +
+        `<p class="plan-meta plan-revise-how">The redraft opens to the right as a ghost page with the plan's own title, its first line saying how it was made. Read it, compare, close it, or revise again. Fork it to adopt it: it is saved over ${escapeHtml(title)} in place through the journal, one entry per change, each saying how the plan was revised, and the version it replaced is one click back from the plan's status line (Rewind).</p>` +
+        `</div>`,
+    ),
+  )
+
+  const $text = $item.find('.plan-direction-text').val(form.direction || '')
+  const paintForm = () => {
+    const f = readForm(slug)
+    const m = REVISE_WAYS[f.mode] ? f.mode : 'answers'
+    const text = String(f.direction || '').trim()
+    $item.find('.plan-way').each((_, el) => el.classList.toggle('plan-chosen', el.querySelector('input').value === m))
+    $item
+      .find('.plan-direction-need')
+      .text(m === 'direction' ? '— needed for this way' : '— optional: added to the chosen way, and it takes precedence')
+    $item.find('.plan-direction').toggleClass('plan-direction-main', m === 'direction')
+    $item.find('.plan-direction-count').text(text ? `${text.length.toLocaleString('en')} characters` : '')
+    const busyNow = busy(agentOf($item))
+    $item.find('.plan-revise-run').prop('disabled', !!refused || busyNow || (m === 'direction' && !text))
+    $item.find('.plan-revise-run').text(`✎ Revise, ${reviseHowText(m)}`)
+  }
+  const update = patch => {
+    keepForm(slug, { ...readForm(slug), ...patch })
+    paintForm()
+  }
+  $item.find(`input[name="${name}"]`).on('change', e => update({ mode: e.target.value }))
+  $text.on('input', () => update({ direction: $text.val() }))
+  $item.find('.plan-speak').on('click', e => {
+    e.preventDefault()
+    const question = `Direction for ${title}`
+    try {
+      sessionStorage.setItem(WAITING_FOR_KEY, question)
+      sessionStorage.setItem(RETURN_KEY, JSON.stringify({ title: question, event: DIRECTION_EVENT, key: DIRECTION_KEY(slug), slug, site: location.host, plan: title, label: '↩ Use as the direction' }))
+    } catch (_) {}
+    wiki.doInternalLink('Voice Tool', $page)
+  })
+  $item.find('.plan-revise-run').on('click', e => {
+    e.preventDefault()
+    const f = readForm(slug)
+    const how = { mode: REVISE_WAYS[f.mode] ? f.mode : 'answers', direction: String(f.direction || '').trim() }
+    runAgent($item, $subject, slug, 'revise', how).then(paintForm)
+    paintForm()
+  })
+  $item.find('.plan-revise').on('click', '.plan-save-over', e => {
+    e.preventDefault()
+    saveOver($item, $subject)
+  })
+  $item.find('.plan-model').on('click', e => {
+    e.preventDefault()
+    wiki.doInternalLink(MODEL_SETTINGS, $page)
+  })
+  // The Voice Tool's ↩ Use as the direction, while this page is open.
+  if ($item[0].planVoiced) window.removeEventListener(DIRECTION_EVENT, $item[0].planVoiced)
+  const onVoiced = ev => {
+    if (!document.body.contains($item[0])) return window.removeEventListener(DIRECTION_EVENT, onVoiced)
+    const d = (ev && ev.detail) || {}
+    if (d.slug !== slug || (d.site && d.site !== location.host)) return
+    takeVoiced(slug) // handed over here, so not again on the next render
+    const f = readForm(slug)
+    const text = joinDirection(f.direction, d.text)
+    keepForm(slug, { ...f, direction: text, mode: !f.mode || f.mode === 'answers' ? 'direction' : f.mode })
+    $text.val(text)
+    $item.find(`input[name="${name}"][value="${readForm(slug).mode}"]`).prop('checked', true)
+    paintForm()
+    $text[0].scrollIntoView({ block: 'nearest' })
+  }
+  $item[0].planVoiced = onVoiced
+  window.addEventListener(DIRECTION_EVENT, onVoiced)
+  paintChips()
+  paintForm()
+  paintAgent($item)
+}
+
 // ---------- the item ----------
 
 // Which face, and the page whose state it reads.
 const resolve = ($item, opts) => {
   const $page = $item.parents('.page').first()
-  const $left = opts.subject && $page.length ? leftSubject($page) : null
+  const $left = (opts.subject || opts.revise) && $page.length ? leftSubject($page) : null
   const which = face(opts, { ownTitle: $page.length ? titleOfPage($page) : null, leftTitle: $left ? titleOfPage($left) : null })
-  return { which, $subject: which === 'status' ? $page : which === 'subject' ? $left : null }
+  const leftPlan = $left && isPlanTitle(titleOfPage($left)) ? $left : null
+  return { which, $subject: which === 'status' ? $page : which === 'subject' ? $left : which === 'revise' ? leftPlan : null, $left }
 }
 
 export const emit = ($item, item) => {
   const opts = parse(item.text)
   const { which, $subject } = resolve($item, opts)
-  const what = which === 'models' ? 'the models this farm can ask' : which === 'list' ? `the plans on ${escapeHtml(opts.site || location.host)}` : `${escapeHtml(titleOfPage($subject))}`
+  const what = which === 'models' ? 'the models this farm can ask' : which === 'revise' ? ($subject ? escapeHtml(titleOfPage($subject)) : 'the page to the left') : which === 'list' ? `the plans on ${escapeHtml(opts.site || location.host)}` : `${escapeHtml(titleOfPage($subject))}`
   $item.html(shell(opts, `<p class="plan-meta">Reading ${what}…</p>`))
 }
 
@@ -1616,6 +1841,7 @@ const render = ($item, item) => {
   const opts = parse(item.text)
   const { which, $subject } = resolve($item, opts)
   if (which === 'models') return showModels($item, opts, item)
+  if (which === 'revise') return showRevise($item, opts, item)
   if (which === 'list') {
     const note = opts.subject ? 'Nothing to the left is a plan, so: ' : ''
     return showList($item, opts, note).then(() => attachActions($item, opts))
@@ -1676,8 +1902,10 @@ export const bind = ($item, item) => {
   // when one lands, a little after the last; drop the handler once this item
   // has left the page.
   let timer = null
-  // The list face reads only its own site, so it does not listen.
-  if (resolve($item, parse(item.text)).which === 'list') return
+  // The list face reads only its own site, so it does not listen; the Revise
+  // Plan form would lose what is being typed in it.
+  const which = resolve($item, parse(item.text)).which
+  if (which === 'list' || which === 'revise') return
   const again = () => {
     if (!document.body.contains($item[0])) return $('body').off('new-neighbor-done', again)
     clearTimeout(timer)

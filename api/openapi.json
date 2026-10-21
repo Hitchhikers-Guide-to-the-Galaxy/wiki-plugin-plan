@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.7.1",
+    "version": "0.15.0",
     "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link. Red-link finds the plan's links that have no page behind them on this farm, question links and the Open Questions section left alone, and as a job researches each on the web through the door (WebSearch and WebFetch only) and writes its page, a new page with one journaled create each."
   },
   "paths": {
@@ -116,8 +116,8 @@
     "/revise.json": {
       "post": {
         "operationId": "revise",
-        "summary": "Revise Plan: ask the Claude door to redraft the plan given its answered questions, as a job",
-        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The model is asked to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section. The redraft is kept in the job and nothing is written: the tool opens it as a ghost with the plan's own title, carrying the plan's opener, its plan item second, the redrafted body and the plan's own timeline, Assets and See unchanged, and Save over the plan (save-revision.json) writes it. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "summary": "Revise Plan: ask the door to redraft the plan — from its answered questions, from the owner's direction, to catch up with the work done, or to tidy its format — as a job",
+        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The way is the mode: answers (the default) asks the model to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section; direction asks it to carry out the owner's direction instead, keeping ticks unless told otherwise; correct asks it to tick what the record shows done and correct what it contradicts, adding no work; tidy asks for the house format only and sends neither linked pages nor answers. A direction given with any mode is quoted after the material as the owner's words. The redraft is kept in the job and nothing is written: the tool opens it as a ghost with the plan's own title, carrying the plan's opener, its plan item second, the redrafted body and the plan's own timeline, Assets and See unchanged, and Save over the plan (save-revision.json) writes it. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
         "x-fedwiki-writes": true,
         "x-fedwiki-spends": true,
         "x-fedwiki-context": [
@@ -142,6 +142,20 @@
                   "model": {
                     "type": "string",
                     "description": "The model to ask, any id the door accepts (claude-…, claude-cli:claude-…, ollama:…, openai:…); left out, the farm's PLAN_MODEL, else openai:llm_auto-big (the LLM coop)."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "answers",
+                      "direction",
+                      "correct",
+                      "tidy"
+                    ],
+                    "description": "How to redraft (0.15.0): answers, the default, weaves in what the answered questions decided; direction follows the owner's own words in direction (typed, or spoken through the Voice Tool), the answers still standing; correct brings the plan up to date with the work its phase reports and linked pages record, ticking what they show done and rewording what was done differently, adding no new work; tidy rewrites the plan into the house format without changing what it says, and sends no linked pages or answers."
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "The owner's direction, up to 8,000 characters: required for mode direction, and with any other mode an addition that takes precedence. It is sent to the model as the request, quoted after the material, and opens the ghost as a quote."
                   }
                 }
               }
@@ -153,7 +167,7 @@
             "description": "{ job, status: 'running', kind, slug, title, phase, reportTitle, model, session, started } at once; poll job.json with the job id."
           },
           "400": {
-            "description": "Not a slug, or the page is not a plan."
+            "description": "Not a slug, the page is not a plan, not a mode, a direction over 8,000 characters, or mode direction with no direction."
           },
           "403": {
             "description": "The caller may not edit this site, or the farm marks this operation refused on public sites (the farm's write gate)."
@@ -421,6 +435,20 @@
                       "redlink"
                     ],
                     "description": "What made the ghost: revise (Revise Plan, the default). terms and redlink, the 0.5.0 and 0.6.0 names of a term-linking revision, are still accepted so old journals read."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "answers",
+                      "direction",
+                      "correct",
+                      "tidy"
+                    ],
+                    "description": "The way the redraft was asked for, recorded on every journal entry's planTool field and in its provenance; answers when left out."
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "The owner's direction the redraft carried out, kept once, on the revision's first journal entry (planTool.direction, up to 2,000 characters), as the record of why."
                   }
                 }
               }

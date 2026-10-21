@@ -34,13 +34,13 @@
 // subject is true only for an explicit SUBJECT line; face() below decides
 // what a bare item does from the page it sits on. SKILLS and STATUS do not
 // change the face: a status item that names skills is still the status line.
-export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS', 'CONTEXT']
+export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS', 'CONTEXT', 'REVISE']
 
 /** The text a new plan item carries, and the text an empty one is given when its editor opens. */
 export const DEFAULT_TEXT = 'STATUS'
 
 export const parse = text => {
-  const out = { subject: false, status: false, models: false, context: 'fresh', site: null, limit: null, skills: [], caption: '', commands: 0 }
+  const out = { subject: false, status: false, models: false, revise: false, context: 'fresh', site: null, limit: null, skills: [], caption: '', commands: 0 }
   const caption = []
   for (const raw of (text || '').split('\n')) {
     const line = raw.trim()
@@ -54,6 +54,7 @@ export const parse = text => {
     if (key === 'SUBJECT') out.subject = true
     if (key === 'STATUS') out.status = true
     if (key === 'MODELS') out.models = true
+    if (key === 'REVISE') out.revise = true
     if (key === 'CONTEXT') out.context = /^carry$/i.test(args[0] || '') ? 'carry' : 'fresh'
     if (key === 'SITE') out.site = (args[0] || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null
     if (key === 'LIMIT') {
@@ -190,6 +191,9 @@ export const summarise = (entry, page) => {
 //           item on a page that is not a plan. The Phase 1 list.
 export const face = (opts, { ownTitle = null, leftTitle = null } = {}) => {
   if (opts.models) return 'models'
+  // REVISE: the Revise Plan tool page (0.15.0), opened by ✎ beside a plan; it
+  // looks left for the plan and says so when there is none.
+  if (opts.revise) return 'revise'
   if (opts.site) return 'list'
   if (opts.subject) return isPlanTitle(leftTitle) ? 'subject' : 'list'
   return isPlanTitle(ownTitle) ? 'status' : 'list'
@@ -295,7 +299,7 @@ export const windowLabel = n => {
 // Tool pages the look-left walks past: audionote's TOOL_SLUGS (voice.js) plus
 // this plugin's own Plan Tool, so a Voice Tool or the ☰ menu between the plan
 // and the Plan Tool does not hide the plan.
-export const TOOL_SLUGS = new Set(['selected-plugin-pages', 'voice-tool', 'search-tool', 'like-this-page', 'plan-tool', 'model-settings'])
+export const TOOL_SLUGS = new Set(['selected-plugin-pages', 'voice-tool', 'search-tool', 'like-this-page', 'plan-tool', 'model-settings', 'revise-plan'])
 
 // wiki-client's asSlug (lib/page.js): whitespace to hyphens, every other
 // character outside [A-Za-z0-9-] deleted. The browser uses wiki.asSlug when it
@@ -1586,7 +1590,7 @@ export const revisionLosses = (page, story) => {
   return { lostQuestions, tasks, warning: parts.length ? `${parts.join('; ')}. Revise again with a stronger model (⚙), or save and add them back by hand.` : '' }
 }
 
-export const reviseItems = ({ page, markdown, model = '', date = today(), id = randomHex }) => {
+export const reviseItems = ({ page, markdown, model = '', date = today(), id = randomHex, mode = '', direction = '' }) => {
   const title = String((page && page.title) || '')
   const { plans, body, tail } = planParts(page)
   const oldIds = new Set(body.map(it => it.id))
@@ -1629,11 +1633,21 @@ export const reviseItems = ({ page, markdown, model = '', date = today(), id = r
     type: 'markdown',
     id: id(),
     text:
-      `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${by}, ${date}. Save over the plan writes this page, less this line, over [[${title}]] in place through its journal: the version it replaces stays in the journal as its _rev, and Rewind opens that beside the plan to fork back.` +
+      `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${mode ? `, ${reviseHowText(mode)}${by ? ',' : ''}` : ''}${by}, ${date}. Fork this ghost (or Save over the plan) to write it, less this line, over [[${title}]] in place through its journal: the version it replaces stays in the journal as its _rev, and Rewind opens that beside the plan to fork back.` +
+      (String(direction || '').trim() ? `\n\n${quoteLines(String(direction).trim(), 600)}` : '') +
       (lost.warning ? `\n\n**Check before you save:** ${lost.warning}` : ''),
   }
   const opener = out.length && TEXT_TYPES.has(out[0].type) && !isHeadingItem(out[0]) ? [out.shift()] : []
   return [line, ...opener, ...plans.map(it => ({ ...it })), ...out, ...tail.map(it => ({ ...it }))]
+}
+
+// The direction on the ghost's first line, as a markdown quote, cut short.
+const quoteLines = (text, cap) => {
+  const t = text.length > cap ? `${text.slice(0, cap).replace(/\s+\S*$/, '')} …` : text
+  return t
+    .split('\n')
+    .map(l => `> ${l}`.trimEnd())
+    .join('\n')
 }
 
 /** The story Save writes: the ghost's, less its first line. */
@@ -1720,7 +1734,18 @@ export const revSlug = (title, n, slug = asSlug) => `${slug(title)}_rev${n}`
 // 'redlink' is the 0.5.0 name of 'terms', kept so a journal written then still reads.
 export const REVISION_KINDS = ['revise', 'terms', 'redlink']
 
-export const writeRevision = (page, story, { model = '', date = Date.now(), kind = 'revise' } = {}) => {
+// The four ways Revise Plan redrafts (0.15.0; reviseAsk in api/prompt.js).
+// `how` finishes "Revised …" on the status line and in the journal.
+export const REVISE_WAYS = {
+  answers: { label: 'From the answers', how: 'from the answers' },
+  direction: { label: 'From your direction', how: "from the owner's direction" },
+  correct: { label: 'Catch up with the work', how: 'to catch up with the work done' },
+  tidy: { label: 'Tidy only', how: 'to tidy its format' },
+}
+export const reviseHowText = mode => (REVISE_WAYS[mode] || REVISE_WAYS.answers).how
+const DIRECTION_KEPT = 2000 // characters of the direction kept on the journal, once
+
+export const writeRevision = (page, story, { model = '', date = Date.now(), kind = 'revise', mode = '', direction = '' } = {}) => {
   if (!REVISION_KINDS.includes(kind)) throw new Error(`not a kind of revision: ${kind}`)
   const before = page && Array.isArray(page.story) ? page.story.filter(Boolean) : []
   const reconcile = reconcileJournal(page, { date })
@@ -1730,10 +1755,13 @@ export const writeRevision = (page, story, { model = '', date = Date.now(), kind
   const provenance =
     kind === 'terms' || kind === 'redlink'
       ? `Linked through the Plan Tool's Create Red Links${who}: terms a reader may not know made [[links]], saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
-      : `Revised through the Plan Tool's Revise Plan${who}, saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
-  const extra = { planTool: { kind, previous, ...(model ? { model: String(model).replace(/^claude-cli:/, '') } : {}) } }
+      : `Revised through the Plan Tool's Revise Plan${mode ? `, ${reviseHowText(mode)},` : ''}${who}, saved over the plan; the version it replaces is ${revLabel(page.title, previous)}.`
+  const extra = { planTool: { kind, previous, ...(mode ? { mode } : {}), ...(model ? { model: String(model).replace(/^claude-cli:/, '') } : {}) } }
   const r = reviseJournal(before, story, { provenance, date, extra })
   if (!r.actions.length) return { page, actions: [], reconcile, previous, changed: false }
+  // The owner's words, once, on the revision's first entry: the record of why.
+  const said = String(direction || '').trim()
+  if (said) r.actions[0] = { ...r.actions[0], planTool: { ...r.actions[0].planTool, direction: said.slice(0, DIRECTION_KEPT) } }
   const out = { ...page, story: r.story, journal: [...journal, ...r.actions] }
   if (!same(storyAt(out, previous), before)) throw new Error(`the journal would not give back the plan as it was at ${revLabel(page.title, previous)}`)
   if (!same(storyAt(out), out.story)) throw new Error('the journal would not replay to the revised story')

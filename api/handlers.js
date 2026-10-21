@@ -51,7 +51,7 @@ import { ask, door, isModelId, listModels, contextOf, estimateTokens, autoModel,
 
 import { isPlanTitle, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt, planState, autoTier, autoLine, AUTO, AUTO_RULE } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
-import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM } from './prompt.js'
+import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM, REVISE_MODES, DIRECTION_CAP } from './prompt.js'
 
 const problem = (status, message) => Object.assign(new Error(message), { status })
 
@@ -547,11 +547,38 @@ export async function next({ slug, phase, model, origin, status } = {}) {
   return start({ kind: 'next', origin, status, slug: p.slug, site: p.site, page: p.page, phase: chosen, session, model })
 }
 
-/** Revise Plan: the whole plan to the door, asked to redraft it given the answered questions. */
-export async function revise({ slug, model, origin, status } = {}) {
+/** A revise run's way and the owner's words, checked: 400 before anything is claimed. */
+export const reviseHow = ({ mode, direction } = {}, { saving = false } = {}) => {
+  const m = mode === undefined || mode === null || mode === '' ? 'answers' : String(mode)
+  if (!REVISE_MODES.includes(m)) throw problem(400, `not a way to revise a plan: ${m.slice(0, 40)}; one of ${REVISE_MODES.join(', ')}`)
+  const d = String(direction || '').replace(/\r\n?/g, '\n').trim()
+  if (d.length > DIRECTION_CAP) throw problem(400, `the direction is ${d.length.toLocaleString('en')} characters; keep it under ${DIRECTION_CAP.toLocaleString('en')}, or save it as a page and link it from the plan`)
+  if (m === 'direction' && !d && !saving) throw problem(400, 'From your direction needs the direction: type it, or speak it through the Voice Tool, then revise')
+  return { mode: m, direction: d }
+}
+
+/**
+ * Revise Plan: the whole plan to the door, asked to redraft it — from the
+ * answered questions (the default), from the owner's direction, to catch up
+ * with the work done, or to tidy its format (0.15.0, reviseAsk in prompt.js).
+ */
+export async function revise({ slug, model, mode, direction, origin, status } = {}) {
+  const how = reviseHow({ mode, direction })
   const p = readPlan(status, origin, slug)
-  const session = `Plan Tool: Revise Plan ${origin}/${p.slug}`
-  return start({ kind: 'revise', origin, status, slug: p.slug, site: p.site, page: p.page, phase: null, session, model })
+  const session = `Plan Tool: Revise Plan${how.mode === 'answers' ? '' : ` (${how.mode})`} ${origin}/${p.slug}`
+  return start({
+    kind: 'revise',
+    origin,
+    status,
+    slug: p.slug,
+    site: p.site,
+    page: p.page,
+    phase: null,
+    session,
+    model,
+    meta: how,
+    build: () => buildContent({ kind: 'revise', page: p.page, phase: null, origin, siteDir: p.site, ...how }),
+  })
 }
 
 // ======================================================================
@@ -1226,7 +1253,7 @@ const writeOver = ({ origin, status, slug, session, holdOff, make }) => {
 }
 
 /** Save over the plan: the revise ghost's story written over the plan, journaled, the old version its _rev. */
-export async function saveRevision({ slug, story, model, kind, origin, status } = {}) {
+export async function saveRevision({ slug, story, model, kind, mode, direction, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
   const how = kind === undefined || kind === null || kind === '' ? 'revise' : String(kind)
   if (!REVISION_KINDS.includes(how)) throw problem(400, `not a kind of revision: ${kind}; one of ${REVISION_KINDS.join(', ')}`)
@@ -1238,7 +1265,7 @@ export async function saveRevision({ slug, story, model, kind, origin, status } 
     slug: p.slug,
     session: `Plan Tool: Save over the plan ${origin}/${p.slug}`,
     holdOff: `Save over the plan is writing ${origin}/${p.slug}`,
-    make: page => writeRevision(page, want, { model: model || '', kind: how }),
+    make: page => writeRevision(page, want, { model: model || '', kind: how, ...(how === 'revise' ? reviseHow({ mode, direction }, { saving: true }) : {}) }),
   })
 }
 

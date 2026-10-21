@@ -570,7 +570,7 @@ test('8: Revise Plan\'s ghost has the plan\'s own title and carries the whole pa
   let n = 0
   const ghost = reviseItems({ page, markdown: REDRAFT, model: 'claude-cli:claude-opus-5-5', date: '2026-10-15', id: () => `g${n++}` })
   assert.match(ghost[0].text, REVISE_LINE_RE)
-  assert.match(ghost[0].text, /^Proposed revision of \[\[Toy Plan\]\] through the \[\[Plan Tool\]\]'s Revise Plan by claude-opus-5-5, 2026-10-15\. Save over the plan writes this page/)
+  assert.match(ghost[0].text, /^Proposed revision of \[\[Toy Plan\]\] through the \[\[Plan Tool\]\]'s Revise Plan by claude-opus-5-5, 2026-10-15\. Fork this ghost \(or Save over the plan\) to write it/)
   const story = revisedStory(ghost)
   assert.equal(story.length, ghost.length - 1)
   assert.equal(story[0].text, 'A plan for the toy garden, the bed raised.')

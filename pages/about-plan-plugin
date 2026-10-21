@@ -209,7 +209,7 @@
     {
       "type": "markdown",
       "id": "96b9244852e9f79a",
-      "text": "The status line is one row of icons: \u27f3 Update Plan, \u2713 Finish Plan and \u25b6 Do Next Phase ask no model; past the bar, \u270e Revise Plan, \u29c9 Revise Site and \u2315 Red-link do. Each icon's name and purpose is its tooltip. The \u2699 chip at the end names the model \u270e and \u29c9 (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` \u2014 the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
+      "text": "The status line is one row of icons: \u27f3 Update Plan, \u2713 Finish Plan and \u25b6 Do Next Phase ask no model; past the bar, \u270e Revise Plan, \u29c9 Revise Site and \u2315 Red-link do. Each icon's name and purpose is its tooltip. \u270e opens the [[Revise Plan]] page beside the plan, a plan item with REVISE, where the way to revise is chosen \u2014 from the answers, from the owner's direction, to catch up with the work, or tidy only \u2014 before anything is sent. The \u2699 chip at the end names the model \u270e and \u29c9 (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` \u2014 the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
     },
     {
       "type": "markdown",
@@ -1167,6 +1167,17 @@
       "after": "938c5ecc73167ae5",
       "date": 1792528536301,
       "provenance": "Auto Model Plan, Phase 6 \u2014 Claude Code, 2026-10-20"
+    },
+    {
+      "type": "edit",
+      "id": "96b9244852e9f79a",
+      "item": {
+        "type": "markdown",
+        "id": "96b9244852e9f79a",
+        "text": "The status line is one row of icons: \u27f3 Update Plan, \u2713 Finish Plan and \u25b6 Do Next Phase ask no model; past the bar, \u270e Revise Plan, \u29c9 Revise Site and \u2315 Red-link do. Each icon's name and purpose is its tooltip. \u270e opens the [[Revise Plan]] page beside the plan, a plan item with REVISE, where the way to revise is chosen \u2014 from the answers, from the owner's direction, to catch up with the work, or tidy only \u2014 before anything is sent. The \u2699 chip at the end names the model \u270e and \u29c9 (and Go Ahead) will ask, and opens [[Model Settings]] beside the plan: a plan item with MODELS, which lists what each door reaches, live, from `GET /system/api/plan/models.json` \u2014 the LLM coop's open models with their context windows and whether they are loaded, the Claude models, and Ollama's. The choice is kept in the browser, per site; nothing chosen means the farm's default, `PLAN_MODEL`, else `openai:llm_auto-big`, which uses whichever big model the coop has loaded."
+      },
+      "date": 1792596573560,
+      "provenance": "wiki-plugin-plan 0.15.0: \u270e opens the Revise Plan page."
     }
   ],
   "plugin": "plan"

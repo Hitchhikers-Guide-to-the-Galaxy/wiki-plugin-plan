@@ -1,0 +1,137 @@
+{
+  "title": "Revise Plan",
+  "story": [
+    {
+      "type": "paragraph",
+      "id": "4586165f93f54e62",
+      "text": "Choose how the model redrafts a plan, then press Revise. Opened by ✎ on a plan's status line, it reads the plan to its left."
+    },
+    {
+      "type": "plan",
+      "id": "f78b0ed0737853c1",
+      "text": "REVISE"
+    },
+    {
+      "type": "markdown",
+      "id": "ae6563b5212dd0f2",
+      "text": "# Four Ways\n> Each keeps the house format and the plan's status line, timeline, Assets and See."
+    },
+    {
+      "type": "markdown",
+      "id": "591e4c9f031f1abe",
+      "text": "- *From the answers* weaves in what the answered open questions decided.\n- *From your direction* carries out what you type or say — the main way to change a plan by hand.\n- *Catch up with the work* checks the plan against its phase reports and linked pages, ticks what they show done and corrects what has gone stale.\n- *Tidy only* fixes the format and changes nothing the plan says."
+    },
+    {
+      "type": "markdown",
+      "id": "73aeab2b022cecfe",
+      "text": "A direction given with any other way is added to it and takes precedence. To speak it, press 🎙 Speak it: the [[Voice Tool]] opens beside this page with the question *Direction for* the plan; speak or type, then press its ↩ Use as the direction button and the words land in the box here."
+    },
+    {
+      "type": "markdown",
+      "id": "2f259de355050f9b",
+      "text": "# Where Things Go\n> Nothing is written until you fork the ghost."
+    },
+    {
+      "type": "markdown",
+      "id": "ff78e3a681f188d7",
+      "text": "The redraft opens to the right as a ghost page with the plan's own title; its first line says how it was made, and quotes your direction. Fork it to adopt it: it is saved over the plan in place through the journal, one entry per change, each recording the way it was revised, the first also keeping your direction's words. The version it replaced stays in the journal, and the plan's status line links it, with Rewind to fork it back. Closing the ghost writes nothing."
+    },
+    {
+      "type": "markdown",
+      "id": "cd36b1358167fd63",
+      "text": "What you choose and type here is kept in this browser tab per plan, so a trip to the Voice Tool loses nothing."
+    },
+    {
+      "type": "markdown",
+      "id": "f54133fcf9dfbf15",
+      "text": "# Privacy\n> The plan and your direction go to the model you choose."
+    },
+    {
+      "type": "markdown",
+      "id": "d3666da9e4f915fc",
+      "text": "The plan, the pages it links and your direction are sent to the model on the ⚙ chip: the LLM coop's open models, or Claude on the farm's account ([[Model Settings]]). A spoken direction is transcribed by the Voice Tool first; the recording is kept only if you ask it to. Only the site's owner can revise."
+    },
+    {
+      "type": "markdown",
+      "id": "eea270d83f00ed3a",
+      "text": "# See"
+    },
+    {
+      "type": "markdown",
+      "id": "68d29174306ea1a8",
+      "text": "- [[Plan Tool]]\n- [[Model Settings]]\n- [[About Plan Plugin]]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "Revise Plan",
+        "story": [
+          {
+            "type": "paragraph",
+            "id": "4586165f93f54e62",
+            "text": "Choose how the model redrafts a plan, then press Revise. Opened by ✎ on a plan's status line, it reads the plan to its left."
+          },
+          {
+            "type": "plan",
+            "id": "f78b0ed0737853c1",
+            "text": "REVISE"
+          },
+          {
+            "type": "markdown",
+            "id": "ae6563b5212dd0f2",
+            "text": "# Four Ways\n> Each keeps the house format and the plan's status line, timeline, Assets and See."
+          },
+          {
+            "type": "markdown",
+            "id": "591e4c9f031f1abe",
+            "text": "- *From the answers* weaves in what the answered open questions decided.\n- *From your direction* carries out what you type or say — the main way to change a plan by hand.\n- *Catch up with the work* checks the plan against its phase reports and linked pages, ticks what they show done and corrects what has gone stale.\n- *Tidy only* fixes the format and changes nothing the plan says."
+          },
+          {
+            "type": "markdown",
+            "id": "73aeab2b022cecfe",
+            "text": "A direction given with any other way is added to it and takes precedence. To speak it, press 🎙 Speak it: the [[Voice Tool]] opens beside this page with the question *Direction for* the plan; speak or type, then press its ↩ Use as the direction button and the words land in the box here."
+          },
+          {
+            "type": "markdown",
+            "id": "2f259de355050f9b",
+            "text": "# Where Things Go\n> Nothing is written until you fork the ghost."
+          },
+          {
+            "type": "markdown",
+            "id": "ff78e3a681f188d7",
+            "text": "The redraft opens to the right as a ghost page with the plan's own title; its first line says how it was made, and quotes your direction. Fork it to adopt it: it is saved over the plan in place through the journal, one entry per change, each recording the way it was revised, the first also keeping your direction's words. The version it replaced stays in the journal, and the plan's status line links it, with Rewind to fork it back. Closing the ghost writes nothing."
+          },
+          {
+            "type": "markdown",
+            "id": "cd36b1358167fd63",
+            "text": "What you choose and type here is kept in this browser tab per plan, so a trip to the Voice Tool loses nothing."
+          },
+          {
+            "type": "markdown",
+            "id": "f54133fcf9dfbf15",
+            "text": "# Privacy\n> The plan and your direction go to the model you choose."
+          },
+          {
+            "type": "markdown",
+            "id": "d3666da9e4f915fc",
+            "text": "The plan, the pages it links and your direction are sent to the model on the ⚙ chip: the LLM coop's open models, or Claude on the farm's account ([[Model Settings]]). A spoken direction is transcribed by the Voice Tool first; the recording is kept only if you ask it to. Only the site's owner can revise."
+          },
+          {
+            "type": "markdown",
+            "id": "eea270d83f00ed3a",
+            "text": "# See"
+          },
+          {
+            "type": "markdown",
+            "id": "68d29174306ea1a8",
+            "text": "- [[Plan Tool]]\n- [[Model Settings]]\n- [[About Plan Plugin]]"
+          }
+        ]
+      },
+      "date": 1792596320652,
+      "provenance": "Shipped with wiki-plugin-plan 0.15.0."
+    }
+  ]
+}

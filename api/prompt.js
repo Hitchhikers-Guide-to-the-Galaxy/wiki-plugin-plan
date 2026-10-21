@@ -152,32 +152,116 @@ const nextAsk = (title, phase) =>
 // answer, so the question stays open and Revise Plan rewords it.
 const queryBlock = q => `<query question="${attr(q.title)}" note="a reply that asks back; the question is not answered">\n${q.query}\n</query>`
 
-const reviseAsk = title =>
-  [
+// The four ways to revise a plan (0.15.0). Each keeps the house format and
+// the tool's own parts (status line, timeline, Assets, See); they differ in
+// what may change and on whose word.
+//   answers   — what the answered questions decided (the only way before 0.15.0)
+//   direction — the owner's own words, typed or spoken through the Voice Tool
+//   correct   — catch up with the work: the phase reports and linked pages say
+//               what was done; tick it, reword what was done differently
+//   tidy      — the house format only; nothing the plan says changes
+export const REVISE_MODES = ['answers', 'direction', 'correct', 'tidy']
+export const DIRECTION_CAP = 8000 // characters of the owner's direction
+
+const KEEP_PARTS =
+  '- Do not repeat the plan\'s title as a heading. Leave out the status line (the "*[plan item]*" line), the timeline, the Assets and the See sections, and any [[link]] to a report or revision page: the tool keeps them, putting the plan\'s own status line second, its timeline back in its section, and its Assets and See sections at the end, unchanged, around your redraft.'
+const AS_GHOST =
+  '- Your redraft is offered as a ghost with the plan\'s own title; when it is saved it overwrites the plan in place, through the journal, so write the whole plan as it should then read.'
+const WHOLE =
+  '- The whole plan, every section from the opening paragraph to Open Questions, in the house format: phases as "# Phase N" headings, each checkpoint its own "- [ ]" line with a blank line between checkpoints, and Open Questions as "- [ ] [[Question?]] gloss" lines, red question links.'
+const KEEP_ANSWERS = '- An answered Open Questions line keeps its "*Answer: …*" as written, so the record of the decision stays on the plan.'
+const QUERY_RULE =
+  '- A reply tagged as a query asks back instead of answering: rewrite that question\'s gloss so it says plainly what is being decided, what each choice would mean and why it matters, drop the query reply, and leave the line "- [ ]" unticked.'
+const changedSection = justify =>
+  `- End with a section headed "# What Changed" with the strap line "> Against the plan as it stands." and one bullet per change, ${justify}; or the single bullet "- nothing" when nothing needed to change.`
+
+// The owner's words, quoted outside the material tags: they ARE the request.
+const directionBlock = (direction, lead) => (direction ? [lead, '', '"""', direction, '"""', ''] : [])
+
+export const reviseAsk = (title, { mode = 'answers', direction = '' } = {}) => {
+  const d = String(direction || '').trim()
+  if (mode === 'direction')
+    return [
+      `Redraft the plan "${title}" as its owner directs. The direction below is the owner's own, given through the Plan Tool, and it is the request: follow it. It may ask to add, drop, split, merge or reorder phases or checkpoints, change the approach, reword, or anything else about the plan.`,
+      '',
+      ...directionBlock(d, "The owner's direction:"),
+      'Markdown, and nothing else:',
+      '',
+      WHOLE,
+      '- Change what the direction asks for, and what follows from it; carry everything else over as it stands.',
+      '- Keep every tick that exists ("- [x]" stays "- [x]" with its words unchanged) unless the direction says otherwise about that checkpoint.',
+      '- The answers above still stand. Where the direction goes against an answer, follow the direction, and say so in What Changed.',
+      KEEP_ANSWERS,
+      '- A question the direction raises, or leaves open, becomes a new Open Questions line.',
+      KEEP_PARTS,
+      AS_GHOST,
+      changedSection('saying which part of the direction it carries out'),
+      '',
+      HOUSE,
+    ].join('\n')
+  if (mode === 'correct')
+    return [
+      `Bring the plan "${title}" up to date with the work done on it. The pages above — phase reports, demos, the pages it links, the answers — are the record of what was actually done. Check the plan against them and correct it. Markdown, and nothing else:`,
+      '',
+      WHOLE,
+      '- A checkpoint the record shows done becomes "- [x]"; name the page that shows it in What Changed. A checkpoint with no evidence stays as it is.',
+      '- A step the record shows was done differently from how the plan says is reworded to say what was done.',
+      '- A fact, name, version, address or date the record contradicts is corrected to what the record says.',
+      '- A checkpoint the record shows was abandoned or superseded stays unticked with "(dropped: reason)" at its end; it is not deleted.',
+      '- Add no new work. Where the record shows work the plan never named, add it as a ticked checkpoint in the phase it belongs to, and say so.',
+      '- Keep every tick that exists.',
+      KEEP_ANSWERS,
+      KEEP_PARTS,
+      AS_GHOST,
+      changedSection('naming the page that justifies it'),
+      '',
+      ...directionBlock(d, 'The owner adds this, which takes precedence:'),
+      HOUSE,
+    ].join('\n')
+  if (mode === 'tidy')
+    return [
+      `Rewrite the plan "${title}" into the house format, without changing what it says. Markdown, and nothing else:`,
+      '',
+      WHOLE,
+      '- Change the form only: headings and their straps, one checkpoint per line, stray text moved under the phase it belongs to, Open Questions as red question links, no bold, no hard wraps, no "##".',
+      '- Keep every word that carries meaning. Do not add, drop, merge or reorder checkpoints or questions; do not tick or untick anything.',
+      KEEP_ANSWERS,
+      KEEP_PARTS,
+      AS_GHOST,
+      changedSection('naming what was out of format'),
+      '',
+      ...directionBlock(d, 'The owner adds this, which takes precedence:'),
+      HOUSE,
+    ].join('\n')
+  return [
     `Redraft the plan "${title}" given the answers to its open questions: the answer pages and the answers written on the question lines above. Markdown, and nothing else:`,
     '',
-    '- The whole plan, every section from the opening paragraph to Open Questions, in the house format: phases as "# Phase N" headings, each checkpoint its own "- [ ]" line with a blank line between checkpoints, and Open Questions as "- [ ] [[Question?]] gloss" lines, red question links.',
+    WHOLE,
     '- Keep every tick that exists: a "- [x]" line stays "- [x]" with its words unchanged.',
     '- Change only what the answers justify, and carry everything else over as it stands. A new question an answer raises becomes a new Open Questions line.',
-    '- An answered Open Questions line keeps its "*Answer: …*" as written, so the record of the decision stays on the plan.',
-    '- A reply tagged as a query asks back instead of answering: rewrite that question\'s gloss so it says plainly what is being decided, what each choice would mean and why it matters, drop the query reply, and leave the line "- [ ]" unticked. This is the one tick you may remove.',
-    '- Do not repeat the plan\'s title as a heading. Leave out the status line (the "*[plan item]*" line), the timeline, the Assets and the See sections, and any [[link]] to a report or revision page: the tool keeps them, putting the plan\'s own status line second, its timeline back in its section, and its Assets and See sections at the end, unchanged, around your redraft.',
-    '- Your redraft is offered as a ghost with the plan\'s own title; when it is saved it overwrites the plan in place, through the journal, so write the whole plan as it should then read.',
-    '- End with a section headed "# What Changed" with the strap line "> Against the plan as it stands." and one bullet per change, naming the answer page or the answered question that justifies it; or the single bullet "- nothing" when no answer justifies a change.',
+    KEEP_ANSWERS,
+    QUERY_RULE + ' This is the one tick you may remove.',
+    KEEP_PARTS,
+    AS_GHOST,
+    changedSection('naming the answer page or the answered question that justifies it'),
     '',
+    ...directionBlock(d, 'The owner adds this, which takes precedence:'),
     HOUSE,
   ].join('\n')
+}
 
 /**
  * The content for one run. kind 'next' needs `phase` (choosePhase's answer);
  * 'revise' does not. Answers {content, account}: account says which skills
  * and pages went in, which were skipped, and the size.
  */
-export const buildContent = ({ kind, page, phase = null, origin, siteDir, skillsFrom } = {}) => {
+export const buildContent = ({ kind, page, phase = null, origin, siteDir, skillsFrom, mode = 'answers', direction = '' } = {}) => {
   const title = page.title
   const { skills, refused } = skillsOf(page)
   const sk = readSkills(skills, refused, skillsFrom)
-  const linked = readLinked(siteDir, page)
+  // Tidy changes the form only: the linked pages and answers would be tokens spent for nothing.
+  const tidy = kind === 'revise' && mode === 'tidy'
+  const linked = tidy ? { pages: [], over: [] } : readLinked(siteDir, page)
 
   const parts = []
   parts.push(
@@ -194,12 +278,12 @@ export const buildContent = ({ kind, page, phase = null, origin, siteDir, skills
     parts.push(`<page title="${attr(p.title)}" role="${role}">\n${p.text.trim()}\n</page>`)
   }
   if (linked.over.length) parts.push(`<note>Linked pages left out, over the budget: ${linked.over.join('; ')}.</note>`)
-  const { questions } = questionsFor(siteDir, page)
+  const { questions } = tidy ? { questions: [] } : questionsFor(siteDir, page)
   const inline = questions.filter(q => q.by === 'inline')
   const queries = questions.filter(q => q.query)
   for (const q of inline) parts.push(`<answer question="${attr(q.title)}" written="on the question's line">\n${q.answer}\n</answer>`)
   for (const q of queries) parts.push(queryBlock(q))
-  parts.push(kind === 'revise' ? reviseAsk(title) : nextAsk(title, phase))
+  parts.push(kind === 'revise' ? reviseAsk(title, { mode, direction }) : nextAsk(title, phase))
 
   const content = parts.join('\n\n')
   return {
@@ -210,6 +294,7 @@ export const buildContent = ({ kind, page, phase = null, origin, siteDir, skills
       pages: linked.pages.map(p => ({ title: p.title, role: p.role, bytes: p.bytes })),
       inlineAnswers: inline.map(q => q.title),
       queries: queries.map(q => q.title),
+      ...(kind === 'revise' ? { mode, direction: !!String(direction || '').trim() } : {}),
       over: linked.over,
       bytes: Buffer.byteLength(content),
     },
