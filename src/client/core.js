@@ -34,13 +34,13 @@
 // subject is true only for an explicit SUBJECT line; face() below decides
 // what a bare item does from the page it sits on. SKILLS and STATUS do not
 // change the face: a status item that names skills is still the status line.
-export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS', 'CONTEXT', 'REVISE']
+export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS', 'CONTEXT', 'REVISE', 'RUNNER']
 
 /** The text a new plan item carries, and the text an empty one is given when its editor opens. */
 export const DEFAULT_TEXT = 'STATUS'
 
 export const parse = text => {
-  const out = { subject: false, status: false, models: false, revise: false, context: 'fresh', site: null, limit: null, skills: [], caption: '', commands: 0 }
+  const out = { subject: false, status: false, models: false, revise: false, context: 'fresh', runner: null, site: null, limit: null, skills: [], caption: '', commands: 0 }
   const caption = []
   for (const raw of (text || '').split('\n')) {
     const line = raw.trim()
@@ -56,6 +56,10 @@ export const parse = text => {
     if (key === 'MODELS') out.models = true
     if (key === 'REVISE') out.revise = true
     if (key === 'CONTEXT') out.context = /^carry$/i.test(args[0] || '') ? 'carry' : 'fresh'
+    // RUNNER <command>: the phase button boots that command with site, slug and phase,
+    // and types no brief — the runner builds its own from the plan page (Federated
+    // Agent Plan, Phase 2). A bare command name only, so a page cannot smuggle a shell.
+    if (key === 'RUNNER') out.runner = /^[a-z][a-z0-9-]{0,40}$/.test(args[0] || '') ? args[0] : null
     if (key === 'SITE') out.site = (args[0] || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null
     if (key === 'LIMIT') {
       const n = parseInt(args[0], 10)
@@ -2008,15 +2012,32 @@ const shellSafe = s => String(s || '').replace(/['"`$\\]/g, '').replace(/\s+/g, 
 export const buttonSession = (slug, phase = null, { carry = false } = {}) =>
   carry || !phase ? `${slug}-agent` : `${slug}-${asSlug(phase.label) || 'phase'}`
 
+/** RUNNER on the plan's own status item: a command name, or null for the watched Claude session. */
+export const planRunner = page => {
+  const status = (page && Array.isArray(page.story) ? page.story : []).find(it => it && it.type === 'plan')
+  return status ? parse(status.text).runner : null
+}
+
 /** CONTEXT on the plan's own status item: 'carry' or 'fresh' (the default). */
 export const planContext = page => {
   const status = (page && Array.isArray(page.story) ? page.story : []).find(it => it && it.type === 'plan')
   return status ? parse(status.text).context : 'fresh'
 }
 
-export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report, carry = false, previousReport = '', nextPhase = null }) => {
+export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report, carry = false, previousReport = '', nextPhase = null, runner = null }) => {
   const label = phase.label
   const origin = String(base).replace(/^https?:\/\//, '').replace(/\/$/, '')
+  if (runner && /^[a-z][a-z0-9-]{0,40}$/.test(runner)) {
+    // An unattended run in its own checkout: no `cd ~`, no typed brief. The runner
+    // reads the plan's Pre-authorised and Ask First lists and refuses to start
+    // unless this item is signed (wiki-sign-item sign <site> <slug>).
+    return [
+      'BUTTON: show',
+      `LABEL: Do ${label}`,
+      `SESSION: ${buttonSession(slug, phase)}`,
+      `BOOT: ${runner} ${origin.replace(/:\d+$/, '')} ${slug} "${shellSafe(label)}"`,
+    ].join('\n')
+  }
   const t = shellSafe(title)
   const r = shellSafe(report)
   const prev = shellSafe(previousReport)

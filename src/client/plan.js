@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -606,7 +606,7 @@ async function placeButton($item, $subject, slug, $box) {
     const previousReport = before ? reportTitle({ kind: 'next', planTitle: plan.title, phaseLabel: before.label }) : ''
     const session = buttonSession(slug, phase, { carry })
     const nextPhase = phasesOf(plan).find(p => p.number !== null && phase.number !== null && p.number > phase.number) || null
-    const text = phaseButtonText({ title: plan.title, slug, base: location.origin, phase, reportTitle: report, carry, previousReport, nextPhase })
+    const text = phaseButtonText({ title: plan.title, slug, base: location.origin, phase, reportTitle: report, carry, previousReport, nextPhase, runner: planRunner(plan) })
     const want = buttonPlacement(plan, phase, text)
     const $story = $subject.find('.story:first')
     let id

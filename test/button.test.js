@@ -87,3 +87,21 @@ test('phaseButtonText: a fresh session reads the previous report and names the n
   assert.ok(!/fresh session/.test(carried[6]))
   assert.match(carried[6], /keeping SESSION toy-plan-agent since the plan carries context/)
 })
+
+import { planRunner } from '../src/client/core.js'
+
+test('RUNNER on the status item: the button boots the runner in its own checkout, signed-grant ready, with no typed brief', () => {
+  assert.equal(parse('STATUS\nRUNNER plan-run').runner, 'plan-run')
+  assert.equal(parse('STATUS\nRUNNER rm -rf ~').runner, 'rm')
+  assert.equal(parse('STATUS\nRUNNER $(curl x)').runner, null)
+  assert.equal(parse('STATUS\nRUNNER ../bin/x').runner, null)
+  assert.equal(planRunner({ story: [{ type: 'plan', id: 'p', text: 'STATUS\nRUNNER plan-run' }] }), 'plan-run')
+  assert.equal(planRunner({ story: [{ type: 'plan', id: 'p', text: 'STATUS' }] }), null)
+  const p = plan()
+  const phase = choosePhase(p)
+  const text = phaseButtonText({ title: p.title, slug: 'bobs-toy-plan', base: 'http://intake.localhost:4242', phase, reportTitle: 'R', runner: 'plan-run' })
+  assert.deepEqual(text.split('\n'), ['BUTTON: show', 'LABEL: Do Phase 2', 'SESSION: bobs-toy-plan-phase-2', 'BOOT: plan-run intake.localhost bobs-toy-plan "Phase 2"'])
+  assert.ok(!/cd ~/.test(text))
+  // an unsafe runner name falls back to the watched session
+  assert.match(phaseButtonText({ title: p.title, slug: 'bobs-toy-plan', base: 'https://t.x', phase, reportTitle: 'R', runner: 'a;b' }), /BOOT: cd ~ && claude/)
+})
