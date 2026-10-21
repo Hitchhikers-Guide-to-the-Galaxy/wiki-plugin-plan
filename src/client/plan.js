@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -361,6 +361,7 @@ const ownerHere = () => (typeof window.isOwner === 'boolean' ? window.isOwner : 
 const answerOf = $item => ($item[0] && $item[0].planAnswer) || null
 
 const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
+  if ($subject && $subject.length) watchPage($subject)
   if (!$subject || !$subject.length || !isHere($subject) || ownerHere() === false) return
   if ($subject.hasClass('ghost') || $subject.hasClass('local')) return
   const slug = slugOf($subject)
@@ -1287,6 +1288,83 @@ const answerHtml = (r, site) => {
   return parts.join(' · ')
 }
 
+// ---------- following the file (0.15.3) ----------
+//
+// The plan on the farm changes behind the tab: a Do Phase run ticks its
+// checkpoints through the journal, adds its report rows and moves its button;
+// Update Plan ticks answered questions; another tab edits. syncLineup makes
+// the page in the lineup match the file: changed items re-emitted, new ones
+// drawn, removed ones taken away, all in the file's order, from the first
+// difference on (lineupSync in core.js says where). An item open in the
+// editor is never touched (renderFrom skips .textEditing), and a page with
+// one open is left alone until the editor closes.
+const freshPage = slug =>
+  fetch(`/${slug}.json`, { cache: 'no-store', credentials: 'include', headers: { Accept: 'application/json' } })
+    .then(r => (r.ok ? r.json() : null))
+
+const syncLineup = async ($subject, fresh) => {
+  const $story = $subject.find('.story').first()
+  if (!$story.length || !fresh || !Array.isArray(fresh.story)) return -1
+  const raw = $subject.data('data')
+  const keep = () => {
+    if (raw && typeof raw === 'object') {
+      raw.story = fresh.story
+      raw.journal = fresh.journal
+    } else $subject.data('data', fresh)
+  }
+  if ($subject.find('.textEditing').length) return -1
+  const $now = $story.children('.item')
+  const shown = $now.toArray().map(el => $(el).data('item')).filter(Boolean)
+  const diff = lineupSync(shown, fresh.story)
+  keep()
+  if (!diff.changed) return -1
+  const byId = new Map($now.toArray().map(el => [el.getAttribute('data-id'), el]))
+  for (const it of fresh.story) {
+    if (!it || !it.id) continue
+    let el = byId.get(it.id)
+    if (el) byId.delete(it.id)
+    else el = $('<div class="item"></div>').addClass(it.type || 'paragraph').attr('data-id', it.id).data('pageElement', $subject)[0]
+    $(el).data('item', it)
+    $story.append(el)
+  }
+  for (const el of byId.values()) $(el).remove()
+  const $at = $story.children('.item').eq(Math.min(diff.first, $story.children('.item').length - 1))
+  const from = $at.length ? $('.item').index($at) : -1
+  if (from !== -1 && window.wiki && typeof wiki.renderFrom === 'function') await wiki.renderFrom(from)
+  return from
+}
+
+// While a plan page of this origin is open, look at its file every few
+// seconds (only while the tab is visible) and when the page comes back into
+// view, and follow it when its journal has moved. One watcher per page
+// element; it stops when the page leaves the lineup.
+const WATCH_MS = 8000
+const watchPage = $subject => {
+  const el = $subject && $subject[0]
+  if (!el || el.planWatch || !isHere($subject) || $subject.hasClass('ghost') || $subject.hasClass('local')) return
+  const slug = slugOf($subject)
+  if (!slug) return
+  const look = async () => {
+    if (!document.contains(el)) {
+      clearInterval(el.planWatch)
+      document.removeEventListener('visibilitychange', look)
+      el.planWatch = null
+      return
+    }
+    if (document.visibilityState !== 'visible' || el.planLooking) return
+    el.planLooking = true
+    try {
+      const fresh = await freshPage(slug)
+      if (fresh && journalMoved($subject.data('data'), fresh)) await syncLineup($subject, fresh)
+    } catch (_) {
+    } finally {
+      el.planLooking = false
+    }
+  }
+  el.planWatch = setInterval(look, WATCH_MS)
+  document.addEventListener('visibilitychange', look)
+}
+
 const runUpdate = async ($item, $subject, slug, $box) => {
   SAVED.delete(slug)
   const $answer = $box.find('.plan-answer').removeClass('plan-refused').text('Updating…')
@@ -1316,47 +1394,17 @@ const runUpdate = async ($item, $subject, slug, $box) => {
   }
   $item[0].planAnswer = { refused: false, html: answerHtml(body, site) }
 
-  // Read the page again and put it in the lineup: the subject's own data, then
-  // each ticked item re-emitted, which re-renders everything to its right.
+  // Read the page again and make the lineup match it (0.15.3): every item
+  // that differs, not only the ones this call ticked. A Do Phase run ticks
+  // its checkpoints, adds its tables and moves its button on the farm, and
+  // the tab must show all of that too.
   let fresh = null
   try {
-    fresh = await getJSON(`/${slug}.json`)
+    fresh = await freshPage(slug)
   } catch (_) {}
   if (fresh && Array.isArray(fresh.story)) {
-    const raw = $subject.data('data')
-    if (raw && typeof raw === 'object') {
-      raw.story = fresh.story
-      raw.journal = fresh.journal
-    } else $subject.data('data', fresh)
-    const ids = new Set(body.ticked.map(t => t.id))
-    let from = -1
-    for (const it of fresh.story) {
-      if (!it || !ids.has(it.id)) continue
-      const $it = $subject.find(`.item[data-id="${it.id}"]`).first()
-      if (!$it.length) continue
-      $it.data('item', it)
-      const i = $('.item').index($it)
-      if (from === -1 || i < from) from = i
-    }
-    // The button moved on (0.15.2): put it where the page now has it and draw it anew.
-    const mv = body.button && body.button.id && (body.button.moved || body.button.rewritten) ? body.button : null
-    if (mv) {
-      const pos = fresh.story.findIndex(it => it && it.id === mv.id)
-      const $b = $subject.find(`.item[data-id="${mv.id}"]`).first()
-      const $anchor = pos > 0 ? $subject.find(`.item[data-id="${fresh.story[pos - 1].id}"]`).first() : $()
-      if (pos !== -1 && $b.length && $anchor.length) {
-        $anchor.after($b)
-        $b.data('item', fresh.story[pos]).empty()
-        if (window.wiki && typeof wiki.doPlugin === 'function') wiki.doPlugin($b, fresh.story[pos])
-        const i = $('.item').index($b)
-        if (from === -1 || i < from) from = i
-      }
-    }
-    const self = $('.item').index($item)
-    if (from !== -1 && window.wiki && typeof wiki.renderFrom === 'function') {
-      await wiki.renderFrom(from)
-      if (self >= from) return // re-emitted with the rest, answer and all
-    }
+    const from = await syncLineup($subject, fresh)
+    if (from !== -1 && $('.item').index($item) >= from) return // re-emitted with the rest, answer and all
   }
   render($item, $item.data('item') || {})
 }

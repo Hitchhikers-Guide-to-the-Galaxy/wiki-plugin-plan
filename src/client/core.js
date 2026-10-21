@@ -2144,3 +2144,46 @@ export const buttonPlacement = (page, phase, text) => {
   const at = story.findIndex(it => it && it.id === after)
   return { add: false, edit: found.item.text !== text, move: found.index !== at + 1, after, existing: found.item }
 }
+
+/**
+ * What a page in the lineup must redraw to match the server's copy (0.15.3,
+ * David 2026-10-21: "after clicking Do Phase 1 everything was good but the
+ * checkboxes were not ticked"). A Do Phase run writes the plan on the farm
+ * through the journal, never through this browser; Update Plan did too, but
+ * redrew only the questions it ticked itself. So a plan open in a tab kept
+ * the boxes it loaded with, though the file had them ticked.
+ *
+ * `shown` is the story as drawn, in page order; `fresh` the server's story.
+ * `first` is the first story position that differs: an item changed, added,
+ * moved, or removed from before it. -1 when the two are the same.
+ */
+export const lineupSync = (shown, fresh) => {
+  const was = Array.isArray(shown) ? shown.filter(Boolean) : []
+  const now = Array.isArray(fresh) ? fresh.filter(Boolean) : []
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  const byId = new Map(was.map(it => [it.id, it]))
+  const freshIds = new Set(now.map(it => it.id))
+  let first = -1
+  const mark = i => { if (first === -1 || i < first) first = i }
+  now.forEach((it, i) => {
+    const before = byId.get(it.id)
+    if (!before || (was[i] && was[i].id) !== it.id || !same(before, it)) mark(i)
+  })
+  const removed = []
+  was.forEach((it, i) => {
+    if (freshIds.has(it.id)) return
+    removed.push(it.id)
+    mark(Math.min(i, Math.max(now.length - 1, 0)))
+  })
+  if (now.length !== was.length) mark(Math.max(Math.min(now.length, was.length) - 1, 0))
+  return { changed: first !== -1, first, removed, added: now.filter(it => !byId.has(it.id)).map(it => it.id) }
+}
+
+/** True when the server's journal has moved on from the copy in the lineup. */
+export const journalMoved = (raw, fresh) => {
+  const a = (raw && Array.isArray(raw.journal) && raw.journal) || []
+  const b = (fresh && Array.isArray(fresh.journal) && fresh.journal) || []
+  if (a.length !== b.length) return true
+  const last = j => (j.length ? `${j[j.length - 1].type}:${j[j.length - 1].date}:${j[j.length - 1].id || ''}` : '')
+  return last(a) !== last(b)
+}
