@@ -27,7 +27,7 @@ const textFor = page => {
 test('phaseButtonText: a BUTTON: show item for the next phase, its session, boot and guard, one shell-safe brief', () => {
   const { text } = textFor(plan())
   const lines = text.split('\n')
-  assert.deepEqual(lines.slice(0, 6), ['BUTTON: show', 'LABEL: Do Phase 2', 'SESSION: bobs-toy-plan-agent', 'BOOT: cd ~ && claude', 'GUARD: claude auth status', 'GUARDLABEL: Sign in to Claude first'])
+  assert.deepEqual(lines.slice(0, 6), ['BUTTON: show', 'LABEL: Do Phase 2', 'SESSION: bobs-toy-plan-phase-2', 'BOOT: cd ~ && claude', 'GUARD: claude auth status', 'GUARDLABEL: Sign in to Claude first'])
   assert.equal(lines.length, 7)
   const brief = lines[6]
   assert.ok(brief.startsWith('Do Phase 2 of the Bobs Toy Plan, https://toy.private.fish/view/bobs-toy-plan. '))
@@ -56,4 +56,34 @@ test('buttonPlacement: add after the last checkpoint; nothing when in place; edi
 
   // A plain terminal item, or a button not labelled Do …, is not the plan's button.
   assert.equal(findPhaseButton(plan([{ type: 'terminal', id: 't', text: 'RUN\nls' }, { type: 'terminal', id: 'u', text: 'BUTTON\nLABEL: Kill it\nx' }])), null)
+})
+
+// 0.14.0: a fresh Claude Code session per phase unless the plan says CONTEXT carry.
+import { planContext, parse, phasesOf } from '../src/client/core.js'
+
+test('buttonSession: fresh per phase by default, the shared session when the plan carries context', () => {
+  const phase = { label: 'Phase 2', number: 2 }
+  assert.equal(buttonSession('x-plan', phase), 'x-plan-phase-2')
+  assert.equal(buttonSession('x-plan', phase, { carry: true }), 'x-plan-agent')
+  assert.equal(parse('STATUS\nCONTEXT carry').context, 'carry')
+  assert.equal(parse('STATUS').context, 'fresh')
+  assert.equal(planContext({ story: [{ type: 'plan', id: 'p', text: 'STATUS\nCONTEXT carry' }] }), 'carry')
+  assert.equal(planContext({ story: [{ type: 'plan', id: 'p', text: 'STATUS' }] }), 'fresh')
+})
+
+test('phaseButtonText: a fresh session reads the previous report and names the next session; carry keeps one', () => {
+  const page = { title: 'Toy Plan', story: [md('h1', '# Phase 1\n> a.'), md('c1', '- [x] one'), md('h2', '# Phase 2\n> b.'), md('c2', '- [ ] two'), md('h3', '# Phase 3\n> c.'), md('c3', '- [ ] three')] }
+  const phase = choosePhase(page)
+  const [, next] = phasesOf(page).filter(p => p.number >= 2)
+  const fresh = phaseButtonText({ title: page.title, slug: 'toy-plan', base: 'https://t.x', phase, reportTitle: 'Toy Plan Phase 2 Report', previousReport: 'Toy Plan Phase 1 Report', nextPhase: next })
+  const lines = fresh.split('\n')
+  assert.equal(lines[2], 'SESSION: toy-plan-phase-2')
+  assert.match(lines[6], /This is a fresh session for this phase/)
+  assert.match(lines[6], /then Toy Plan Phase 1 Report if it exists/)
+  assert.match(lines[6], /with SESSION toy-plan-phase-3 so the next phase starts fresh/)
+  assert.ok(!/['"`$\\]/.test(lines[6]))
+  const carried = phaseButtonText({ title: page.title, slug: 'toy-plan', base: 'https://t.x', phase, reportTitle: 'R', carry: true, nextPhase: next }).split('\n')
+  assert.equal(carried[2], 'SESSION: toy-plan-agent')
+  assert.ok(!/fresh session/.test(carried[6]))
+  assert.match(carried[6], /keeping SESSION toy-plan-agent since the plan carries context/)
 })

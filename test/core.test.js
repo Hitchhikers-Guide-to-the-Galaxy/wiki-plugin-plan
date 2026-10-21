@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { parse, isPlanTitle, ticks, summarise, openQuestions, lastEdit, byRecent, headingOf, face, asSlug, sections, questionsOf, unlinkedFiles, linkTitles, audit, forkSites, planState, trashable } from '../src/client/core.js'
 
 test('parse: commands, optional colon, caption, bare item', () => {
-  assert.deepEqual(parse('SUBJECT'), { subject: true, status: false, models: false, site: null, limit: null, skills: [], caption: '', commands: 1 })
+  assert.deepEqual(parse('SUBJECT'), { subject: true, status: false, models: false, context: 'fresh', site: null, limit: null, skills: [], caption: '', commands: 1 })
   const p = parse('Plans of the plan site\nSITE: plan.localhost\nLIMIT 5')
   assert.equal(p.site, 'plan.localhost')
   assert.equal(p.limit, 5)

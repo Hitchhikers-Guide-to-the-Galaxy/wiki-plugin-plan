@@ -34,13 +34,13 @@
 // subject is true only for an explicit SUBJECT line; face() below decides
 // what a bare item does from the page it sits on. SKILLS and STATUS do not
 // change the face: a status item that names skills is still the status line.
-export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS']
+export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS', 'CONTEXT']
 
 /** The text a new plan item carries, and the text an empty one is given when its editor opens. */
 export const DEFAULT_TEXT = 'STATUS'
 
 export const parse = text => {
-  const out = { subject: false, status: false, models: false, site: null, limit: null, skills: [], caption: '', commands: 0 }
+  const out = { subject: false, status: false, models: false, context: 'fresh', site: null, limit: null, skills: [], caption: '', commands: 0 }
   const caption = []
   for (const raw of (text || '').split('\n')) {
     const line = raw.trim()
@@ -54,6 +54,7 @@ export const parse = text => {
     if (key === 'SUBJECT') out.subject = true
     if (key === 'STATUS') out.status = true
     if (key === 'MODELS') out.models = true
+    if (key === 'CONTEXT') out.context = /^carry$/i.test(args[0] || '') ? 'carry' : 'fresh'
     if (key === 'SITE') out.site = (args[0] || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null
     if (key === 'LIMIT') {
       const n = parseInt(args[0], 10)
@@ -1970,23 +1971,44 @@ export const researchedOverStub = ({ stub, title, body, planTitle, model = '', d
 // not drawn yet, so the interpolated words lose quotes, backticks, $ and \.
 const shellSafe = s => String(s || '').replace(/['"`$\\]/g, '').replace(/\s+/g, ' ').trim()
 
-export const buttonSession = slug => `${slug}-agent`
+// Which Claude Code session a phase runs in (0.14.0, David 2026-10-21).
+// Fresh by default: one session per phase, <plan-slug>-<phase-slug>, so a
+// phase starts from the plan page and the reports, not from every earlier
+// phase's conversation (by Phase 1 of the Mood Board Plan the one shared
+// session sent ~230k tokens with every request). CONTEXT carry on the plan's
+// status item keeps the old shared <plan-slug>-agent, conversation and all.
+export const buttonSession = (slug, phase = null, { carry = false } = {}) =>
+  carry || !phase ? `${slug}-agent` : `${slug}-${asSlug(phase.label) || 'phase'}`
 
-export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report }) => {
+/** CONTEXT on the plan's own status item: 'carry' or 'fresh' (the default). */
+export const planContext = page => {
+  const status = (page && Array.isArray(page.story) ? page.story : []).find(it => it && it.type === 'plan')
+  return status ? parse(status.text).context : 'fresh'
+}
+
+export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report, carry = false, previousReport = '', nextPhase = null }) => {
   const label = phase.label
   const origin = String(base).replace(/^https?:\/\//, '').replace(/\/$/, '')
   const t = shellSafe(title)
   const r = shellSafe(report)
+  const prev = shellSafe(previousReport)
+  const session = buttonSession(slug, phase, { carry })
   const brief =
     `Do ${label} of the ${t}, ${String(base).replace(/\/$/, '')}/view/${slug}. ` +
-    `Read the plan page first, then do every unticked checkpoint of ${label}, in order, for real: write the code, run it, write the pages, and verify each one with a command before you count it done. ` +
+    (carry
+      ? `Read the plan page first, then do every unticked checkpoint of ${label}, in order, for real: write the code, run it, write the pages, and verify each one with a command before you count it done. `
+      : `This is a fresh session for this phase: what earlier phases did is on the plan page${prev ? ` and in ${prev}` : ' and in its phase reports'}, not in your memory. Read the plan page first${prev ? `, then ${prev} if it exists` : ''}, then do every unticked checkpoint of ${label}, in order, for real: write the code, run it, write the pages, and verify each one with a command before you count it done. `) +
     `The page files live on the machine whose farm serves ${origin}: write pages there through the journal with fedwiki-lib, and follow the fedwiki-plan skill. ` +
     `Ask me before any DNS change, anything on a public site, a farm restart, an npm publish, a git push or a message to anyone, and before any checkpoint that needs my decision. ` +
-    `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; tick each checkpoint you verified, one journal edit per item; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, or remove it after the final phase. Reset the site index after writing.`
+    `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; tick each checkpoint you verified, one journal edit per item; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, ` +
+    (carry
+      ? `keeping SESSION ${session} since the plan carries context, `
+      : `with SESSION ${nextPhase ? buttonSession(slug, nextPhase) : `${slug} and the next phase as a slug, joined by a hyphen`} so the next phase starts fresh, `) +
+    `or remove it after the final phase. Reset the site index after writing.`
   return [
     'BUTTON: show',
     `LABEL: Do ${label}`,
-    `SESSION: ${buttonSession(slug)}`,
+    `SESSION: ${session}`,
     'BOOT: cd ~ && claude',
     'GUARD: claude auth status',
     'GUARDLABEL: Sign in to Claude first',

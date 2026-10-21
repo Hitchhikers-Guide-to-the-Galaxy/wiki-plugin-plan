@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, modelLabel, windowLabel, autoLine, AUTO_RULE } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -575,7 +575,14 @@ async function placeButton($item, $subject, slug, $box) {
     const phase = choosePhase(plan)
     if (!phase) return say('Every checkpoint is ticked: there is no next phase.', true)
     const report = reportTitle({ kind: 'next', planTitle: plan.title, phaseLabel: phase.label })
-    const text = phaseButtonText({ title: plan.title, slug, base: location.origin, phase, reportTitle: report })
+    // Fresh session per phase unless the plan's status item says CONTEXT carry;
+    // a fresh one is pointed at the report of the phase before.
+    const carry = planContext(plan) === 'carry'
+    const before = phasesOf(plan).filter(p => p.number !== null && phase.number !== null && p.number < phase.number).pop()
+    const previousReport = before ? reportTitle({ kind: 'next', planTitle: plan.title, phaseLabel: before.label }) : ''
+    const session = buttonSession(slug, phase, { carry })
+    const nextPhase = phasesOf(plan).find(p => p.number !== null && phase.number !== null && p.number > phase.number) || null
+    const text = phaseButtonText({ title: plan.title, slug, base: location.origin, phase, reportTitle: report, carry, previousReport, nextPhase })
     const want = buttonPlacement(plan, phase, text)
     const $story = $subject.find('.story:first')
     let id
@@ -608,7 +615,7 @@ async function placeButton($item, $subject, slug, $box) {
       : ` <span class="plan-refused">The terminal service on this laptop did not answer this page. It runs only on the laptop, and a page from ${escapeHtml(location.host)} also needs the site listed in ~/.config/wiki-plugin-terminal/trust.json and the padlock opened on the button.</span>`
     say(
       `Do ${escapeHtml(phase.label)} is on the plan (${escapeHtml(did)}), just after its last checkpoint. ` +
-        `Click it: it opens a Claude Code session on this laptop (${escapeHtml(buttonSession(slug))}) and types the phase in. You watch the work and approve each step there; ` +
+        `Click it: it opens a Claude Code session on this laptop (${escapeHtml(session)}, ${carry ? 'carrying the conversation of earlier phases, as the plan says CONTEXT carry' : 'a fresh one for this phase; put CONTEXT carry on the plan item to keep one conversation'}) and types the phase in. You watch the work and approve each step there; ` +
         `the session ticks what it verified, writes ${internal(report, asSlug(report), location.host)} and moves the button on.` +
         ready,
     )
