@@ -1281,6 +1281,8 @@ const answerHtml = (r, site) => {
   if (r.ticked.length) parts.push(`Ticked ${r.ticked.length}: ${r.ticked.map(t => internal(t.title, t.slug, t.foundOn || site) + (t.by === 'inline' ? ' (answered on its line)' : '')).join('; ')}`)
   else parts.push('Nothing to tick')
   if (r.unanswered.length) parts.push(`still unanswered: ${r.unanswered.map(q => internal(q.title, q.slug, site) + (q.query ? ' (asked back)' : '')).join('; ')}`)
+  const b = r.button
+  if (b && b.id && (b.moved || b.rewritten)) parts.push(`the Do button moved on from ${escapeHtml(b.from || 'where it was')} to ${escapeHtml(b.to)}${b.unsigned ? ', unsigned now: sign it again before an unattended run' : ''}`)
   if (r.asset && r.asset.rendered) parts.push(`<a href="${escapeHtml(r.asset.path)}" target="_blank">markdown</a> ${r.asset.changed ? 're-rendered' : 'unchanged'}`)
   return parts.join(' · ')
 }
@@ -1335,6 +1337,20 @@ const runUpdate = async ($item, $subject, slug, $box) => {
       $it.data('item', it)
       const i = $('.item').index($it)
       if (from === -1 || i < from) from = i
+    }
+    // The button moved on (0.15.2): put it where the page now has it and draw it anew.
+    const mv = body.button && body.button.id && (body.button.moved || body.button.rewritten) ? body.button : null
+    if (mv) {
+      const pos = fresh.story.findIndex(it => it && it.id === mv.id)
+      const $b = $subject.find(`.item[data-id="${mv.id}"]`).first()
+      const $anchor = pos > 0 ? $subject.find(`.item[data-id="${fresh.story[pos - 1].id}"]`).first() : $()
+      if (pos !== -1 && $b.length && $anchor.length) {
+        $anchor.after($b)
+        $b.data('item', fresh.story[pos]).empty()
+        if (window.wiki && typeof wiki.doPlugin === 'function') wiki.doPlugin($b, fresh.story[pos])
+        const i = $('.item').index($b)
+        if (from === -1 || i < from) from = i
+      }
     }
     const self = $('.item').index($item)
     if (from !== -1 && window.wiki && typeof wiki.renderFrom === 'function') {
