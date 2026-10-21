@@ -2077,6 +2077,61 @@ export const findPhaseButton = page => {
 }
 
 /**
+ * Update Plan's half of the moving button rule (0.15.2, David 2026-10-21): when
+ * the plan already carries a phase button and every checkpoint of the phase it
+ * sits in is ticked — by a session, a runner or a hand that did not move it —
+ * the button moves on to the next unticked phase and is rewritten for it, as
+ * Do Next Phase would place it. Forward only: a button whose phase is still
+ * open, or that would go back, stays where it is; a plan with no button gets
+ * none. A rewritten item loses its signature, since a grant for one phase is
+ * not a grant for the next. Returns {page, moved} and leaves the page given
+ * untouched; moved is null when nothing changed.
+ */
+export const advanceButton = (page, { origin = '', slug: given = '', now = () => Date.now() } = {}) => {
+  const out = JSON.parse(JSON.stringify(page || {}))
+  out.story = Array.isArray(out.story) ? out.story : []
+  out.journal = Array.isArray(out.journal) ? out.journal : []
+  const none = reason => ({ page: out, moved: null, reason })
+  const found = findPhaseButton(out)
+  if (!found) return none('no phase button')
+  const at = id => out.story.findIndex(it => it && it.id === id)
+  const phases = phasesOf(out)
+  const holder = phases.filter(p => at(p.headingId) < found.index).pop() || null
+  if (holder && holder.done < holder.total) return none(`its phase, ${holder.label}, still has unticked checkpoints`)
+  const phase = choosePhase(out)
+  if (!phase) return none('every checkpoint is ticked')
+  if (holder && at(phase.headingId) <= at(holder.headingId)) return none('the next unticked phase is not after it')
+  const old = String(found.item.text || '')
+  const seen = old.match(/\s(https?:\/\/[^\s/]+)\/view\//)
+  const host = String(origin).replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  const base = seen ? seen[1] : `${/(^|\.)localhost(:\d+)?$/.test(host) ? 'http' : 'https'}://${host}`
+  const slug = given || asSlug(out.title || '')
+  const carry = planContext(out) === 'carry'
+  const before = phases.filter(p => p.number !== null && phase.number !== null && p.number < phase.number).pop()
+  const nextPhase = phases.find(p => p.number !== null && phase.number !== null && p.number > phase.number) || null
+  const text = phaseButtonText({
+    title: out.title, slug, base, phase, carry, nextPhase, runner: planRunner(out),
+    reportTitle: reportTitle({ kind: 'next', planTitle: out.title, phaseLabel: phase.label }),
+    previousReport: before ? reportTitle({ kind: 'next', planTitle: out.title, phaseLabel: before.label }) : '',
+  })
+  const want = buttonPlacement(out, phase, text)
+  if (!want.move && !want.edit) return none('already in place')
+  const item = out.story[found.index]
+  const signed = Boolean(item.signature)
+  if (want.move) {
+    out.story.splice(found.index, 1)
+    out.story.splice(at(want.after) + 1, 0, item)
+    out.journal.push({ type: 'move', id: item.id, order: out.story.map(it => it.id), date: now() })
+  }
+  if (want.edit) {
+    item.text = text
+    delete item.signature
+    out.journal.push({ type: 'edit', id: item.id, item: { ...item }, date: now() })
+  }
+  return { page: out, moved: { id: item.id, from: holder ? holder.label : null, to: phase.label, moved: want.move, rewritten: want.edit, unsigned: signed && want.edit } }
+}
+
+/**
  * What Do Next Phase must do to the plan so its button sits right after the
  * phase's last checkpoint item, with the text for that phase:
  * {add, edit, move, after, existing} — none of them when it already does.

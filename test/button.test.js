@@ -105,3 +105,67 @@ test('RUNNER on the status item: the button boots the runner in its own checkout
   // an unsafe runner name falls back to the watched session
   assert.match(phaseButtonText({ title: p.title, slug: 'bobs-toy-plan', base: 'https://t.x', phase, reportTitle: 'R', runner: 'a;b' }), /BOOT: cd ~ && claude/)
 })
+
+import { advanceButton } from '../src/client/core.js'
+
+// 0.15.2 — Update Plan moves the button on when its phase was ticked by something else.
+const threePhases = ({ button, ticks = ['x', 'x', ' ', ' '], status = 'STATUS' }) => ({
+  title: 'Toy Plan',
+  story: [
+    { type: 'plan', id: 'p', text: status },
+    md('h1', '# Phase 1\n> Begin.'),
+    md('c1', `- [${ticks[0]}] One`),
+    md('c2', `- [${ticks[1]}] Two`),
+    ...(button ? [button] : []),
+    md('h2', '# Phase 2\n> Then.'),
+    md('c3', `- [${ticks[2]}] Three`),
+    md('h3', '# Phase 3\n> Last.'),
+    md('c4', `- [${ticks[3]}] Four`),
+    md('hq', '# Open Questions'),
+    md('q1', '- [ ] [[Is it open?]]'),
+  ],
+  journal: [{ type: 'create', item: { title: 'Toy Plan', story: [] }, date: 1 }],
+})
+const phase1Button = base => {
+  const p = threePhases({})
+  const text = phaseButtonText({ title: 'Toy Plan', slug: 'toy-plan', base, phase: choosePhase(threePhases({ ticks: [' ', ' ', ' ', ' '] })), reportTitle: 'Toy Plan Phase 1 Report' })
+  return { type: 'terminal', id: 'b', text }
+}
+
+test('advanceButton: a button left on a finished phase moves to the next open phase and is rewritten for it', () => {
+  const page = threePhases({ button: phase1Button('https://toy.private.fish') })
+  const r = advanceButton(page, { origin: 'toy.private.fish', slug: 'toy-plan', now: () => 7 })
+  assert.deepEqual(r.moved, { id: 'b', from: 'Phase 1', to: 'Phase 2', moved: true, rewritten: true, unsigned: false })
+  const ids = r.page.story.map(i => i.id)
+  assert.equal(ids.indexOf('b'), ids.indexOf('c3') + 1)
+  const b = r.page.story.find(i => i.id === 'b')
+  assert.match(b.text, /LABEL: Do Phase 2/)
+  assert.match(b.text, /Do Phase 2 of the Toy Plan, https:\/\/toy\.private\.fish\/view\/toy-plan\./)
+  assert.deepEqual(r.page.journal.slice(1).map(e => e.type), ['move', 'edit'])
+  assert.deepEqual(r.page.journal[1].order, ids)
+  assert.equal(page.story.findIndex(i => i.id === 'b'), 4, 'the page given is untouched')
+})
+
+test('advanceButton: forward only, and never where the button is still wanted', () => {
+  // its phase still has an unticked checkpoint
+  assert.equal(advanceButton(threePhases({ button: phase1Button('https://t.x'), ticks: ['x', ' ', ' ', ' '] }), { slug: 'toy-plan' }).moved, null)
+  // no button: Update Plan does not add one
+  assert.equal(advanceButton(threePhases({}), { slug: 'toy-plan' }).moved, null)
+  // every checkpoint ticked: nowhere to go
+  assert.equal(advanceButton(threePhases({ button: phase1Button('https://t.x'), ticks: ['x', 'x', 'x', 'x'] }), { slug: 'toy-plan' }).moved, null)
+  // a button after Phase 3's checkpoints while Phase 2 is open would go backwards
+  const late = threePhases({ ticks: ['x', 'x', ' ', 'x'] })
+  late.story.splice(late.story.findIndex(i => i.id === 'c4') + 1, 0, { ...phase1Button('https://t.x') })
+  assert.equal(advanceButton(late, { slug: 'toy-plan' }).moved, null)
+})
+
+test('advanceButton: a signed runner button moves, is rewritten for the next phase, and loses its signature', () => {
+  const status = 'STATUS\nRUNNER plan-run'
+  const text = phaseButtonText({ title: 'Toy Plan', slug: 'toy-plan', base: 'http://intake.localhost', phase: choosePhase(threePhases({ ticks: [' ', ' ', ' ', ' '] })), reportTitle: 'R', runner: 'plan-run' })
+  const page = threePhases({ status, button: { type: 'terminal', id: 'b', text, signature: { alg: 'bip340', pubkey: 'aa', created_at: 1, sig: 'bb' } } })
+  const r = advanceButton(page, { origin: 'intake.localhost', slug: 'toy-plan' })
+  assert.equal(r.moved.unsigned, true)
+  const b = r.page.story.find(i => i.id === 'b')
+  assert.equal(b.signature, undefined)
+  assert.match(b.text, /BOOT: plan-run intake.localhost toy-plan "Phase 2"/)
+})
