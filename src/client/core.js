@@ -1174,10 +1174,16 @@ export const creditedSites = (page, host) => {
  * (a fork entry naming a site other than this one; the site-less fork a saved
  * ghost carries is not one), or credited to another site by its journal.
  */
-export const foreignOf = (page, host) => {
-  const forks = [...forkSites(page)].filter(s => s && s !== host)
+// `ours` (0.16.0): sites the farm knows to be this site's owner's too — on
+// the same farm with the same owner — so a fork from one of them (often a
+// script's seeded fork, there only so cross-site links resolve) is not
+// someone else's page. Gatekeeper Plan on plan.localhost was refused for a
+// seeded `fork localhost` until this.
+export const foreignOf = (page, host, ours = new Set()) => {
+  const mine = s => !s || s === host || ours.has(s)
+  const forks = [...forkSites(page)].filter(s => !mine(s))
   if (forks.length) return `forked from ${forks.join(', ')}`
-  const others = creditedSites(page, host).filter(s => s && s !== host)
+  const others = creditedSites(page, host).filter(s => !mine(s))
   if (others.length) return `credited to ${others.join(', ')}`
   return null
 }
@@ -1594,7 +1600,7 @@ export const revisionLosses = (page, story) => {
   return { lostQuestions, tasks, warning: parts.length ? `${parts.join('; ')}. Revise again with a stronger model (⚙), or save and add them back by hand.` : '' }
 }
 
-export const reviseItems = ({ page, markdown, model = '', date = today(), id = randomHex, mode = '', direction = '' }) => {
+export const reviseItems = ({ page, markdown, model = '', date = today(), id = randomHex, mode = '', direction = '', talk = 0 }) => {
   const title = String((page && page.title) || '')
   const { plans, body, tail } = planParts(page)
   const oldIds = new Set(body.map(it => it.id))
@@ -1637,7 +1643,7 @@ export const reviseItems = ({ page, markdown, model = '', date = today(), id = r
     type: 'markdown',
     id: id(),
     text:
-      `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${mode ? `, ${reviseHowText(mode)}${by ? ',' : ''}` : ''}${by}, ${date}. Fork this ghost (or Save over the plan) to write it, less this line, over [[${title}]] in place through its journal: the version it replaces stays in the journal as its _rev, and Rewind opens that beside the plan to fork back.` +
+      `Proposed revision of [[${title}]] through the [[Plan Tool]]'s Revise Plan${mode ? `, ${reviseHowText(mode)}${talk ? `, drawing on a talk of ${talk} turn${talk === 1 ? '' : 's'}` : ''}${by ? ',' : ''}` : ''}${by}, ${date}. Fork this ghost (or Save over the plan) to write it, less this line, over [[${title}]] in place through its journal: the version it replaces stays in the journal as its _rev, and Rewind opens that beside the plan to fork back.` +
       (String(direction || '').trim() ? `\n\n${quoteLines(String(direction).trim(), 600)}` : '') +
       (lost.warning ? `\n\n**Check before you save:** ${lost.warning}` : ''),
   }
@@ -1749,7 +1755,7 @@ export const REVISE_WAYS = {
 export const reviseHowText = mode => (REVISE_WAYS[mode] || REVISE_WAYS.answers).how
 const DIRECTION_KEPT = 2000 // characters of the direction kept on the journal, once
 
-export const writeRevision = (page, story, { model = '', date = Date.now(), kind = 'revise', mode = '', direction = '' } = {}) => {
+export const writeRevision = (page, story, { model = '', date = Date.now(), kind = 'revise', mode = '', direction = '', talk = 0 } = {}) => {
   if (!REVISION_KINDS.includes(kind)) throw new Error(`not a kind of revision: ${kind}`)
   const before = page && Array.isArray(page.story) ? page.story.filter(Boolean) : []
   const reconcile = reconcileJournal(page, { date })
@@ -1765,7 +1771,7 @@ export const writeRevision = (page, story, { model = '', date = Date.now(), kind
   if (!r.actions.length) return { page, actions: [], reconcile, previous, changed: false }
   // The owner's words, once, on the revision's first entry: the record of why.
   const said = String(direction || '').trim()
-  if (said) r.actions[0] = { ...r.actions[0], planTool: { ...r.actions[0].planTool, direction: said.slice(0, DIRECTION_KEPT) } }
+  if (said || talk) r.actions[0] = { ...r.actions[0], planTool: { ...r.actions[0].planTool, ...(said ? { direction: said.slice(0, DIRECTION_KEPT) } : {}), ...(talk ? { talk } : {}) } }
   const out = { ...page, story: r.story, journal: [...journal, ...r.actions] }
   if (!same(storyAt(out, previous), before)) throw new Error(`the journal would not give back the plan as it was at ${revLabel(page.title, previous)}`)
   if (!same(storyAt(out), out.story)) throw new Error('the journal would not replay to the revised story')

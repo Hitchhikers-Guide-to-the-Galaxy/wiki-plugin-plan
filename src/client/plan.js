@@ -149,6 +149,25 @@ const STYLE = `
 .plan-tool .plan-revise .plan-agent{font-size:85%;color:#555}
 .plan-tool .plan-revise .plan-agent button{font-size:inherit}
 .plan-tool .plan-revise-how{margin-top:8px}
+.plan-tool .plan-talk{border:1px solid #cfe0cf;border-radius:5px;background:#f8fcf8;padding:4px 8px;margin:6px 0 8px;font-size:90%}
+.plan-tool .plan-talk summary{cursor:pointer;color:#2a6;font-weight:bold}
+.plan-tool .plan-talk-log{max-height:28em;overflow-y:auto;margin:4px 0}
+.plan-tool .plan-turn{border-radius:6px;padding:3px 8px;margin:4px 0}
+.plan-tool .plan-turn p{margin:3px 0}
+.plan-tool .plan-turn ul{margin:2px 0;padding-left:1.4em}
+.plan-tool .plan-turn-owner{background:#eef4ff;margin-left:15%}
+.plan-tool .plan-turn-model{background:#fff;border:1px solid #e3e3e3;margin-right:5%}
+.plan-tool .plan-turn-h{font-weight:bold}
+.plan-tool .plan-turn-meta{color:#777;font-size:85%;margin-top:2px}
+.plan-tool .plan-turn-use{margin-left:.5em;color:#2a6;text-decoration:none}
+.plan-tool .plan-talk-input{width:100%;box-sizing:border-box;font:inherit;border:1px solid #bcd8bc;border-radius:4px;padding:4px;resize:vertical}
+.plan-tool .plan-talk-row{display:flex;align-items:center;gap:8px;margin-top:3px}
+.plan-tool .plan-talk-send{border:1px solid #2a6;border-radius:4px;background:#2a6;color:#fff;cursor:pointer;padding:2px 12px}
+.plan-tool .plan-talk-send:disabled{background:#b9d8c1;border-color:#b9d8c1}
+.plan-tool .plan-talk-status{color:#555;flex:1}
+.plan-tool .plan-talk-clear{color:#999;font-size:85%;text-decoration:none}
+.plan-tool .plan-talk-include{display:block;margin-top:4px;color:#2a6}
+.plan-tool .plan-climb{color:#a35a00}
 `
 
 const shell = (opts, body) =>
@@ -686,6 +705,15 @@ const ghostIsOpen = A => !!(A && A.$ghost && A.$ghost.hasClass('ghost') && docum
 // ("auto → glm-5.3-flash-pp: 34k tokens, 3 answers").
 const byWhom = (A, model) => (A.auto && A.auto.model ? escapeHtml(autoLine(A.auto)) : `by ${escapeHtml(String(model || '').replace(/^claude-cli:/, ''))}`)
 
+// The ladder (0.16.0): when the model failed and the farm asked the next one
+// up, the line says so — each step, and that the coop's failures are logged.
+const climbNote = (climb, log = null) =>
+  climb && climb.length
+    ? ` <span class="plan-climb">${climb
+        .map(c => `${escapeHtml(modelLabel(c.from))} failed (${escapeHtml(c.kind)}${c.ms ? `, ${secs(c.ms)}` : ''})${c.to ? ` → ${escapeHtml(modelLabel(c.to))}` : ', nothing above it'}`)
+        .join('; ')}${log && log.page ? `; logged on ${internal('Coop Model Failures', 'coop-model-failures', log.site || 'coop.private.fish')}` : ''}.</span>`
+    : ''
+
 function paintAgent($item) {
   const A = agentOf($item)
   const $line = $item.find('.plan-agent')
@@ -745,7 +773,7 @@ function paintAgent($item) {
       ` <button class="plan-save" ${A.state === 'saving' ? 'disabled' : ''} title="Save the ghost as a page on this site and link it from the plan">Save and link it</button>` +
       (A.line ? ` <span class="plan-refused">${escapeHtml(A.line)}</span>` : '')
   } else if (A.state === 'saved') html = A.html + (A.kind === 'site' && A.savedSlug ? ` <button class="plan-go" data-proposal="${escapeHtml(A.savedSlug)}" title="Rewrite the pages the saved proposal names, one at a time through the door, the plan last; names still unticked on it are not copied">Go Ahead</button>` : '')
-  $line.toggleClass('plan-refused', A.state === 'refused' || A.state === 'failed').html(html)
+  $line.toggleClass('plan-refused', A.state === 'refused' || A.state === 'failed').html(html + climbNote(A.climb, A.failureLog))
 }
 
 const apiError = (res, body) => `${res.status}: ${(body && body.error) || `the farm answered ${res.status}`}`
@@ -798,6 +826,11 @@ async function runAgent($item, $subject, slug, kind, how = null) {
       continue
     }
     A.progress = j.progress || null
+    if (j.failureLog) A.failureLog = j.failureLog
+    if (j.climb) {
+      A.climb = j.climb
+      A.model = j.model || A.model
+    }
     if (j.auto) A.auto = j.auto
     if (j.status === 'failed') Object.assign(A, { state: 'failed', line: `${AGENT_NAME[kind]} failed: ${j.error}` })
     else if (j.status === 'done') {
@@ -822,6 +855,10 @@ async function runAgent($item, $subject, slug, kind, how = null) {
   paintAgent($item)
 }
 
+// What a revision keeps of how it was asked for: the way, the direction, and
+// how many turns of talk it drew on (the talk itself stays in the browser).
+const savedHow = how => (how ? { mode: how.mode, direction: how.direction, ...(how.conversation && how.conversation.length ? { talk: how.conversation.length } : {}) } : {})
+
 // The report's items, once: the ghost reopens with the same ids.
 const itemsOf = A => {
   if (A.items) return A.items
@@ -829,7 +866,7 @@ const itemsOf = A => {
     A.kind === 'site'
       ? proposalItems({ markdown: A.result.markdown, planTitle: A.title, site: location.host, model: A.result.model })
       : A.kind === 'revise'
-        ? reviseItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model, ...(A.how || {}) })
+        ? reviseItems({ page: A.plan, markdown: A.result.markdown, model: A.result.model, ...savedHow(A.how) })
         : reportItems({ kind: A.kind, markdown: A.result.markdown, planTitle: A.title, phaseLabel: A.phase ? A.phase.label : '', model: A.result.model }))
 }
 
@@ -1083,7 +1120,7 @@ async function saveOver($item, $subject) {
   paintAgent($item)
   let out
   try {
-    out = await postJSON('save-revision.json', { slug: A.slug, story: itemsOf(A), model: A.result.model, kind: A.kind, ...(A.how || {}) })
+    out = await postJSON('save-revision.json', { slug: A.slug, story: itemsOf(A), model: A.result.model, kind: A.kind, ...savedHow(A.how) })
   } catch (err) {
     return fail(`Could not reach the farm: ${err.message}`)
   }
@@ -1707,11 +1744,50 @@ const DIRECTION_KEY = slug => `plan.direction:${location.host}/${slug}`
 const FORM_KEY = slug => `plan.revise:${location.host}/${slug}`
 
 const WAY_GLYPH = { answers: '⟲', direction: '🎙', correct: '✓', tidy: '¶' }
+// One line each; the full account is the plugin page Revise Plan Help.
 const WAY_WHAT = {
-  answers: 'Weave in what the answered questions decided. Only what an answer justifies changes; a question answered with a question is reworded so it says plainly what is being decided.',
-  direction: 'Say or type how the plan should change — add or drop a phase, split or merge, reorder, change the approach, correct a mistake. The model carries out your words; the answers still stand unless you say otherwise.',
-  correct: 'Check the plan against its phase reports, demos and linked pages: tick what they show done, reword steps that were done differently, correct stale facts. No new work is added.',
-  tidy: 'The house format only — one heading level with straps, one checkpoint per item, questions as red links. Nothing the plan says changes. A small job: the coop model does it well.',
+  answers: 'Weave in what the answered questions decided.',
+  direction: 'Carry out what you type or say.',
+  correct: 'Tick what the reports show done; fix what has gone stale.',
+  tidy: 'The house format only; nothing it says changes.',
+}
+const REVISE_HELP = 'Revise Plan Help'
+
+// ---------- Talk it over (0.16.0) ----------
+//
+// A conversation about the plan with the chosen model, before revising, that
+// changes nothing: each turn POSTs chat.json (the plan's material, the talk
+// so far, the message) and polls job.json like any run. The talk is kept in
+// this browser tab per plan; "+ Add to your direction" copies a reply into
+// the direction box, and "Include the talk" sends it with the revision as
+// material. The run state lives on the element ($item[0].planTalk).
+const TALK_KEY = slug => `plan.talk:${location.host}/${slug}`
+const readTalk = slug => {
+  try {
+    const t = JSON.parse(sessionStorage.getItem(TALK_KEY(slug)) || '[]')
+    return Array.isArray(t) ? t : []
+  } catch {
+    return []
+  }
+}
+const keepTalk = (slug, t) => {
+  try {
+    sessionStorage.setItem(TALK_KEY(slug), JSON.stringify(t))
+  } catch {}
+}
+// A reply as html: paragraphs, bullets and headings, [[links]] resolved by the wiki.
+const talkHtml = text => {
+  const line = t => (window.wiki && typeof wiki.resolveLinks === 'function' ? wiki.resolveLinks(t) : escapeHtml(t))
+  return String(text || '')
+    .trim()
+    .split(/\n{2,}/)
+    .map(block => {
+      const lines = block.split('\n')
+      if (lines.every(l => /^\s*([-*]|\d+\.)\s+/.test(l))) return `<ul>${lines.map(l => `<li>${line(l.replace(/^\s*([-*]|\d+\.)\s+/, ''))}</li>`).join('')}</ul>`
+      if (/^#+\s/.test(lines[0])) return `<p class="plan-turn-h">${line(lines[0].replace(/^#+\s*/, ''))}</p>${lines.length > 1 ? `<p>${lines.slice(1).map(line).join('<br>')}</p>` : ''}`
+      return `<p>${lines.map(line).join('<br>')}</p>`
+    })
+    .join('')
 }
 
 const readForm = slug => {
@@ -1802,16 +1878,22 @@ async function showRevise($item, opts, item) {
       `<div class="plan-revise">` +
         `<p class="plan-subject">Revise ${link}</p>` +
         (refused ? `<p class="plan-refused">${escapeHtml(title)} ${escapeHtml(refused)}.</p>` : '') +
+        `<details class="plan-talk"${readTalk(slug).length ? ' open' : ''}><summary>💬 Talk it over first — ask the model about the plan; nothing is changed</summary>` +
+        `<div class="plan-talk-log"></div>` +
+        `<textarea class="plan-talk-input" rows="3" placeholder="Ask about the plan: what is missing, what is risky, how a phase could be split, what an answer means for it…"></textarea>` +
+        `<div class="plan-talk-row"><button class="plan-talk-send">Send</button><span class="plan-talk-status"></span><a href="#" class="plan-talk-clear">Clear the talk</a></div>` +
+        `</details>` +
         `<div class="plan-ways">${Object.keys(REVISE_WAYS).map(way).join('')}</div>` +
         `<div class="plan-direction">` +
         `<div class="plan-direction-label">Your direction <span class="plan-direction-need"></span></div>` +
         `<textarea class="plan-direction-text" rows="5" placeholder="For example: merge Phases 2 and 3; drop the Taiga wiki pull, it moves to its own plan; add a phase for the 4 November meeting, after Phase 1."></textarea>` +
         `<div class="plan-direction-row"><button class="plan-speak" title="Open the Voice Tool beside this page with the question Direction for ${escapeHtml(title)}: speak (or type), then press its ↩ Use as the direction button and the words land in this box">🎙 Speak it…</button>` +
         `<span class="plan-direction-count"></span></div>` +
+        `<label class="plan-talk-include"><input type="checkbox" class="plan-talk-use"> <span></span></label>` +
         `</div>` +
         `<div class="plan-revise-row"><button class="plan-revise-run" title="Ask the model for the redraft. It opens to the right as a ghost with the plan's own title; nothing is written until you fork it">✎ Revise</button>${modelChip()}</div>` +
         `<span class="plan-agent"></span>` +
-        `<p class="plan-meta plan-revise-how">The redraft opens to the right as a ghost page with the plan's own title, its first line saying how it was made. Read it, compare, close it, or revise again. Fork it to adopt it: it is saved over ${escapeHtml(title)} in place through the journal, one entry per change, each saying how the plan was revised, and the version it replaced is one click back from the plan's status line (Rewind).</p>` +
+        `<p class="plan-meta plan-revise-how">The redraft opens to the right as a ghost with the plan's own title; fork it to save it over the plan. ${internal(REVISE_HELP, asSlug(REVISE_HELP), location.host)}</p>` +
         `</div>`,
     ),
   )
@@ -1827,6 +1909,10 @@ async function showRevise($item, opts, item) {
       .text(m === 'direction' ? '— needed for this way' : '— optional: added to the chosen way, and it takes precedence')
     $item.find('.plan-direction').toggleClass('plan-direction-main', m === 'direction')
     $item.find('.plan-direction-count').text(text ? `${text.length.toLocaleString('en')} characters` : '')
+    const turns = readTalk(slug).length
+    $item.find('.plan-talk-include').toggle(turns > 0)
+    $item.find('.plan-talk-use').prop('checked', turns > 0 && f.includeTalk !== false)
+    $item.find('.plan-talk-include span').text(`Include the talk (${turns} turn${turns === 1 ? '' : 's'}) as context for the revision`)
     const busyNow = busy(agentOf($item))
     $item.find('.plan-revise-run').prop('disabled', !!refused || busyNow || (m === 'direction' && !text))
     $item.find('.plan-revise-run').text(`✎ Revise, ${reviseHowText(m)}`)
@@ -1849,7 +1935,8 @@ async function showRevise($item, opts, item) {
   $item.find('.plan-revise-run').on('click', e => {
     e.preventDefault()
     const f = readForm(slug)
-    const how = { mode: REVISE_WAYS[f.mode] ? f.mode : 'answers', direction: String(f.direction || '').trim() }
+    const talk = f.includeTalk !== false ? readTalk(slug).map(({ role, text }) => ({ role, text })) : []
+    const how = { mode: REVISE_WAYS[f.mode] ? f.mode : 'answers', direction: String(f.direction || '').trim(), ...(talk.length ? { conversation: talk } : {}) }
     runAgent($item, $subject, slug, 'revise', how).then(paintForm)
     paintForm()
   })
@@ -1878,8 +1965,107 @@ async function showRevise($item, opts, item) {
   }
   $item[0].planVoiced = onVoiced
   window.addEventListener(DIRECTION_EVENT, onVoiced)
+
+  // ---- Talk it over ----
+  const $talkIn = $item.find('.plan-talk-input')
+  const paintTalk = () => {
+    const turns = readTalk(slug)
+    const T = $item[0].planTalk || null
+    $item.find('.plan-talk-log').html(
+      turns
+        .map((t, i) =>
+          t.role === 'owner'
+            ? `<div class="plan-turn plan-turn-owner">${talkHtml(t.text)}</div>`
+            : `<div class="plan-turn plan-turn-model">${talkHtml(t.text)}<div class="plan-turn-meta">${escapeHtml(modelLabel(t.model || ''))}${t.ms ? ` · ${secs(t.ms)}` : ''}${climbNote(t.climb, t.failureLog)} <a href="#" class="plan-turn-use" data-i="${i}" title="Copy this reply to the end of your direction, to edit there">+ Add to your direction</a></div></div>`,
+        )
+        .join(''),
+    )
+    const running = T && (T.state === 'posting' || T.state === 'running')
+    $item.find('.plan-talk-send').prop('disabled', !!refused || running)
+    $item.find('.plan-talk-clear').toggle(turns.length > 0 && !running)
+    const model = T && T.model ? ` with ${escapeHtml(modelLabel(T.model))}` : ''
+    $item
+      .find('.plan-talk-status')
+      .toggleClass('plan-refused', !!T && T.state === 'failed')
+      .html(!T ? '' : running ? `talking${model}… ${secs(Date.now() - T.started)}${climbNote(T.climb)}` : T.state === 'failed' ? escapeHtml(T.line) : '')
+    paintForm()
+  }
+  const sendTalk = async message => {
+    const before = readTalk(slug)
+    const history = before.map(({ role, text }) => ({ role, text }))
+    keepTalk(slug, [...before, { role: 'owner', text: message, at: Date.now() }])
+    const T = ($item[0].planTalk = { state: 'posting', started: Date.now(), model: chosenModel() || '' })
+    $talkIn.val('')
+    paintTalk()
+    const tick = setInterval(() => (document.body.contains($item[0]) ? paintTalk() : clearInterval(tick)), 1000)
+    const fail = line => {
+      Object.assign(T, { state: 'failed', line })
+      keepTalk(slug, before) // the message goes back in the box, to send again
+      $talkIn.val(message)
+    }
+    try {
+      const out = await postJSON('chat.json', { slug, message, history, ...(chosenModel() ? { model: chosenModel() } : {}) })
+      if (!out.res.ok) return fail(apiError(out.res, out.body))
+      Object.assign(T, { state: 'running', job: out.body.job, model: out.body.model })
+      let misses = 0
+      while (T.state === 'running') {
+        await sleep(POLL_MS)
+        let j
+        try {
+          const r = await fetch(`/system/api/plan/job.json?id=${encodeURIComponent(T.job)}`, { credentials: 'include', cache: 'no-cache', headers: { Accept: 'application/json' } })
+          j = await r.json().catch(() => null)
+          if (!r.ok) return fail(apiError(r, j))
+          misses = 0
+        } catch (err) {
+          if (++misses > 5) return fail(`Lost the farm while waiting: ${err.message}`)
+          continue
+        }
+        if (j.climb) Object.assign(T, { climb: j.climb, model: j.model || T.model })
+        if (j.status === 'failed') return fail(`The model could not answer: ${j.error}`)
+        if (j.status === 'done') {
+          keepTalk(slug, [...readTalk(slug), { role: 'model', text: j.result.markdown, model: j.result.model, ms: j.result.ms, at: Date.now(), ...(j.climb ? { climb: j.climb, failureLog: j.failureLog || null } : {}) }])
+          $item[0].planTalk = null
+        }
+      }
+    } catch (err) {
+      fail(`Could not reach the farm: ${err.message}`)
+    } finally {
+      clearInterval(tick)
+      paintTalk()
+    }
+  }
+  $item.find('.plan-talk-send').on('click', e => {
+    e.preventDefault()
+    const message = String($talkIn.val() || '').trim()
+    if (message) sendTalk(message)
+  })
+  $talkIn.on('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      $item.find('.plan-talk-send').trigger('click')
+    }
+  })
+  $item.find('.plan-talk-clear').on('click', e => {
+    e.preventDefault()
+    keepTalk(slug, [])
+    $item[0].planTalk = null
+    paintTalk()
+  })
+  $item.find('.plan-talk-log').on('click', '.plan-turn-use', e => {
+    e.preventDefault()
+    const t = readTalk(slug)[parseInt(e.currentTarget.getAttribute('data-i'), 10)]
+    if (!t) return
+    const f = readForm(slug)
+    const text = joinDirection(f.direction, t.text)
+    keepForm(slug, { ...f, direction: text })
+    $text.val(text)
+    paintForm()
+    $text[0].scrollIntoView({ block: 'nearest' })
+  })
+  $item.find('.plan-talk-use').on('change', e => update({ includeTalk: e.target.checked }))
+
   paintChips()
-  paintForm()
+  paintTalk()
   paintAgent($item)
 }
 

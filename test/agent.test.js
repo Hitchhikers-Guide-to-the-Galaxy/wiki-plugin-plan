@@ -332,12 +332,34 @@ test('model: the coop by default, a chosen model asked, a bad id refused, a too-
     assert.equal(doneA.result.model, 'openai:llm_big')
     assert.deepEqual(asked.pop(), { model: 'llm_big', max_tokens: 32000 })
 
-    // a window smaller than the question: refused, with the sizes, nothing asked
+    // a window smaller than the question, the ladder off: refused, with the sizes, nothing asked
+    process.env.PLAN_LADDER = 'off'
     const t = await revise({ slug: 'toy-plan', model: 'openai:llm_tiny', ...ctx })
     const doneT = await until(async () => { const j = await job({ id: t.job, ...ctx }); return j.status !== 'running' && j })
     assert.equal(doneT.status, 'failed')
     assert.match(doneT.error, /openai:llm_tiny holds about 2,000 tokens and this question is about [\d,]+: choose a model with a larger window/)
     assert.equal(asked.length, 0)
+    assert.equal(doneT.climb[0].to, null)
+
+    // the ladder on (0.16.0): the same run climbs to Claude, which answers; the failure is logged
+    process.env.PLAN_LADDER = 'claude-cli:claude-fable-5-1'
+    process.env.CLAUDE_DOOR_KEY_FILE = path.join(f.root, 'no-key')
+    process.env.CLAUDE_DOOR_BIN = standIn(f.root, REPORT)
+    fs.mkdirSync(path.join(f.root, 'coop.private.fish', 'pages'), { recursive: true })
+    const c = await revise({ slug: 'toy-plan', model: 'openai:llm_tiny', ...ctx })
+    const doneC = await until(async () => { const j = await job({ id: c.job, ...ctx }); return j.status !== 'running' && j })
+    assert.equal(doneC.status, 'done', doneC.error)
+    assert.equal(doneC.model, 'claude-cli:claude-fable-5-1')
+    assert.deepEqual(doneC.climb.map(x => [x.from, x.kind, x.to]), [['openai:llm_tiny', 'window', 'claude-cli:claude-fable-5-1']])
+    assert.deepEqual(doneC.result.climbed, [{ from: 'openai:llm_tiny', kind: 'window', to: 'claude-cli:claude-fable-5-1' }])
+    const log = fs.readFileSync(path.join(f.status, 'farm-tmp', 'model-failures.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
+    assert.equal(log.at(-1).model, 'openai:llm_tiny')
+    assert.match(log.at(-1).then, /^escalated to claude-fable-5-1, which answered in \d+ s$/)
+    const page = JSON.parse(fs.readFileSync(path.join(f.root, 'coop.private.fish', 'pages', 'coop-model-failures'), 'utf8'))
+    assert.equal(page.title, 'Coop Model Failures')
+    assert.match(page.story.at(-1).text, /openai:llm_tiny · Revise Plan of \[http:\/\/toy\.localhost\/view\/toy-plan Toy Plan\] on toy\.localhost · .* window after \d+ s: .*holds about 2,000 tokens.* · escalated to claude-fable-5-1, which answered in \d+ s\.$/)
+    assert.deepEqual(page.journal.map(a => a.type), ['create', 'add'])
+    delete process.env.PLAN_LADDER
 
     // an id the door does not know: 400 before any claim
     await assert.rejects(revise({ slug: 'toy-plan', model: 'gpt; rm -rf', ...ctx }), e => e.status === 400 && /not a model this farm can ask/.test(e.message))

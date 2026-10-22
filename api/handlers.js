@@ -51,7 +51,8 @@ import { ask, door, isModelId, listModels, contextOf, estimateTokens, autoModel,
 
 import { isPlanTitle, advanceButton, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt, planState, autoTier, autoLine, AUTO, AUTO_RULE } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
-import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM, REVISE_MODES, DIRECTION_CAP } from './prompt.js'
+import { nextRung, failureKind, logFailures, thenText } from './ladder.js'
+import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM, REVISE_MODES, DIRECTION_CAP, TALK_MESSAGE_CAP, fitTalk } from './prompt.js'
 
 const problem = (status, message) => Object.assign(new Error(message), { status })
 
@@ -89,6 +90,36 @@ const answeredOn = (farmRoot, site, slugs) => {
     }
   }
   return where
+}
+
+/**
+ * The sites on this farm with the same owner as the site at `status`: their
+ * pages are this owner's own, so a fork or credit naming one of them is not
+ * another person's page (0.16.0). Same owner means an identical owner.json,
+ * which is how a farm writes it for every site of one person.
+ */
+export const ourSites = status => {
+  const out = new Set()
+  try {
+    const here = siteDir(status)
+    const farmRoot = path.dirname(here)
+    const canon = file => {
+      try {
+        const o = JSON.parse(fs.readFileSync(file, 'utf8'))
+        const sort = v => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sort(v[k])])) : v)
+        return JSON.stringify(sort(o))
+      } catch {
+        return null
+      }
+    }
+    const mine = canon(path.join(here, 'status', 'owner.json'))
+    if (!mine) return out
+    for (const e of fs.readdirSync(farmRoot, { withFileTypes: true })) {
+      if (!(e.isDirectory() || e.isSymbolicLink())) continue
+      if (canon(path.join(farmRoot, e.name, 'status', 'owner.json')) === mine) out.add(e.name)
+    }
+  } catch {}
+  return out
 }
 
 /** Write a file whole or not at all: a temp file in the site's own status/farm-tmp, then rename. */
@@ -265,7 +296,7 @@ const LEAST_ANSWER = 4096
  * refused before anything is sent, with the sizes, rather than answering from
  * a silently truncated plan. An unknown window is not refused.
  */
-const askPlan = async (model, content, opts = {}) => {
+const askOnce = async (model, content, opts = {}) => {
   const need = estimateTokens(opts.system || '') + estimateTokens(content)
   let window = isClaudeModel(model) ? 200000 : null // known; asking the doors would only wait on them
   if (!window) {
@@ -283,6 +314,84 @@ const askPlan = async (model, content, opts = {}) => {
   }
   const slow = !isClaudeModel(model) || /fable/.test(model) // a cold start on the coop's GPUs takes minutes; Fable thinks for minutes
   return ask(model, content, { timeoutMs: slow ? 15 * 60 * 1000 : RUN_TIMEOUT_MS, ...opts, maxTokens: Math.min(ANSWER_TOKENS, room) })
+}
+
+// ---------- the ladder (0.16.0, api/ladder.js) ----------
+//
+// Every model call climbs: when the model fails (too slow, out of tokens,
+// unreachable, too small a window), nextRung names the next model up and the
+// same question goes to it. Each failure goes on the job (`climb`, which the
+// tool's status line reads) and, once the call is over and its outcome known,
+// into the failure log. `job` is the run asking; `about` overrides the page it
+// is about (Go Ahead asks once per page).
+const RUN_LABEL = j => {
+  if (!j) return 'a run'
+  const base = RUN_NAMES[j.kind] || j.kind
+  return j.kind === 'revise' && j.meta && j.meta.mode && j.meta.mode !== 'answers' ? `${base} (${j.meta.mode})` : base
+}
+const localWhen = date => {
+  const d = new Date(date)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const askPlan = async (model, content, opts = {}) => {
+  const { job: j = null, about = null, ...rest } = opts
+  const tried = []
+  const failures = []
+  let m = model
+  let outcome = null
+  try {
+    for (;;) {
+      tried.push(m)
+      const t0 = Date.now()
+      try {
+        const out = await askOnce(m, content, rest)
+        outcome = { ok: true, model: m, ms: Date.now() - t0 }
+        if (failures.length) out.climbed = failures.map(f => ({ from: f.model, kind: f.kind, to: f.to }))
+        return out
+      } catch (e) {
+        const up = nextRung({ model: m, error: e, tried, run: { kind: j && j.kind, tokens: estimateTokens(content) } })
+        const f = { model: m, error: e.message, kind: failureKind(e), ms: Date.now() - t0, to: up, at: t0 }
+        failures.push(f)
+        if (j) {
+          j.climb = [...(j.climb || []), { from: m, kind: f.kind, error: String(e.message).slice(0, 300), ms: f.ms, to: up, at: Date.now() }]
+          if (up) j.model = up
+          persist(j)
+        }
+        if (!up) {
+          outcome = { ok: false, model: m, kind: f.kind }
+          throw e
+        }
+        m = up
+      }
+    }
+  } finally {
+    if (failures.length && j && j.statusDir) {
+      const tokens = estimateTokens(rest.system || '') + estimateTokens(content)
+      const bytes = Buffer.byteLength(content)
+      const records = failures.map((f, i) => {
+        const after = failures[i + 1] ? { ok: false, kind: failures[i + 1].kind } : outcome && outcome.model === f.to ? outcome : null
+        return {
+          when: localWhen(f.at),
+          at: f.at,
+          model: f.model,
+          run: RUN_LABEL(j),
+          origin: j.origin,
+          slug: (about && about.slug) || j.slug,
+          title: (about && about.title) || j.title,
+          tokens,
+          bytes,
+          kind: f.kind,
+          ms: f.ms,
+          error: f.error,
+          to: f.to,
+          then: thenText(f.to, after),
+        }
+      })
+      j.failureLog = logFailures({ status: j.statusDir, records })
+      persist(j)
+    }
+  }
 }
 
 // ---------- Auto (0.11.0) ----------
@@ -313,7 +422,7 @@ export const classifierMode = () => {
   const m = String(process.env.PLAN_AUTO_CLASSIFIER || 'decide').toLowerCase()
   return CLASSIFIER_MODES.includes(m) ? m : 'decide'
 }
-const RUN_NAMES = { revise: 'Revise Plan', site: 'Revise Site', apply: 'Go Ahead, one page', next: 'Do Next Phase' }
+const RUN_NAMES = { revise: 'Revise Plan', site: 'Revise Site', apply: 'Go Ahead, one page', next: 'Do Next Phase', chat: 'Talk it over' }
 const oneLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n)
 
 /** What the classifier reads: a few hundred tokens about the run, never the question itself. */
@@ -445,17 +554,19 @@ const readPlan = (status, origin, slug) => {
  * everything after it is the job's, and the marker is released in a finally
  * whatever happens. The heartbeat keeps the claim fresh while the model works.
  */
-const start = ({ kind, origin, status, slug, site, page, phase, session, title = null, build = null, holdOff = null, meta = null, after = null, run = null, model: chosen = '' }) => {
+const start = ({ kind, origin, status, slug, site, page, phase, session, title = null, build = null, holdOff = null, meta = null, after = null, run = null, model: chosen = '', claimWip = true }) => {
   forget()
   const scope = `${origin}/${slug}`
   const model = chooseModel(chosen) // before the claim: a bad id is a 400, not a held marker
-  const wip = claim({ session, scope, holdOff: holdOff || `${session}: a model is reading the plan; the report opens as a ghost page and nothing is written to the plan` })
+  // A run that writes nothing (Talk it over) takes no claim: holding the marker
+  // would only turn other runs away while someone is talking.
+  const wip = claimWip ? claim({ session, scope, holdOff: holdOff || `${session}: a model is reading the plan; the report opens as a ghost page and nothing is written to the plan` }) : null
   const id = crypto.randomBytes(8).toString('hex')
   const j = {
     id,
     origin,
     statusDir: status,
-    token: wip.token,
+    token: wip ? wip.token : null,
     kind,
     slug,
     title: page.title,
@@ -466,12 +577,13 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
     ...(meta ? { meta } : {}),
     status: 'running',
     started: Date.now(),
-    wip: { session, claimed: wip.claimed, heartbeat: wip.claimed, ...(wip.took ? { tookStaleClaim: wip.took } : {}) },
+    wip: wip ? { session, claimed: wip.claimed, heartbeat: wip.claimed, ...(wip.took ? { tookStaleClaim: wip.took } : {}) } : { session, claimed: null, note: 'no claim: this run writes nothing' },
   }
   jobs.set(id, j)
   persist(j)
 
   const beat = setInterval(() => {
+    if (!wip) return
     try {
       j.wip.heartbeat = heartbeat(wip.token)
       persist(j)
@@ -501,7 +613,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
         asking = j.model = j.auto.model
       }
       persist(j)
-      const out = await askPlan(asking, content, { system: SYSTEM, allowTools: false })
+      const out = await askPlan(asking, content, { system: SYSTEM, allowTools: false, job: j })
       const ticks = kind === 'next' ? proposedTicks(out.markdown, phase.checkpoints) : null
       j.result = {
         markdown: out.markdown,
@@ -509,6 +621,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
         ms: out.ms,
         reportTitle: j.reportTitle,
         ...(j.auto ? { auto: j.auto } : {}),
+        ...(out.climbed ? { climbed: out.climbed } : {}),
         ...(ticks ? { proposedTicks: { found: ticks.found, none: ticks.none, listed: ticks.listed, matched: ticks.matched.map(c => c.text) } } : {}),
         ...(kind === 'site' ? { proposal: proposalSummary(out.markdown, page.title, origin) } : {}),
         ...(after ? after(out) : {}),
@@ -520,7 +633,7 @@ const start = ({ kind, origin, status, slug, site, page, phase, session, title =
     } finally {
       clearInterval(beat)
       try {
-        j.wip.released = release(wip.token)
+        if (wip) j.wip.released = release(wip.token)
       } catch (e) {
         j.wip.releaseError = e.message
       }
@@ -554,6 +667,14 @@ export async function next({ slug, phase, model, origin, status } = {}) {
 }
 
 /** A revise run's way and the owner's words, checked: 400 before anything is claimed. */
+/** The talk as sent: turns of {role: owner|model, text}; anything else is a 400. */
+export const checkTalk = conversation => {
+  if (conversation === undefined || conversation === null || conversation === '') return []
+  if (!Array.isArray(conversation)) throw problem(400, 'the conversation must be a list of turns, each {role: owner or model, text}')
+  for (const t of conversation) if (!t || !['owner', 'model'].includes(t.role) || typeof t.text !== 'string') throw problem(400, 'each turn of the conversation is {role: owner or model, text}')
+  return conversation.filter(t => t.text.trim()).map(t => ({ role: t.role, text: t.text }))
+}
+
 export const reviseHow = ({ mode, direction } = {}, { saving = false } = {}) => {
   const m = mode === undefined || mode === null || mode === '' ? 'answers' : String(mode)
   if (!REVISE_MODES.includes(m)) throw problem(400, `not a way to revise a plan: ${m.slice(0, 40)}; one of ${REVISE_MODES.join(', ')}`)
@@ -568,8 +689,9 @@ export const reviseHow = ({ mode, direction } = {}, { saving = false } = {}) => 
  * answered questions (the default), from the owner's direction, to catch up
  * with the work done, or to tidy its format (0.15.0, reviseAsk in prompt.js).
  */
-export async function revise({ slug, model, mode, direction, origin, status } = {}) {
+export async function revise({ slug, model, mode, direction, conversation, origin, status } = {}) {
   const how = reviseHow({ mode, direction })
+  const talk = checkTalk(conversation)
   const p = readPlan(status, origin, slug)
   const session = `Plan Tool: Revise Plan${how.mode === 'answers' ? '' : ` (${how.mode})`} ${origin}/${p.slug}`
   return start({
@@ -582,8 +704,38 @@ export async function revise({ slug, model, mode, direction, origin, status } = 
     phase: null,
     session,
     model,
-    meta: how,
-    build: () => buildContent({ kind: 'revise', page: p.page, phase: null, origin, siteDir: p.site, ...how }),
+    meta: { ...how, ...(talk.length ? { talk: fitTalk(talk).turns.length } : {}) },
+    build: () => buildContent({ kind: 'revise', page: p.page, phase: null, origin, siteDir: p.site, ...how, conversation: talk }),
+  })
+}
+
+/**
+ * Talk it over (0.16.0): one turn of a conversation about the plan with the
+ * chosen model. The plan's material, the talk so far and the owner's message
+ * go to the door; the answer is kept in the job, and nothing is written —
+ * not the plan, not the WIP marker. The talk lives in the owner's browser,
+ * which sends it back with each turn and, if asked, with a revision.
+ */
+export async function chat({ slug, model, message, history, origin, status } = {}) {
+  const said = String(message || '').replace(/\r\n?/g, '\n').trim()
+  if (!said) throw problem(400, 'say something to talk about: the message is empty')
+  if (said.length > TALK_MESSAGE_CAP) throw problem(400, `the message is ${said.length.toLocaleString('en')} characters; keep one under ${TALK_MESSAGE_CAP.toLocaleString('en')}`)
+  const talk = checkTalk(history)
+  const p = readPlan(status, origin, slug)
+  return start({
+    kind: 'chat',
+    origin,
+    status,
+    slug: p.slug,
+    site: p.site,
+    page: p.page,
+    phase: null,
+    session: `Plan Tool: Talk it over ${origin}/${p.slug}`,
+    title: `Talk about ${p.page.title}`,
+    model,
+    claimWip: false,
+    meta: { turns: talk.length },
+    build: () => buildContent({ kind: 'chat', page: p.page, phase: null, origin, siteDir: p.site, conversation: talk, message: said }),
   })
 }
 
@@ -1006,7 +1158,7 @@ export async function applyRevision({ slug, plan, model: chosen, origin, status 
       const target = readJson(file)
       let action = row.action
       if (target) {
-        const foreign = foreignOf(target, origin)
+        const foreign = foreignOf(target, origin, ourSites(status))
         if (foreign) {
           refuse(`${foreign}: another site's page is never written`)
           continue
@@ -1089,7 +1241,7 @@ export async function applyRevision({ slug, plan, model: chosen, origin, status 
             j.progress = { ...j.progress, auto: auto.line }
             persist(j)
           }
-          const out = await askPlan(asking, content, { system: SYSTEM, allowTools: false })
+          const out = await askPlan(asking, content, { system: SYSTEM, allowTools: false, job: j, about: { title: w.title, slug: asSlug(w.title) } })
           const old = before || { title: w.title, story: [], journal: [] }
           const story = storyFromReply(old, out.markdown)
           if (!story.some(it => it.type === 'markdown' && String(it.text || '').trim())) throw new Error('the door answered no page')
@@ -1215,8 +1367,8 @@ const writeOver = ({ origin, status, slug, session, holdOff, make }) => {
   try {
     const text = fs.readFileSync(pageFile, 'utf8')
     const page = JSON.parse(text)
-    const foreign = foreignOf(page, origin)
-    if (foreign) throw problem(400, `${page.title} is ${foreign}: another site's page is never written over; fork it here first`)
+    const foreign = foreignOf(page, origin, ourSites(status))
+    if (foreign) throw problem(400, `${page.title} is ${foreign}, a site of another owner: another person's page is never written over; fork it here first`)
     let out
     try {
       out = make(page)
@@ -1259,7 +1411,7 @@ const writeOver = ({ origin, status, slug, session, holdOff, make }) => {
 }
 
 /** Save over the plan: the revise ghost's story written over the plan, journaled, the old version its _rev. */
-export async function saveRevision({ slug, story, model, kind, mode, direction, origin, status } = {}) {
+export async function saveRevision({ slug, story, model, kind, mode, direction, talk, origin, status } = {}) {
   const p = readPlan(status, origin, slug)
   const how = kind === undefined || kind === null || kind === '' ? 'revise' : String(kind)
   if (!REVISION_KINDS.includes(how)) throw problem(400, `not a kind of revision: ${kind}; one of ${REVISION_KINDS.join(', ')}`)
@@ -1271,7 +1423,7 @@ export async function saveRevision({ slug, story, model, kind, mode, direction, 
     slug: p.slug,
     session: `Plan Tool: Save over the plan ${origin}/${p.slug}`,
     holdOff: `Save over the plan is writing ${origin}/${p.slug}`,
-    make: page => writeRevision(page, want, { model: model || '', kind: how, ...(how === 'revise' ? reviseHow({ mode, direction }, { saving: true }) : {}) }),
+    make: page => writeRevision(page, want, { model: model || '', kind: how, ...(how === 'revise' ? reviseHow({ mode, direction }, { saving: true }) : {}), ...(Number.isInteger(talk) && talk > 0 ? { talk } : {}) }),
   })
 }
 

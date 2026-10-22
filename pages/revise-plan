@@ -4,27 +4,12 @@
     {
       "type": "paragraph",
       "id": "4586165f93f54e62",
-      "text": "Choose how the model redrafts a plan, then press Revise. Opened by ✎ on a plan's status line, it reads the plan to its left."
+      "text": "Choose how the model redrafts a plan, then press Revise; talk it over with the model first if you like. Opened by ✎ on a plan's status line, it reads the plan to its left. How it all works: [[Revise Plan Help]]."
     },
     {
       "type": "plan",
       "id": "f78b0ed0737853c1",
       "text": "REVISE"
-    },
-    {
-      "type": "markdown",
-      "id": "ae6563b5212dd0f2",
-      "text": "# Four Ways\n> Each keeps the house format and the plan's status line, timeline, Assets and See."
-    },
-    {
-      "type": "markdown",
-      "id": "591e4c9f031f1abe",
-      "text": "- *From the answers* weaves in what the answered open questions decided.\n- *From your direction* carries out what you type or say — the main way to change a plan by hand.\n- *Catch up with the work* checks the plan against its phase reports and linked pages, ticks what they show done and corrects what has gone stale.\n- *Tidy only* fixes the format and changes nothing the plan says."
-    },
-    {
-      "type": "markdown",
-      "id": "73aeab2b022cecfe",
-      "text": "A direction given with any other way is added to it and takes precedence. To speak it, press 🎙 Speak it: the [[Voice Tool]] opens beside this page with the question *Direction for* the plan; speak or type, then press its ↩ Use as the direction button and the words land in the box here."
     },
     {
       "type": "markdown",
@@ -34,22 +19,17 @@
     {
       "type": "markdown",
       "id": "ff78e3a681f188d7",
-      "text": "The redraft opens to the right as a ghost page with the plan's own title; its first line says how it was made, and quotes your direction. Fork it to adopt it: it is saved over the plan in place through the journal, one entry per change, each recording the way it was revised, the first also keeping your direction's words. The version it replaced stays in the journal, and the plan's status line links it, with Rewind to fork it back. Closing the ghost writes nothing."
-    },
-    {
-      "type": "markdown",
-      "id": "cd36b1358167fd63",
-      "text": "What you choose and type here is kept in this browser tab per plan, so a trip to the Voice Tool loses nothing."
+      "text": "The redraft opens to the right as a ghost with the plan's own title. Forking it saves it over the plan through the journal, which keeps the way it was made, your direction and how many turns of talk it drew on; Rewind on the plan's status line goes back. The talk and your direction stay in this browser tab."
     },
     {
       "type": "markdown",
       "id": "f54133fcf9dfbf15",
-      "text": "# Privacy\n> The plan and your direction go to the model you choose."
+      "text": "# Privacy\n> The plan, your direction and the talk go to the model you choose."
     },
     {
       "type": "markdown",
       "id": "d3666da9e4f915fc",
-      "text": "The plan, the pages it links and your direction are sent to the model on the ⚙ chip: the LLM coop's open models, or Claude on the farm's account ([[Model Settings]]). A spoken direction is transcribed by the Voice Tool first; the recording is kept only if you ask it to. Only the site's owner can revise."
+      "text": "They are sent to the model on the ⚙ chip: the LLM coop's open models, or Claude on the farm's account ([[Model Settings]]). When a coop model fails the run moves up to Claude, and the failure — the model, the plan's title, the size of the question and the error — is logged on Coop Model Failures on coop.private.fish, where the coop can read it. Only the site's owner can revise or talk."
     },
     {
       "type": "markdown",
@@ -59,7 +39,7 @@
     {
       "type": "markdown",
       "id": "68d29174306ea1a8",
-      "text": "- [[Plan Tool]]\n- [[Model Settings]]\n- [[About Plan Plugin]]"
+      "text": "- [[Revise Plan Help]]\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[About Plan Plugin]]"
     }
   ],
   "journal": [
@@ -132,6 +112,85 @@
       },
       "date": 1792596320652,
       "provenance": "Shipped with wiki-plugin-plan 0.15.0."
+    },
+    {
+      "type": "remove",
+      "id": "ae6563b5212dd0f2",
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "remove",
+      "id": "591e4c9f031f1abe",
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "remove",
+      "id": "73aeab2b022cecfe",
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "remove",
+      "id": "cd36b1358167fd63",
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "edit",
+      "id": "4586165f93f54e62",
+      "item": {
+        "type": "paragraph",
+        "id": "4586165f93f54e62",
+        "text": "Choose how the model redrafts a plan, then press Revise; talk it over with the model first if you like. Opened by ✎ on a plan's status line, it reads the plan to its left. How it all works: [[Revise Plan Help]]."
+      },
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "edit",
+      "id": "ff78e3a681f188d7",
+      "item": {
+        "type": "markdown",
+        "id": "ff78e3a681f188d7",
+        "text": "The redraft opens to the right as a ghost with the plan's own title. Forking it saves it over the plan through the journal, which keeps the way it was made, your direction and how many turns of talk it drew on; Rewind on the plan's status line goes back. The talk and your direction stay in this browser tab."
+      },
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "edit",
+      "id": "f54133fcf9dfbf15",
+      "item": {
+        "type": "markdown",
+        "id": "f54133fcf9dfbf15",
+        "text": "# Privacy\n> The plan, your direction and the talk go to the model you choose."
+      },
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "edit",
+      "id": "d3666da9e4f915fc",
+      "item": {
+        "type": "markdown",
+        "id": "d3666da9e4f915fc",
+        "text": "They are sent to the model on the ⚙ chip: the LLM coop's open models, or Claude on the farm's account ([[Model Settings]]). When a coop model fails the run moves up to Claude, and the failure — the model, the plan's title, the size of the question and the error — is logged on Coop Model Failures on coop.private.fish, where the coop can read it. Only the site's owner can revise or talk."
+      },
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "edit",
+      "id": "68d29174306ea1a8",
+      "item": {
+        "type": "markdown",
+        "id": "68d29174306ea1a8",
+        "text": "- [[Revise Plan Help]]\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[About Plan Plugin]]"
+      },
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
     }
   ]
 }

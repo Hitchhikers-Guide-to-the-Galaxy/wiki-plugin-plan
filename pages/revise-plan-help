@@ -1,0 +1,207 @@
+{
+  "title": "Revise Plan Help",
+  "story": [
+    {
+      "type": "paragraph",
+      "id": "8e20c505b3348970",
+      "text": "How the [[Revise Plan]] tool works: the four ways to revise, your direction, talking it over first, what is kept, and what happens when a model fails."
+    },
+    {
+      "type": "markdown",
+      "id": "8c2de851bc6251a0",
+      "text": "# Four Ways\n> Each keeps the house format, and the plan's status line, timeline, Assets and See."
+    },
+    {
+      "type": "markdown",
+      "id": "1e0df509a71197fd",
+      "text": "- *From the answers* weaves in what the answered open questions decided, from the answer pages and the answers written on question lines. Only what an answer justifies changes. A question answered with a question is reworded so it says plainly what is being decided, what each choice would mean and why it matters."
+    },
+    {
+      "type": "markdown",
+      "id": "1ff80e34eb508c35",
+      "text": "- *From your direction* carries out what you type or say: add or drop a phase, split or merge, reorder, change the approach, correct a mistake. The answers still stand unless your direction goes against one, and then the model follows you and says so. This is the main way to change a plan by hand."
+    },
+    {
+      "type": "markdown",
+      "id": "314dc61244d9fb89",
+      "text": "- *Catch up with the work* checks the plan against the record — its phase reports, demos and linked pages. It ticks what they show done, naming the page; rewords steps that were done differently; corrects facts, names, versions and dates they contradict; marks abandoned checkpoints (dropped: reason) without deleting them. It adds no new work, except a ticked line for work the record shows that the plan never named."
+    },
+    {
+      "type": "markdown",
+      "id": "dfb01c7969dc8820",
+      "text": "- *Tidy only* rewrites the plan into the house format — one heading level with straps, one checkpoint per item, questions as red links, no bold, no hard wraps — and changes nothing it says. It sends neither the linked pages nor the answers, so it is small and cheap: the coop model does it well."
+    },
+    {
+      "type": "markdown",
+      "id": "95e1c6252df008fa",
+      "text": "# Your Direction\n> Typed, or spoken through the Voice Tool."
+    },
+    {
+      "type": "markdown",
+      "id": "1f91e8cdb3b03a22",
+      "text": "Type it in the box, or press 🎙 Speak it: the [[Voice Tool]] opens beside the tool with the question Direction for the plan. Speak (or type there), press ✓ Use as written, then ↩ Use as the direction, and the words land in the box. A direction is needed for From your direction; with any other way it is added to it and takes precedence. A good direction names what to change and why, for example: merge Phases 2 and 3, since the mirror and the column pages are one job; drop the Taiga wiki pull, it moves to its own plan."
+    },
+    {
+      "type": "markdown",
+      "id": "a7970a632a253353",
+      "text": "# Talk It Over\n> Ask before you revise; nothing is changed."
+    },
+    {
+      "type": "markdown",
+      "id": "d49c6a549edecfc1",
+      "text": "Open 💬 Talk it over and ask the model about the plan: what is missing, what is risky, how a phase could be split, what an answer means for it. Each turn sends the plan, the pages it links, its answers and the talk so far to the model on the ⚙ chip, and the reply appears under your message. Nothing is written and no work-in-progress marker is taken, so talking never blocks another run."
+    },
+    {
+      "type": "markdown",
+      "id": "5b809fc92fba318b",
+      "text": "Two ways to carry the talk into the revision. + Add to your direction copies a reply to the end of the direction box, to edit there. Include the talk (ticked by default once there is a talk) sends the whole conversation with the revision as material: what you settled in it is carried out, and a suggestion the model made that you did not take up is not a decision. The talk is kept in this browser tab for each plan until you press Clear the talk; the revision's journal records only how many turns it drew on."
+    },
+    {
+      "type": "markdown",
+      "id": "cfc753f535c874ed",
+      "text": "# The Ghost And The Journal\n> Adopt a redraft by forking it; go back with Rewind."
+    },
+    {
+      "type": "markdown",
+      "id": "f75028d58fd57608",
+      "text": "The redraft opens to the right as a ghost page with the plan's own title. Its first line says how it was made — the way, the talk, the model, the date — and quotes your direction; a warning follows when the redraft dropped questions or task lines. Read it beside the plan, close it, or revise again. Fork it (or press Save over the plan) to adopt it: it is written over the plan in place through the journal, one entry per change, each saying how the plan was revised; the first entry also keeps your direction's words and the number of turns of talk. The version it replaced stays in the journal, and the plan's status line links it with Rewind, which opens it as a ghost to fork back."
+    },
+    {
+      "type": "markdown",
+      "id": "d343055529c2b48a",
+      "text": "# When A Model Fails\n> The run climbs to a stronger model, and the coop hears about it."
+    },
+    {
+      "type": "markdown",
+      "id": "343e2f70ea80ed4e",
+      "text": "A coop model can fail on a big plan: too slow, out of tokens while reasoning, unreachable, or with too small a window for the question. Rather than fail, the run asks the next model up the ladder — today Claude Fable, through Claude Code on the farm's Claude account — and the status line says so, for example: coop · auto-big failed (length, 5 min 45 s) → Claude Fable 5.1. Each coop failure is logged as one line on Coop Model Failures on coop.private.fish, with the model, the run, the plan, the size of the question, the error and whether the next model answered, so the coop can see what fails and why. The farm sets the ladder with PLAN_LADDER and the log's site with PLAN_FAILURE_SITE; smarter routing will come later."
+    },
+    {
+      "type": "markdown",
+      "id": "05db42633fd6d9f9",
+      "text": "# Choosing The Model\n> The ⚙ chip, the same for revising and talking."
+    },
+    {
+      "type": "markdown",
+      "id": "f5f3c3183fb4ae40",
+      "text": "The ⚙ chip names the model both Talk it over and Revise ask, and opens [[Model Settings]] to change it. Tidy only and short talks suit the coop. A direction or a catch-up on a long plan with many linked pages is better on Claude, or on Auto, which picks by size."
+    },
+    {
+      "type": "markdown",
+      "id": "053e144efc679ca6",
+      "text": "# See"
+    },
+    {
+      "type": "markdown",
+      "id": "ff15c1f96d3cd4fa",
+      "text": "- [[Revise Plan]]\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Voice Tool]]\n- [[About Plan Plugin]]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "Revise Plan Help",
+        "story": [
+          {
+            "type": "paragraph",
+            "id": "8e20c505b3348970",
+            "text": "How the [[Revise Plan]] tool works: the four ways to revise, your direction, talking it over first, what is kept, and what happens when a model fails."
+          },
+          {
+            "type": "markdown",
+            "id": "8c2de851bc6251a0",
+            "text": "# Four Ways\n> Each keeps the house format, and the plan's status line, timeline, Assets and See."
+          },
+          {
+            "type": "markdown",
+            "id": "1e0df509a71197fd",
+            "text": "- *From the answers* weaves in what the answered open questions decided, from the answer pages and the answers written on question lines. Only what an answer justifies changes. A question answered with a question is reworded so it says plainly what is being decided, what each choice would mean and why it matters."
+          },
+          {
+            "type": "markdown",
+            "id": "1ff80e34eb508c35",
+            "text": "- *From your direction* carries out what you type or say: add or drop a phase, split or merge, reorder, change the approach, correct a mistake. The answers still stand unless your direction goes against one, and then the model follows you and says so. This is the main way to change a plan by hand."
+          },
+          {
+            "type": "markdown",
+            "id": "314dc61244d9fb89",
+            "text": "- *Catch up with the work* checks the plan against the record — its phase reports, demos and linked pages. It ticks what they show done, naming the page; rewords steps that were done differently; corrects facts, names, versions and dates they contradict; marks abandoned checkpoints (dropped: reason) without deleting them. It adds no new work, except a ticked line for work the record shows that the plan never named."
+          },
+          {
+            "type": "markdown",
+            "id": "dfb01c7969dc8820",
+            "text": "- *Tidy only* rewrites the plan into the house format — one heading level with straps, one checkpoint per item, questions as red links, no bold, no hard wraps — and changes nothing it says. It sends neither the linked pages nor the answers, so it is small and cheap: the coop model does it well."
+          },
+          {
+            "type": "markdown",
+            "id": "95e1c6252df008fa",
+            "text": "# Your Direction\n> Typed, or spoken through the Voice Tool."
+          },
+          {
+            "type": "markdown",
+            "id": "1f91e8cdb3b03a22",
+            "text": "Type it in the box, or press 🎙 Speak it: the [[Voice Tool]] opens beside the tool with the question Direction for the plan. Speak (or type there), press ✓ Use as written, then ↩ Use as the direction, and the words land in the box. A direction is needed for From your direction; with any other way it is added to it and takes precedence. A good direction names what to change and why, for example: merge Phases 2 and 3, since the mirror and the column pages are one job; drop the Taiga wiki pull, it moves to its own plan."
+          },
+          {
+            "type": "markdown",
+            "id": "a7970a632a253353",
+            "text": "# Talk It Over\n> Ask before you revise; nothing is changed."
+          },
+          {
+            "type": "markdown",
+            "id": "d49c6a549edecfc1",
+            "text": "Open 💬 Talk it over and ask the model about the plan: what is missing, what is risky, how a phase could be split, what an answer means for it. Each turn sends the plan, the pages it links, its answers and the talk so far to the model on the ⚙ chip, and the reply appears under your message. Nothing is written and no work-in-progress marker is taken, so talking never blocks another run."
+          },
+          {
+            "type": "markdown",
+            "id": "5b809fc92fba318b",
+            "text": "Two ways to carry the talk into the revision. + Add to your direction copies a reply to the end of the direction box, to edit there. Include the talk (ticked by default once there is a talk) sends the whole conversation with the revision as material: what you settled in it is carried out, and a suggestion the model made that you did not take up is not a decision. The talk is kept in this browser tab for each plan until you press Clear the talk; the revision's journal records only how many turns it drew on."
+          },
+          {
+            "type": "markdown",
+            "id": "cfc753f535c874ed",
+            "text": "# The Ghost And The Journal\n> Adopt a redraft by forking it; go back with Rewind."
+          },
+          {
+            "type": "markdown",
+            "id": "f75028d58fd57608",
+            "text": "The redraft opens to the right as a ghost page with the plan's own title. Its first line says how it was made — the way, the talk, the model, the date — and quotes your direction; a warning follows when the redraft dropped questions or task lines. Read it beside the plan, close it, or revise again. Fork it (or press Save over the plan) to adopt it: it is written over the plan in place through the journal, one entry per change, each saying how the plan was revised; the first entry also keeps your direction's words and the number of turns of talk. The version it replaced stays in the journal, and the plan's status line links it with Rewind, which opens it as a ghost to fork back."
+          },
+          {
+            "type": "markdown",
+            "id": "d343055529c2b48a",
+            "text": "# When A Model Fails\n> The run climbs to a stronger model, and the coop hears about it."
+          },
+          {
+            "type": "markdown",
+            "id": "343e2f70ea80ed4e",
+            "text": "A coop model can fail on a big plan: too slow, out of tokens while reasoning, unreachable, or with too small a window for the question. Rather than fail, the run asks the next model up the ladder — today Claude Fable, through Claude Code on the farm's Claude account — and the status line says so, for example: coop · auto-big failed (length, 5 min 45 s) → Claude Fable 5.1. Each coop failure is logged as one line on Coop Model Failures on coop.private.fish, with the model, the run, the plan, the size of the question, the error and whether the next model answered, so the coop can see what fails and why. The farm sets the ladder with PLAN_LADDER and the log's site with PLAN_FAILURE_SITE; smarter routing will come later."
+          },
+          {
+            "type": "markdown",
+            "id": "05db42633fd6d9f9",
+            "text": "# Choosing The Model\n> The ⚙ chip, the same for revising and talking."
+          },
+          {
+            "type": "markdown",
+            "id": "f5f3c3183fb4ae40",
+            "text": "The ⚙ chip names the model both Talk it over and Revise ask, and opens [[Model Settings]] to change it. Tidy only and short talks suit the coop. A direction or a catch-up on a long plan with many linked pages is better on Claude, or on Auto, which picks by size."
+          },
+          {
+            "type": "markdown",
+            "id": "053e144efc679ca6",
+            "text": "# See"
+          },
+          {
+            "type": "markdown",
+            "id": "ff15c1f96d3cd4fa",
+            "text": "- [[Revise Plan]]\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Voice Tool]]\n- [[About Plan Plugin]]"
+          }
+        ]
+      },
+      "date": 1792681462927,
+      "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    }
+  ]
+}

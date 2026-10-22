@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.15.0",
+    "version": "0.16.0",
     "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link. Red-link finds the plan's links that have no page behind them on this farm, question links and the Open Questions section left alone, and as a job researches each on the web through the door (WebSearch and WebFetch only) and writes its page, a new page with one journaled create each."
   },
   "paths": {
@@ -117,7 +117,7 @@
       "post": {
         "operationId": "revise",
         "summary": "Revise Plan: ask the door to redraft the plan — from its answered questions, from the owner's direction, to catch up with the work done, or to tidy its format — as a job",
-        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The way is the mode: answers (the default) asks the model to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section; direction asks it to carry out the owner's direction instead, keeping ticks unless told otherwise; correct asks it to tick what the record shows done and correct what it contradicts, adding no work; tidy asks for the house format only and sends neither linked pages nor answers. A direction given with any mode is quoted after the material as the owner's words. The redraft is kept in the job and nothing is written: the tool opens it as a ghost with the plan's own title, carrying the plan's opener, its plan item second, the redrafted body and the plan's own timeline, Assets and See unchanged, and Save over the plan (save-revision.json) writes it. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started.",
+        "description": "Reads the plan page on this site. The content is the plan rendered as markdown, the SKILL.md of fedwiki-plan and of each skill the plan's status item names on a SKILLS line (read from ~/.claude/skills on the machine the farm runs on; one it cannot find is skipped with a note), and the pages the plan links on this site, the answers to its open questions first, up to 120 kB; the questions are read from the plan and from the page it links as Open Questions on this site. The model is the farm's choice (CLAUDE_DOOR_MODEL, else AUDIONOTE_SUMMARY_MODEL, else claude-opus-5-5), reached through @fortyfoxes/wiki-claude-door: the Claude API where the farm holds a key, otherwise the Claude Code CLI as whoever is logged in on the farm's machine, with every tool disallowed and a seven-minute limit. The way is the mode: answers (the default) asks the model to redraft the whole plan in the house format (one heading level, # Phase N with a > strap line, - [ ] checkpoints one per line, Open Questions as red question links), keeping every tick that exists and changing only what the answers justify, and to end with a # What Changed section; direction asks it to carry out the owner's direction instead, keeping ticks unless told otherwise; correct asks it to tick what the record shows done and correct what it contradicts, adding no work; tidy asks for the house format only and sends neither linked pages nor answers. A direction given with any mode is quoted after the material as the owner's words. The redraft is kept in the job and nothing is written: the tool opens it as a ghost with the plan's own title, carrying the plan's opener, its plan item second, the redrafted body and the plan's own timeline, Assets and See unchanged, and Save over the plan (save-revision.json) writes it. The run holds the farm WIP marker (~/.wiki-hosting/AGENT-WIP.json, the wiki-wip protocol) from the call until the model has answered or failed, with a note naming it (Plan Tool: Revise Plan <site>/<slug>) and a heartbeat every minute, and releases it in every case; a live claim by anyone else is answered with 409 naming the holder, and nothing is started. A model that fails — too slow, out of tokens, unreachable, or with too small a window — climbs the ladder (0.16.0): the same question goes to the next rung of PLAN_LADDER (default claude-cli:claude-fable-5-1, Claude through the Claude Code CLI on the farm's account), the job's climb lists each step, and each failure is logged to status/farm-tmp/model-failures.jsonl and, for the coop's models, to the page Coop Model Failures on PLAN_FAILURE_SITE (default coop.private.fish) on the same farm.",
         "x-fedwiki-writes": true,
         "x-fedwiki-spends": true,
         "x-fedwiki-context": [
@@ -156,6 +156,25 @@
                   "direction": {
                     "type": "string",
                     "description": "The owner's direction, up to 8,000 characters: required for mode direction, and with any other mode an addition that takes precedence. It is sent to the model as the request, quoted after the material, and opens the ghost as a quote."
+                  },
+                  "conversation": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "owner",
+                            "model"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "description": "The owner's Talk it over conversation (0.16.0), turns of {role: owner or model, text}, newest kept within 40,000 characters. It goes to the model as material, with the rule that what the owner settled in it is carried out and a suggestion the owner did not take up is not a decision."
                   }
                 }
               }
@@ -449,6 +468,10 @@
                   "direction": {
                     "type": "string",
                     "description": "The owner's direction the redraft carried out, kept once, on the revision's first journal entry (planTool.direction, up to 2,000 characters), as the record of why."
+                  },
+                  "talk": {
+                    "type": "integer",
+                    "description": "How many turns of a Talk it over conversation the redraft drew on, kept as planTool.talk on the revision's first journal entry."
                   }
                 }
               }
@@ -586,6 +609,81 @@
         "responses": {
           "200": {
             "description": "{ default, defaultFrom, research, doors: [{ door, url?, error?, models: [{ id, name, contextLength, loaded?, reasoning?, selector?, routesTo? }] }], auto }"
+          }
+        }
+      }
+    },
+    "/chat.json": {
+      "post": {
+        "operationId": "chat",
+        "summary": "Talk it over: one turn of a conversation about the plan with the chosen model, as a job; nothing is written",
+        "description": "Reads the plan page on this site and gives the door what Revise Plan gives it — the plan as markdown, its skills, the pages it links with the answers first, the answers written on question lines — then the talk so far (history, newest kept within 40,000 characters) and the owner's message, asked to answer plainly and briefly without redrafting the plan. The answer is kept in the job (poll job.json); nothing is written to the plan or anywhere else, and the farm WIP marker is not claimed. The talk is kept in the owner's browser, sent back with each turn and, when the owner chooses, with a revision (revise.json conversation). Like every Plan Tool call, a failed model climbs the ladder (PLAN_LADDER) and the failure is logged.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "message"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug."
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "The owner's message, up to 6,000 characters."
+                  },
+                  "history": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "owner",
+                            "model"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "description": "The talk so far, oldest first: turns of {role: owner or model, text}."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model to ask, any id the door accepts, or auto; left out, the farm's default."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind: 'chat', slug, title, reportTitle, model, session, started }; poll job.json, whose result.markdown is the answer."
+          },
+          "400": {
+            "description": "Not a slug, not a plan, an empty or overlong message, or a history that is not a list of turns."
+          },
+          "403": {
+            "description": "The caller may not edit this site (the talk spends the farm's model budget)."
+          },
+          "404": {
+            "description": "No such page on this site."
           }
         }
       }

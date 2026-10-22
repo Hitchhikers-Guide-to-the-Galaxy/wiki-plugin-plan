@@ -67,7 +67,7 @@ test('the operations that spend the farm\'s keys follow the farm-wide FARM_API_S
   const spec = JSON.parse(fs.readFileSync(path.join(here, '..', 'api', 'openapi.json'), 'utf8'))
   const ops = Object.values(spec.paths).flatMap(p => Object.values(p)).filter(o => o['x-fedwiki-writes'] === true)
   const spending = ops.filter(o => o['x-fedwiki-spends'] === true).map(o => o.operationId).sort()
-  assert.deepEqual(spending, ['applyRevision', 'next', 'redlink', 'revise', 'reviseSite'])
+  assert.deepEqual(spending, ['applyRevision', 'chat', 'next', 'redlink', 'revise', 'reviseSite'])
   const call = (o, origin) => refuseWrite({ app, req, origin, status, scope: `plan.${o.operationId}`, spends: o['x-fedwiki-spends'] === true })
   try {
     delete process.env.FARM_API_SPEND
