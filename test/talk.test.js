@@ -166,3 +166,13 @@ test('ourSites and foreignOf: a fork from a site of the same owner on this farm 
   assert.equal(foreignOf(theirs, 'toy.localhost', ours), 'forked from other.localhost')
   assert.equal(foreignOf({ ...seeded, journal: [{ type: 'fork', site: 'wiki.example.org', date: 1 }] }, 'toy.localhost', ours), 'forked from wiki.example.org')
 })
+
+test('onceEach: a reply kept many times by the 0.16.0–0.16.2 polling bug reads once; a repeated question stays', async () => {
+  const { onceEach } = await import('../src/client/plan.js')
+  const r = { role: 'model', text: 'The same reply.' }
+  const q = { role: 'owner', text: 'Again?' }
+  assert.deepEqual(onceEach([q, r, r, r, r]), [q, r])
+  assert.deepEqual(onceEach([q, r, q, r]), [q, r, q, r])
+  assert.deepEqual(onceEach([q, r, { role: 'model', text: 'Another.' }]).length, 3)
+  assert.deepEqual(onceEach([]), [])
+})

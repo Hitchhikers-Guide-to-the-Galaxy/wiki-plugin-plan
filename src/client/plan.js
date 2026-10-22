@@ -1959,10 +1959,14 @@ const REVISE_HELP = 'Revise Plan Help'
 // the direction box, and "Include the talk" sends it with the revision as
 // material. The run state lives on the element ($item[0].planTalk).
 const TALK_KEY = slug => `plan.talk:${location.host}/${slug}`
+// A reply kept more than once (the 0.16.0–0.16.2 polling bug) is read once:
+// a model turn that repeats the model turn just before it is dropped.
+export const onceEach = turns =>
+  turns.filter((t, i) => !(t && t.role === 'model' && i > 0 && turns[i - 1] && turns[i - 1].role === 'model' && turns[i - 1].text === t.text))
 const readTalk = slug => {
   try {
     const t = JSON.parse(sessionStorage.getItem(TALK_KEY(slug)) || '[]')
-    return Array.isArray(t) ? t : []
+    return Array.isArray(t) ? onceEach(t) : []
   } catch {
     return []
   }
@@ -2226,7 +2230,11 @@ async function showRevise($item, opts, item) {
         if (j.climb) Object.assign(T, { climb: j.climb, model: j.model || T.model })
         if (j.status === 'failed') return fail(`The model could not answer: ${j.error}`)
         if (j.status === 'done') {
-          keepTalk(slug, [...readTalk(slug), { role: 'model', text: j.result.markdown, model: j.result.model, ms: j.result.ms, at: Date.now(), ...(j.climb ? { climb: j.climb, failureLog: j.failureLog || null } : {}) }])
+          // The loop ends here: the reply is kept once, by its job (0.16.3 —
+          // before, the state stayed 'running' and every poll kept it again).
+          T.state = 'done'
+          const had = readTalk(slug)
+          if (!had.some(t => t.job === T.job)) keepTalk(slug, [...had, { role: 'model', job: T.job, text: j.result.markdown, model: j.result.model, ms: j.result.ms, at: Date.now(), ...(j.climb ? { climb: j.climb, failureLog: j.failureLog || null } : {}) }])
           $item[0].planTalk = null
         }
       }
