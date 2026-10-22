@@ -771,7 +771,7 @@
       "post": {
         "operationId": "logFailuresOp",
         "summary": "Take failures of the coop's models posted by another farm, and add each to this site's Coop Model Failures page",
-        "description": "For the farm that hosts the failure log site (PLAN_FAILURE_SITE, default coop.private.fish). A farm without that site posts the coop failures of its Plan Tool runs here; each record (model, run, origin, slug, title, tokens, bytes, kind, ms, error, then, farm) is cut to size, records for models that are not the coop's (openai:… or ollama:…) are dropped, at most 20 are taken, and each becomes one journaled line on this site's page Coop Model Failures, naming the farm it came from, plus a line in status/farm-tmp/model-failures.jsonl. The caller needs the site's own sign-in, or an X-Api-Key listed in this site's status/api-keys.json under \"plan.logFailures\".",
+        "description": "For the farm that hosts the failure log site (PLAN_FAILURE_SITE, default coop.private.fish). A farm without that site posts the coop failures of its Plan Tool runs here; each record (model, run, origin, slug, title, tokens, bytes, kind, ms, error, then, farm) is cut to size, records for models that are not the coop's (openai:… or ollama:…) are dropped, at most 20 are taken, and each becomes one journaled line on this site's page Coop Model Failures, naming the farm it came from, plus a line in status/farm-tmp/model-failures.jsonl. The caller needs the site's own sign-in, or an X-Api-Key listed in this site's status/api-keys.json under \"plan.logFailuresOp\".",
         "x-fedwiki-writes": true,
         "x-fedwiki-context": [
           "origin",

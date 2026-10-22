@@ -985,7 +985,7 @@ export async function draftLinks({ slug, story, direction, conversation, model, 
 /**
  * Failures posted by another farm (0.16.3): a farm whose sites cannot reach
  * the log site's folder posts its coop failures here, with an API key this
- * site lists under plan.logFailures (or as its owner). Each becomes a line
+ * site lists under plan.logFailuresOp (or as its owner). Each becomes a line
  * on this site's Coop Model Failures, saying which farm it came from, and a
  * line in this site's failure file. Only the coop's models are taken.
  */

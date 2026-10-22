@@ -84,7 +84,8 @@ export const failureText = r =>
   `${r.when} · ${r.model} · ${r.run} of [${pageUrl(r.origin, r.slug)} ${r.title}] on ${r.origin}${r.farm ? ` (${r.farm} farm)` : ''} · about ${Math.round((r.tokens || 0) / 1000)}k tokens in (${Math.round((r.bytes || 0) / 1024)} kB) · ${r.kind} after ${secs(r.ms)}: ${String(r.error || '').replace(/\s+/g, ' ').slice(0, 400)} · ${r.then}.`
 
 // The farm a record comes from, for a line posted from another farm (0.16.3).
-export const farmName = () => String(process.env.PLAN_FARM_NAME || os.hostname() || 'another').replace(/\.local$/, '')
+// PLAN_FARM_NAME names it; a Mac is "laptop", anything else its hostname.
+export const farmName = () => String(process.env.PLAN_FARM_NAME || (process.platform === 'darwin' ? 'laptop' : os.hostname()) || 'another').replace(/\.local$/, '')
 
 const randomId = () => crypto.randomBytes(8).toString('hex')
 
@@ -172,7 +173,7 @@ export const appendToPage = (dir, coop, date = Date.now()) => {
 // plan/log-failures.json (PLAN_FAILURE_URL overrides), with the key in
 // PLAN_FAILURE_KEY_FILE (default ~/.config/wiki-plugin-plan/failure-key, mode
 // 600); the log site lists that key in its status/api-keys.json under
-// "plan.logFailures". Never throws, gives up after ten seconds.
+// "plan.logFailuresOp". Never throws, gives up after ten seconds.
 export const failureKeyFile = () => process.env.PLAN_FAILURE_KEY_FILE || path.join(os.homedir(), '.config', 'wiki-plugin-plan', 'failure-key')
 
 export const postFailures = async ({ records, site = process.env.PLAN_FAILURE_SITE || 'coop.private.fish', fetchImpl = globalThis.fetch } = {}) => {
