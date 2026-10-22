@@ -41,6 +41,7 @@ export const isCoop = model => /^(openai|ollama):/.test(String(model || ''))
 export const failureKind = err => {
   const m = String((err && err.message) || err || '')
   if (/holds about [\d,]+ tokens/.test(m)) return 'window'
+  if (/no router for requested model|model_not_found|unknown model|not_found/i.test(m)) return 'no such model'
   if (/\(length\)|spent all [\d,]+ max_tokens/.test(m)) return 'length'
   if (/timed? ?out|HEADERS_TIMEOUT|aborted|AbortError/i.test(m)) return 'timeout'
   if (/could not be reached|fetch failed|ECONN|ENOTFOUND|EHOSTUNREACH|socket/i.test(m)) return 'unreachable'

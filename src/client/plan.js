@@ -160,7 +160,8 @@ const STYLE = `
 .plan-tool .plan-turn-h{font-weight:bold}
 .plan-tool .plan-turn-meta{color:#777;font-size:85%;margin-top:2px}
 .plan-tool .plan-turn-use{margin-left:.5em;color:#2a6;text-decoration:none}
-.plan-tool .plan-talk-input{width:100%;box-sizing:border-box;font:inherit;border:1px solid #bcd8bc;border-radius:4px;padding:4px;resize:vertical}
+.plan-tool .plan-talk-input{width:100%;box-sizing:border-box;font:inherit;border:1px solid #bcd8bc;border-radius:4px;padding:4px;resize:vertical;height:4.6em;min-height:2.4em}
+.plan-tool .plan-turn code{background:#f2f2f2;border-radius:3px;padding:0 3px;font-size:92%}
 .plan-tool .plan-talk-row{display:flex;align-items:center;gap:8px;margin-top:3px}
 .plan-tool .plan-talk-send{border:1px solid #2a6;border-radius:4px;background:#2a6;color:#fff;cursor:pointer;padding:2px 12px}
 .plan-tool .plan-talk-send:disabled{background:#b9d8c1;border-color:#b9d8c1}
@@ -1777,7 +1778,12 @@ const keepTalk = (slug, t) => {
 }
 // A reply as html: paragraphs, bullets and headings, [[links]] resolved by the wiki.
 const talkHtml = text => {
-  const line = t => (window.wiki && typeof wiki.resolveLinks === 'function' ? wiki.resolveLinks(t) : escapeHtml(t))
+  // resolveLinks escapes the text and draws [[links]]; bold, italics and code are added to its output.
+  const line = t =>
+    (window.wiki && typeof wiki.resolveLinks === 'function' ? wiki.resolveLinks(t) : escapeHtml(t))
+      .replace(/\*\*([^*<>]+)\*\*/g, '<b>$1</b>')
+      .replace(/(^|[\s(])\*([^*<>\s][^*<>]*)\*(?=[\s.,;:)!?]|$)/g, '$1<i>$2</i>')
+      .replace(/`([^`<>]+)`/g, '<code>$1</code>')
   return String(text || '')
     .trim()
     .split(/\n{2,}/)

@@ -113,6 +113,7 @@ test('failureKind reads the door\'s words', () => {
   assert.equal(failureKind(new Error('could not be reached: fetch failed (UND_ERR_HEADERS_TIMEOUT)')), 'timeout')
   assert.equal(failureKind(new Error('could not be reached: fetch failed (ECONNREFUSED)')), 'unreachable')
   assert.equal(failureKind(new Error('HTTP 500 upstream command exited prematurely')), 'server')
+  assert.equal(failureKind(new Error('answered 404: {"error":{"message":"no router for requested model","code":"not_found"}}')), 'no such model')
   assert.equal(failureKind(new Error('odd')), 'other')
 })
 
