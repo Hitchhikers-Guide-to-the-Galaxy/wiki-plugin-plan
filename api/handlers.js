@@ -51,7 +51,7 @@ import { ask, door, isModelId, listModels, contextOf, estimateTokens, autoModel,
 
 import { isPlanTitle, advanceButton, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt, planState, autoTier, autoLine, AUTO, AUTO_RULE } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
-import { nextRung, failureKind, logFailures, thenText } from './ladder.js'
+import { nextRung, failureKind, logFailures, thenText, postFailures, checkPosted, appendToPage } from './ladder.js'
 import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM, REVISE_MODES, DIRECTION_CAP, TALK_MESSAGE_CAP, fitTalk } from './prompt.js'
 
 const problem = (status, message) => Object.assign(new Error(message), { status })
@@ -389,6 +389,16 @@ const askPlan = async (model, content, opts = {}) => {
         }
       })
       j.failureLog = logFailures({ status: j.statusDir, records })
+      // The log site is on another farm: post them there, without waiting.
+      const remote = j.failureLog.remote
+      delete j.failureLog.remote
+      if (remote && remote.length) {
+        j.failureLog.posting = true
+        postFailures({ records: remote }).then(r => {
+          j.failureLog = { ...j.failureLog, posting: false, posted: r.posted, ...(r.posted ? { page: r.url, site: r.site } : { why: `${j.failureLog.why}; ${r.why}` }) }
+          persist(j)
+        })
+      }
       persist(j)
     }
   }
@@ -970,6 +980,25 @@ export async function draftLinks({ slug, story, direction, conversation, model, 
       return { model: how, ms: Date.now() - t0, reportTitle: j.reportTitle, drafts: j.drafts.map(d => ({ title: d.title, slug: d.slug })), failed: j.failed }
     },
   })
+}
+
+/**
+ * Failures posted by another farm (0.16.3): a farm whose sites cannot reach
+ * the log site's folder posts its coop failures here, with an API key this
+ * site lists under plan.logFailures (or as its owner). Each becomes a line
+ * on this site's Coop Model Failures, saying which farm it came from, and a
+ * line in this site's failure file. Only the coop's models are taken.
+ */
+export async function logFailuresOp({ records, origin, status } = {}) {
+  const ok = checkPosted(records)
+  if (!ok.length) throw problem(400, 'no failure of a coop model in the records: each needs at least model (openai:… or ollama:…), run, origin, slug, title, kind and error')
+  const dir = siteDir(status)
+  const file = appendToPage(dir, ok, Date.now())
+  try {
+    fs.mkdirSync(path.join(status, 'farm-tmp'), { recursive: true })
+    fs.appendFileSync(path.join(status, 'farm-tmp', 'model-failures.jsonl'), ok.map(r => JSON.stringify({ ...r, postedTo: origin })).join('\n') + '\n')
+  } catch {}
+  return { added: ok.length, page: `/view/${path.basename(file)}`, origin }
 }
 
 /** A run as the asking site may see it. Another site's jobs are not found, not forbidden. */

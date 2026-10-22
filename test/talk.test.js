@@ -176,3 +176,46 @@ test('onceEach: a reply kept many times by the 0.16.0–0.16.2 polling bug reads
   assert.deepEqual(onceEach([q, r, { role: 'model', text: 'Another.' }]).length, 3)
   assert.deepEqual(onceEach([]), [])
 })
+
+test('0.16.3: a farm without the log site hands its coop failures back for posting; postFailures sends them with the key', async () => {
+  const { postFailures } = await import('../api/ladder.js')
+  const f = farm()
+  const rec = { when: 'w', model: 'openai:llm_auto-big', run: 'Talk it over', origin: 'demo.localhost', slug: 'toy-plan', title: 'Toy Plan', tokens: 9000, bytes: 30000, kind: 'server', ms: 27000, error: 'upstream command exited prematurely', then: 'escalated to claude-fable-5-1, which answered in 17 s' }
+  const out = logFailures({ status: f.status, records: [rec, { ...rec, model: 'claude-cli:claude-fable-5-1' }] })
+  assert.equal(out.page, null)
+  assert.equal(out.remote.length, 1)
+  assert.ok(out.remote[0].farm)
+  // no key file: not posted, and says why
+  process.env.PLAN_FAILURE_KEY_FILE = path.join(f.root, 'no-key-here')
+  const none = await postFailures({ records: out.remote, fetchImpl: () => assert.fail('must not post without a key') })
+  assert.match(none.why, /no key in .*no-key-here/)
+  // with a key: posted to the site, the key in X-Api-Key
+  fs.writeFileSync(path.join(f.root, 'key'), 'k3y\n')
+  process.env.PLAN_FAILURE_KEY_FILE = path.join(f.root, 'key')
+  let sent = null
+  const ok = await postFailures({ records: out.remote, fetchImpl: async (url, o) => ((sent = { url, o }), new Response(JSON.stringify({ added: 1 }), { status: 200 })) })
+  assert.equal(ok.posted, 1)
+  assert.equal(sent.url, 'https://coop.private.fish/system/api/plan/log-failures.json')
+  assert.equal(sent.o.headers['X-Api-Key'], 'k3y')
+  assert.equal(JSON.parse(sent.o.body).records[0].model, 'openai:llm_auto-big')
+  const refused = await postFailures({ records: out.remote, fetchImpl: async () => new Response(JSON.stringify({ error: 'no key' }), { status: 403 }) })
+  assert.match(refused.why, /coop\.private\.fish answered 403: no key/)
+  delete process.env.PLAN_FAILURE_KEY_FILE
+})
+
+test('0.16.3: logFailuresOp takes only the coop\'s failures, cut to size, and writes them with the farm they came from', async () => {
+  const { logFailuresOp } = await import('../api/handlers.js')
+  const root = scratch()
+  const site = path.join(root, 'coop.private.fish')
+  fs.mkdirSync(path.join(site, 'pages'), { recursive: true })
+  fs.mkdirSync(path.join(site, 'status'), { recursive: true })
+  const rec = { when: '2026-10-22 16:27', model: 'openai:llm_auto-big', run: 'Talk it over', origin: 'demo.localhost', slug: 'talk-it-over-demo-plan', title: 'Talk It Over [Demo] Plan', tokens: 9000, bytes: 30000, kind: 'server', ms: 27000, error: 'x'.repeat(2000), then: 'escalated', farm: 'MacBook' }
+  const out = await logFailuresOp({ records: [rec, { ...rec, model: 'claude-opus-5-5' }, { ...rec, slug: '../etc' }], origin: 'coop.private.fish', status: path.join(site, 'status') })
+  assert.equal(out.added, 2)
+  const page = JSON.parse(fs.readFileSync(path.join(site, 'pages', 'coop-model-failures'), 'utf8'))
+  const lines = page.story.slice(2).map(i => i.text)
+  assert.match(lines[0], /^2026-10-22 16:27 · openai:llm_auto-big · Talk it over of \[http:\/\/demo\.localhost\/view\/talk-it-over-demo-plan Talk It Over Demo Plan\] on demo\.localhost \(MacBook farm\) · /)
+  assert.ok(lines[0].length < 1000)
+  assert.match(lines[1], /view\/unknown /)
+  await assert.rejects(logFailuresOp({ records: [{ ...rec, model: 'claude-opus-5-5' }], origin: 'coop.private.fish', status: path.join(site, 'status') }), e => e.status === 400)
+})

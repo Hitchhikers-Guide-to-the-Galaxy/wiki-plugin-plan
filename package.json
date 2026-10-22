@@ -1,6 +1,6 @@
 {
   "name": "wiki-plugin-plan",
-  "version": "0.16.2",
+  "version": "0.16.3",
   "description": "Federated Wiki - Plan Plugin: the Plan Tool lists a site's plans and reads one plan's state off its page; Update Plan ticks the open questions now answered, by a page behind the link or an Answer written on the line, and Do Next Phase and Revise Plan ask the shared Claude door for a phase report or a redraft, opened as a ghost page — Revise Plan's with the plan's own title, saved over the plan through its journal and rewound from its _rev; Revise Site asks the door for a Revision Proposal for the whole site from the answered questions, opened as a ghost with Pause and Go Ahead, and Go Ahead rewrites the pages it names one at a time, the plan last; Red-link finds the links on a plan with no page behind them, researches each on the web through the door and writes its page, question links left for their answers; a plan item's text is STATUS, so saving its editor unchanged never deletes it; finish Plan writes a complete plan's Conclusion and demo link, Answer hands an open question to the Voice Tool, and Check Plan Index reports what has moved since the Plan Index was written, through the farm API",
   "type": "module",
   "main": "client/plan.js",
