@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved, waitingLines } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved, waitingLines, redLinksOf } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -86,6 +86,10 @@ const STYLE = `
 .plan-tool li.plan-next{font-weight:bold}
 .plan-tool .plan-next-tag{background:#f6d6c4;border-radius:3px;font-size:75%;font-weight:normal;margin-left:.4em;padding:0 4px}
 .plan-tool .plan-blockers{font-weight:normal;font-size:90%;color:#555;margin:2px 0 4px}
+.plan-tool ul.plan-missing{list-style:none;padding-left:.6em;margin:2px 0 6px;font-size:90%}
+.plan-tool ul.plan-missing li{margin:1px 0}
+.plan-tool .plan-box{color:#888;margin-right:.2em}
+.plan-tool .plan-missing-where{color:#888;font-size:90%}
 .plan-tool .plan-section{margin:8px 0 2px;font-size:90%;color:#555}
 .plan-tool .plan-lints li{color:#a35a00;font-size:90%}
 .plan-tool .plan-actions{border-top:1px solid #ddd;color:#555;font-size:85%;margin-top:10px;padding-top:6px}
@@ -253,6 +257,11 @@ const scatterLint = async (page, site) => {
 // plan-tool among them), or the plan page itself on the status face.
 const askLink = q =>
   ` <a href="#" class="plan-ask" data-title="${escapeHtml(q.title)}" title="Open the Voice Tool to the right with this question chosen as the page it is waiting for">Answer</a>`
+// A page the plan links that is not written yet is answered the same way
+// (0.16.4): the Voice Tool saves the spoken or typed note under its title, and
+// the red link turns blue.
+const writeLink = x =>
+  ` <a href="#" class="plan-ask" data-title="${escapeHtml(x.title)}" title="Open the Voice Tool to the right with ${escapeHtml(x.title)} chosen as the page it is waiting for: say or type what the page should hold, then Save page &amp; link it">Answer</a>`
 
 const askVoiceTool = ($item, title) => {
   try {
@@ -295,7 +304,11 @@ const stateHtml = (st, site, heading, folded = false, rev = null) => {
   const q = st.questions.length ? ` · ${st.answered} of ${st.questions.length} questions answered${st.queried ? `, ${st.queried} asked back` : ''}` : ''
   const where = st.complete ? 'complete' : st.next === -1 ? 'no checkpoints' : `next: ${escapeHtml(st.phases[st.next].line)}`
   const blocks = st.next === -1 ? 0 : st.blockers.questions.length + st.blockers.redLinks.length
-  const extra = (blocks ? ` · ${blocks} blocker${blocks === 1 ? '' : 's'}` : '') + (st.lints.length ? ` · ${st.lints.length} lint${st.lints.length === 1 ? '' : 's'}` : '')
+  const missing = st.missing || []
+  const extra =
+    (blocks ? ` · ${blocks} blocker${blocks === 1 ? '' : 's'}` : '') +
+    (missing.length ? ` · ${missing.length} page${missing.length === 1 ? '' : 's'} to write` : '') +
+    (st.lints.length ? ` · ${st.lints.length} lint${st.lints.length === 1 ? '' : 's'}` : '')
   const toggle = `<a href="#" class="plan-fold" title="Show or hide the phases, questions and lints">${foldGlyph(folded)}</a>`
   parts.push(`<p class="plan-summary">${toggle}${st.done}/${st.total} checkpoints · ${where}${q}${extra}</p>`)
   // A run waiting on a person says so here, above the fold (0.15.4).
@@ -311,7 +324,7 @@ const stateHtml = (st, site, heading, folded = false, rev = null) => {
         li += `<span class="plan-next-tag">next</span>`
         const b = []
         for (const x of st.blockers.questions) b.push(`question ${internal(x.title, x.slug, site)}${askLink(x)}`)
-        for (const x of st.blockers.redLinks) b.push(`red link ${internal(x.title, x.slug, site)}`)
+        for (const x of st.blockers.redLinks) b.push(`red link ${internal(x.title, x.slug, site)}${writeLink(x)}`)
         li += `<div class="plan-blockers">${b.length ? `Blocked by ${b.join('; ')}` : 'Nothing blocks it.'}</div>`
       }
       return li + '</li>'
@@ -330,12 +343,37 @@ const stateHtml = (st, site, heading, folded = false, rev = null) => {
     parts.push(`<p class="plan-section">${line}</p>`)
   }
 
+  // Pages to write (0.16.4): every link on the plan with no page yet, outside
+  // the questions, as an unticked task with its section and an Answer link.
+  if (missing.length) {
+    parts.push(`<p class="plan-section">${missing.length} page${missing.length === 1 ? '' : 's'} the plan links ${missing.length === 1 ? 'is' : 'are'} not written yet:</p>`)
+    parts.push(
+      `<ul class="plan-missing">${missing
+        .map(x => `<li><span class="plan-box" aria-hidden="true">☐</span> ${internal(x.title, x.slug, site)}${x.kind === 'timeline event' ? ` <span class="plan-missing-where">on the timeline</span>` : x.section ? ` <span class="plan-missing-where">in ${escapeHtml(x.section)}</span>` : ''}${writeLink(x)}</li>`)
+        .join('')}</ul>`,
+    )
+  }
+
   if (st.lints.length) parts.push(`<ul class="plan-lints">${st.lints.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`)
   parts.push('</div>')
   return parts.join('')
 }
 
 export { stateHtml }
+
+// Which of the candidates the site really lacks: a HEAD for each, a few at a
+// time, asked afresh at every render so a page just written drops off; only
+// a 404 counts as not written.
+const reallyMissing = async (candidates, site) => {
+  const base = baseFor(site)
+  const lacks = new Set()
+  const ask = x =>
+    fetch(`${base}/${x.slug}.json`, { method: 'HEAD', cache: 'no-cache' })
+      .then(r => r.status === 404 && lacks.add(x.slug))
+      .catch(() => {})
+  for (let i = 0; i < candidates.length; i += FETCHES_AT_ONCE) await Promise.all(candidates.slice(i, i + FETCHES_AT_ONCE).map(ask))
+  return candidates.filter(x => lacks.has(x.slug))
+}
 
 // The page the plan links as [[Open Questions]], on the plan's own site (Phase 7).
 const linkedQuestions = async (page, site) => {
@@ -358,6 +396,11 @@ const showState = async ($item, opts, page, site, heading, $subject, key = null)
   } catch (_) {}
   if (scatter) st.lints.push(scatter)
   st.waiting = waitingLines(page)
+  // The sitemaps miss the pages a plugin serves (About Gatekeeper Plugin):
+  // each candidate is asked for once, and only a 404 counts as not written.
+  st.missing = await reallyMissing(redLinksOf(page, known, asSlug).red, site)
+  const gone = new Set(st.missing.map(x => x.slug))
+  if (st.blockers && st.blockers.redLinks) st.blockers.redLinks = st.blockers.redLinks.filter(x => gone.has(x.slug))
   const folded = FOLD.has(key) ? FOLD.get(key) : !heading
   $item.html(shell(opts, stateHtml(st, site, heading, folded, lastRevision(page))))
   $item.find('.plan-tool').toggleClass('plan-folded', folded)
