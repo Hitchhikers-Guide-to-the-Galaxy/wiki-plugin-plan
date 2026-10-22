@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved, waitingLines } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -79,6 +79,7 @@ const STYLE = `
 .plan-tool .plan-error{color:#a00}
 .plan-tool .plan-subject{font-weight:bold;margin:0 0 4px}
 .plan-tool .plan-summary{margin:0 0 6px}
+.plan-tool .plan-waiting{margin:0 0 6px;padding:4px 8px;border-left:3px solid #d9a400;background:rgba(217,164,0,.12)}
 .plan-tool a.plan-fold{color:#777;text-decoration:none;margin-right:.35em;font-size:90%;cursor:pointer}
 .plan-tool.plan-folded .plan-detail{display:none}
 .plan-tool li.plan-done{color:#888}
@@ -293,6 +294,8 @@ const stateHtml = (st, site, heading, folded = false, rev = null) => {
   const extra = (blocks ? ` · ${blocks} blocker${blocks === 1 ? '' : 's'}` : '') + (st.lints.length ? ` · ${st.lints.length} lint${st.lints.length === 1 ? '' : 's'}` : '')
   const toggle = `<a href="#" class="plan-fold" title="Show or hide the phases, questions and lints">${foldGlyph(folded)}</a>`
   parts.push(`<p class="plan-summary">${toggle}${st.done}/${st.total} checkpoints · ${where}${q}${extra}</p>`)
+  // A run waiting on a person says so here, above the fold (0.15.4).
+  for (const w of st.waiting || []) parts.push(`<p class="plan-waiting">${escapeHtml(w.phase ? `${w.phase}: ` : '')}${escapeHtml(w.text)}</p>`)
   parts.push(revisedHtml(rev, st.title))
   parts.push('<div class="plan-detail">')
 
@@ -350,6 +353,7 @@ const showState = async ($item, opts, page, site, heading, $subject, key = null)
     scatter = await scatterLint(page, site)
   } catch (_) {}
   if (scatter) st.lints.push(scatter)
+  st.waiting = waitingLines(page)
   const folded = FOLD.has(key) ? FOLD.get(key) : !heading
   $item.html(shell(opts, stateHtml(st, site, heading, folded, lastRevision(page))))
   $item.find('.plan-tool').toggleClass('plan-folded', folded)

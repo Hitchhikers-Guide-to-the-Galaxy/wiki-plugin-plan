@@ -2030,7 +2030,44 @@ export const planContext = page => {
   return status ? parse(status.text).context : 'fresh'
 }
 
-export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report, carry = false, previousReport = '', nextPhase = null, runner = null }) => {
+// The waiting line (0.15.4, David 2026-10-21: "a run that stops for me
+// writes a waiting for David line under its phase on the plan page, and
+// clears it when the phase finishes"). Phase 2 of the Open Squad Plan handed
+// David the Squad console and waited, and the page showed nothing: no tick,
+// no report, no sign that the run was waiting on him rather than stuck. The
+// line is a markdown item just under the phase heading, starting with the
+// mark, saying since when and what is needed; the run edits it if it stops
+// again and removes it, one journal remove, when the phase is done.
+export const WAITING_MARK = '⏸ Waiting for'
+export const WAITING_WHO = 'David'
+
+export const waitingSentence = (label, who = WAITING_WHO) => {
+  const w = shellSafe(who) || WAITING_WHO
+  return `If you stop to wait for me, for a decision, something only I can do or a hand-over, first add one markdown item just under the ${label} heading on the plan page, through the journal, whose text starts ${WAITING_MARK} ${w} and says since when and what I must do, in one sentence; edit that item if you stop again, and remove it, one journal remove, when the phase is done and before you move this button. `
+}
+
+/** The text of a waiting line: `⏸ Waiting for David since 22:52, 21 October: drive Squad.` */
+export const waitingLine = ({ who = WAITING_WHO, since = '', what = '' } = {}) =>
+  `${WAITING_MARK} ${who}${since ? ` since ${since}` : ''}${what ? `: ${String(what).trim().replace(/\.?$/, '.')}` : '.'}`
+
+/** True for a waiting line written by a phase run. */
+export const isWaiting = item => !!item && item.type === 'markdown' && String(item.text || '').trimStart().startsWith(WAITING_MARK)
+
+/** Every waiting line on a page, each with the phase heading it sits under. */
+export const waitingLines = page => {
+  const story = page && Array.isArray(page.story) ? page.story : []
+  const out = []
+  let phase = ''
+  for (const it of story) {
+    if (!it || it.type !== 'markdown') continue
+    const h = String(it.text || '').match(/^#\s+(.+)/)
+    if (h) phase = h[1].split('\n')[0].trim()
+    else if (isWaiting(it)) out.push({ id: it.id, phase, text: it.text.trim() })
+  }
+  return out
+}
+
+export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report, carry = false, previousReport = '', nextPhase = null, runner = null, who = WAITING_WHO }) => {
   const label = phase.label
   const origin = String(base).replace(/^https?:\/\//, '').replace(/\/$/, '')
   if (runner && /^[a-z][a-z0-9-]{0,40}$/.test(runner)) {
@@ -2055,6 +2092,7 @@ export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report,
       : `This is a fresh session for this phase: what earlier phases did is on the plan page${prev ? ` and in ${prev}` : ' and in its phase reports'}, not in your memory. Read the plan page first${prev ? `, then ${prev} if it exists` : ''}, then do every unticked checkpoint of ${label}, in order, for real: write the code, run it, write the pages, and verify each one with a command before you count it done. `) +
     `The page files live on the machine whose farm serves ${origin}: write pages there through the journal with fedwiki-lib, and follow the fedwiki-plan skill. ` +
     `Ask me before any DNS change, anything on a public site, a farm restart, an npm publish, a git push or a message to anyone, and before any checkpoint that needs my decision. ` +
+    waitingSentence(label, who) +
     `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; tick each checkpoint you verified, one journal edit per item; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, ` +
     (carry
       ? `keeping SESSION ${session} since the plan carries context, `
