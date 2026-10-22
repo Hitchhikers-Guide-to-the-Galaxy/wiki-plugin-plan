@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.16.1",
+    "version": "0.16.2",
     "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link. Red-link finds the plan's links that have no page behind them on this farm, question links and the Open Questions section left alone, and as a job researches each on the web through the door (WebSearch and WebFetch only) and writes its page, a new page with one journaled create each."
   },
   "paths": {
@@ -684,6 +684,85 @@
           },
           "404": {
             "description": "No such page on this site."
+          }
+        }
+      }
+    },
+    "/draft-links.json": {
+      "post": {
+        "operationId": "draftLinks",
+        "summary": "Draft the pages a Revise Plan redraft links that have no page yet, as a job; nothing is written",
+        "description": "Takes the story of the Revise Plan ghost (its first line, the proposal line, is dropped) and reads it as the plan will read once saved. Every link on it with no page on this farm (or a sibling farm, or a plugin's pages) is a candidate — the links the redraft adds first, then those already red on the plan; question links and the Open Questions section are left for their answers — and up to six are researched one at a time like Red-link: the redraft, the owner's direction and talk, the link's line and the site's page titles go to the Claude CLI with WebSearch and WebFetch only, and the answer becomes a page whose opening line says it was researched through the Plan Tool's Revise Plan. Each page is added to the job's drafts as it is done (poll job.json), for the tool to open as a ghost the owner forks, one by one or all at once. Nothing is written and the farm WIP marker is not claimed. Always a Claude model: a Claude model given is used, any other gives way to the research model.",
+        "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
+        "x-fedwiki-context": [
+          "origin",
+          "status",
+          "farmRoot"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "story"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "description": "The plan page on this site, by slug."
+                  },
+                  "story": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "The Revise Plan ghost's story."
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "The owner's direction for the redraft, read as material."
+                  },
+                  "conversation": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "owner",
+                            "model"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "description": "The owner's Talk it over conversation, read as material."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "A Claude model to research with; anything else gives way to the research model."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ job, status: 'running', kind: 'drafts', … }; job.json carries meta.red (the links, isNew for those the redraft adds), progress, drafts ({title, slug, isNew, page}) and failed."
+          },
+          "400": {
+            "description": "Not a plan, a story that is not a list of items, or no link on the redraft without a page."
+          },
+          "403": {
+            "description": "The caller may not edit this site."
           }
         }
       }

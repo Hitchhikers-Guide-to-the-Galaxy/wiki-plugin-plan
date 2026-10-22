@@ -170,6 +170,10 @@ const STYLE = `
 .plan-tool .plan-talk-clear{color:#999;font-size:85%;text-decoration:none}
 .plan-tool .plan-talk-include{display:block;margin-top:4px;color:#2a6}
 .plan-tool .plan-climb{color:#a35a00}
+.plan-tool .plan-drafts{display:block;margin-top:4px;font-size:85%;color:#555}
+.plan-tool .plan-drafts:empty{display:none}
+.plan-tool .plan-drafts button{font-size:inherit;margin-left:.3em}
+.plan-tool .plan-draft-new{background:#e6f4ea;color:#2a6;border-radius:3px;padding:0 4px;font-size:90%}
 `
 
 const shell = (opts, body) =>
@@ -406,7 +410,7 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
         : '') +
       icon('plan-redlink-go', '⌕', 'Red-link', "researches each link on the plan that has no page behind it, on the web, and writes its page; question links are left for their answers; always Claude, which alone has web search here") +
       modelChip() +
-      `<span class="plan-answer"></span><span class="plan-agent"></span><span class="plan-finish"></span></div>`,
+      `<span class="plan-answer"></span><span class="plan-agent"></span><span class="plan-drafts" data-slug="${escapeHtml(slug)}"></span><span class="plan-finish"></span></div>`,
   )
   const last = answerOf($item)
   if (last) $box.find('.plan-answer').toggleClass('plan-refused', !!last.refused).html(last.html)
@@ -452,6 +456,7 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   })
   paintAgent($item)
   if (page) offerSavedProposal($item, $subject, page)
+  paintDrafts(slug)
   if (st && st.complete) attachFinish($item, $subject, slug, $box, page)
 }
 
@@ -853,7 +858,10 @@ async function runAgent($item, $subject, slug, kind, how = null) {
       }
       A.state = 'done'
       if (kind === 'redlink') setTimeout(() => document.body.contains($item[0]) && render($item, $item.data('item') || {}), 1500)
-      else openReport($item, A)
+      else {
+        openReport($item, A)
+        if (kind === 'revise') startDrafts(A)
+      }
     }
     paintAgent($item)
   }
@@ -1135,6 +1143,190 @@ async function saveOver($item, $subject) {
   $item[0].planAgent = null
   closeGhost(A.$ghost)
   reopenPlan($item, $subject)
+  // Reopening the plan closes everything to its right: the drafted pages not
+  // yet written come back as ghosts after it, and its status line offers them.
+  reopenDrafts(A.slug)
+}
+
+// ---------- the pages a redraft links (0.16.2) ----------
+//
+// When Revise Plan's redraft lands, the links on it with no page — the ones
+// it adds first, then those already red — are drafted at once: draft-links.json
+// researches each like Red-link and puts it on the job as it is done, writing
+// nothing. Each draft opens as a ghost at the end of the lineup; the owner
+// forks one by hand, or Write all forks them all, in order. The state is kept
+// by plan slug (DRAFTS), so the Revise Plan page and the plan's status line
+// both show it and it outlives Save over the plan, which reopens the plan.
+const DRAFTS = new Map()
+
+const draftGhostOf = d =>
+  $('.page.ghost').filter((_, el) => {
+    const $g = $(el)
+    return asSlug(ghostTitle($g)) === d.slug || ($g.data('data') || {}).title === d.page.title
+  }).first()
+
+function openDraftGhost(d) {
+  const $open = draftGhostOf(d)
+  if ($open.length) return $open
+  const $last = $('.page').last()
+  wiki.showResult(wiki.newPage(JSON.parse(JSON.stringify(d.page))), { $page: $last })
+  return $last.nextAll('.page').first()
+}
+
+function reopenDrafts(slug) {
+  const D = DRAFTS.get(slug)
+  if (!D || !D.drafts.some(d => !D.written.has(d.slug))) return
+  setTimeout(() => {
+    for (const d of D.drafts) if (!D.written.has(d.slug)) openDraftGhost(d)
+    paintDrafts(slug)
+  }, 900)
+}
+
+// Which drafts are pages now: forked by hand, or written by Write all.
+async function checkWritten(slug) {
+  const D = DRAFTS.get(slug)
+  if (!D) return
+  for (const d of D.drafts) if (!D.written.has(d.slug) && (await pageExists(d.title))) D.written.add(d.slug)
+  paintDrafts(slug)
+}
+
+function paintDrafts(slug) {
+  const D = DRAFTS.get(slug)
+  const $lines = $(`.plan-drafts[data-slug="${slug}"]`)
+  if (!D) return $lines.empty()
+  const link = d => (D.written.has(d.slug) ? `✓ ${internal(d.title, d.slug, location.host)}` : `<a href="#" class="plan-draft-open" data-slug="${escapeHtml(d.slug)}" title="Show its ghost">${escapeHtml(d.title)}</a>`) + (d.isNew ? ' <span class="plan-draft-new">new</span>' : '')
+  const unwritten = D.drafts.filter(d => !D.written.has(d.slug))
+  let html = ''
+  if (D.state === 'posting') html = 'Pages the redraft links: asking the farm…'
+  else if (D.state === 'none') html = escapeHtml(D.line)
+  else if (D.state === 'failed') html = `<span class="plan-refused">${escapeHtml(D.line)}</span>`
+  else {
+    const P = D.progress
+    const head =
+      D.state === 'running'
+        ? `Drafting the ${D.red.length} page${D.red.length === 1 ? '' : 's'} the redraft links that ${D.red.length === 1 ? 'has' : 'have'} none${P ? `: ${P.n} of ${P.of}, ${escapeHtml(P.title)}, researched on the web` : ''}… ${secs(Date.now() - D.started)}`
+        : `Drafted ${D.drafts.length} page${D.drafts.length === 1 ? '' : 's'} the redraft links`
+    html =
+      head +
+      (D.drafts.length ? `: ${D.drafts.map(link).join(', ')}` : '') +
+      (unwritten.length ? `. Each opens as a ghost to the right: fork one to write it, or <button class="plan-drafts-write" ${D.writing ? 'disabled' : ''} title="Fork every drafted ghost in turn, writing each as a page on ${escapeHtml(location.host)}">Write all ${unwritten.length}</button>` : D.drafts.length ? '. All written.' : '') +
+      (D.failed.length ? ` <span class="plan-refused">Failed: ${D.failed.map(f => `${escapeHtml(f.title)} (${escapeHtml(f.error)})`).join('; ')}.</span>` : '') +
+      (D.more ? ` ${D.more} more red link${D.more === 1 ? '' : 's'}: ⌕ Red-link on the plan once it is saved.` : '') +
+      (D.line ? ` <span class="plan-refused">${escapeHtml(D.line)}</span>` : '')
+  }
+  $lines.html(html)
+}
+
+async function startDrafts(A) {
+  if (ownerHere() === false || !A || !A.result) return
+  const slug = A.slug
+  const D = { state: 'posting', started: Date.now(), red: [], drafts: [], failed: [], written: new Set(), more: 0, line: '' }
+  DRAFTS.set(slug, D)
+  paintDrafts(slug)
+  const how = A.how || {}
+  const model = chosenModel()
+  let out
+  try {
+    out = await postJSON('draft-links.json', {
+      slug,
+      story: itemsOf(A),
+      ...(how.direction ? { direction: how.direction } : {}),
+      ...(how.conversation ? { conversation: how.conversation } : {}),
+      ...(/^(claude-cli:)?claude-/.test(model) ? { model } : {}),
+    })
+  } catch (err) {
+    Object.assign(D, { state: 'failed', line: `Could not reach the farm to draft the linked pages: ${err.message}` })
+    return paintDrafts(slug)
+  }
+  if (!out.res.ok) {
+    const why = (out.body && out.body.error) || ''
+    Object.assign(D, out.res.status === 400 && /on this farm already/.test(why) ? { state: 'none', line: 'Every page the redraft links is here already.' } : { state: 'failed', line: `Drafting the linked pages: ${apiError(out.res, out.body)}` })
+    return paintDrafts(slug)
+  }
+  Object.assign(D, { state: 'running', job: out.body.job })
+  const tick = setInterval(() => (D.state === 'running' ? paintDrafts(slug) : clearInterval(tick)), 1000)
+  let misses = 0
+  while (D.state === 'running' && DRAFTS.get(slug) === D) {
+    await sleep(POLL_MS)
+    let j
+    try {
+      const r = await fetch(`/system/api/plan/job.json?id=${encodeURIComponent(D.job)}`, { credentials: 'include', cache: 'no-cache', headers: { Accept: 'application/json' } })
+      j = await r.json().catch(() => null)
+      if (!r.ok) {
+        Object.assign(D, { state: 'failed', line: `Drafting the linked pages: ${apiError(r, j)}` })
+        break
+      }
+      misses = 0
+    } catch (err) {
+      if (++misses > 5) Object.assign(D, { state: 'failed', line: `Lost the farm while drafting: ${err.message}` })
+      continue
+    }
+    D.red = (j.meta && j.meta.red) || D.red
+    D.more = (j.meta && j.meta.more) || 0
+    D.progress = j.progress || null
+    D.failed = j.failed || []
+    for (const d of j.drafts || []) {
+      if (D.drafts.some(x => x.slug === d.slug)) continue
+      D.drafts.push(d)
+      openDraftGhost(d)
+    }
+    if (j.status === 'failed') Object.assign(D, { state: 'failed', line: `Drafting the linked pages failed: ${j.error}` })
+    else if (j.status === 'done') D.state = 'done'
+    paintDrafts(slug)
+  }
+  clearInterval(tick)
+  paintDrafts(slug)
+}
+
+// Write all: each drafted ghost forked in turn, the wiki's own save; a page
+// that exists by now is left alone.
+async function writeDrafts(slug) {
+  const D = DRAFTS.get(slug)
+  if (!D || D.writing) return
+  D.writing = true
+  D.line = ''
+  paintDrafts(slug)
+  try {
+    for (const d of D.drafts) {
+      if (D.written.has(d.slug)) continue
+      if (await pageExists(d.title)) {
+        D.written.add(d.slug)
+        continue
+      }
+      const $g = openDraftGhost(d)
+      await saveGhost($g)
+      D.written.add(d.slug)
+      paintDrafts(slug)
+    }
+  } catch (err) {
+    D.line = `Could not write them all: ${err.message}`
+  } finally {
+    D.writing = false
+    paintDrafts(slug)
+  }
+}
+
+if (typeof document !== 'undefined' && typeof $ === 'function') {
+  $(document).on('click', '.plan-drafts .plan-drafts-write', e => {
+    e.preventDefault()
+    writeDrafts($(e.currentTarget).closest('.plan-drafts').attr('data-slug'))
+  })
+  $(document).on('click', '.plan-drafts .plan-draft-open', e => {
+    e.preventDefault()
+    const slug = $(e.currentTarget).closest('.plan-drafts').attr('data-slug')
+    const D = DRAFTS.get(slug)
+    const d = D && D.drafts.find(x => x.slug === e.currentTarget.getAttribute('data-slug'))
+    if (d) openDraftGhost(d)[0]?.scrollIntoView({ behavior: 'smooth', inline: 'center' })
+  })
+  // A draft forked by hand is a page now: look again after each save.
+  let again = null
+  $(document).on('ajaxComplete', (_e, _x, settings) => {
+    if (!DRAFTS.size || !/\/action$|\/page\//.test((settings && settings.url) || '')) return
+    clearTimeout(again)
+    again = setTimeout(() => {
+      for (const slug of DRAFTS.keys()) checkWritten(slug)
+    }, 800)
+  })
 }
 
 // The link: the rev as the wiki itself opens one from the journal, the
@@ -1903,6 +2095,7 @@ async function showRevise($item, opts, item) {
         `</div>` +
         `<div class="plan-revise-row"><button class="plan-revise-run" title="Ask the model for the redraft. It opens to the right as a ghost with the plan's own title; nothing is written until you fork it">✎ Revise</button>${modelChip()}</div>` +
         `<span class="plan-agent"></span>` +
+        `<span class="plan-drafts" data-slug="${escapeHtml(slug)}"></span>` +
         `<p class="plan-meta plan-revise-how">The redraft opens to the right as a ghost with the plan's own title; fork it to save it over the plan. ${internal(REVISE_HELP, asSlug(REVISE_HELP), location.host)}</p>` +
         `</div>`,
     ),
@@ -2077,6 +2270,7 @@ async function showRevise($item, opts, item) {
   paintChips()
   paintTalk()
   paintAgent($item)
+  paintDrafts(slug)
 }
 
 // ---------- the item ----------

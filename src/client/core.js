@@ -1933,9 +1933,9 @@ export const pageBlocks = text => {
 }
 
 /** The page's story, built from the model's body. */
-export const researchedStory = ({ title, body, planTitle, model = '', date = today(), id = randomHex }) => {
+export const researchedStory = ({ title, body, planTitle, model = '', date = today(), id = randomHex, via = 'Red-link' }) => {
   const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
-  const out = [{ type: 'markdown', id: id(), text: `This page is AI generated: researched on the web${by} through the [[Plan Tool]]'s Red-link, ${date}, for a link on [[${planTitle}]].` }]
+  const out = [{ type: 'markdown', id: id(), text: `This page is AI generated: researched on the web${by} through the [[Plan Tool]]'s ${via}, ${date}, for a link on [[${planTitle}]].` }]
   // A fenced block may hold blank lines: keep it whole before splitting the rest.
   const blocks = []
   const text = String(body || '').replace(GFM_LINK_RE, (_, label, url) => `[${url} ${label}]`)
@@ -1957,13 +1957,13 @@ export const researchedStory = ({ title, body, planTitle, model = '', date = tod
 }
 
 /** A researched page as a page file: the story, and a journal of one create with its provenance. */
-export const researchedPage = ({ title, body, planTitle, model = '', date = Date.now(), id = randomHex }) => {
-  const story = researchedStory({ title, body, planTitle, model, date: today(date), id })
+export const researchedPage = ({ title, body, planTitle, model = '', date = Date.now(), id = randomHex, via = 'Red-link' }) => {
+  const story = researchedStory({ title, body, planTitle, model, date: today(date), id, via })
   const by = model ? ` by ${String(model).replace(/^claude-cli:/, '')}` : ''
   return {
     title,
     story,
-    journal: [{ type: 'create', item: { title, story: story.map(i => ({ ...i })) }, date, provenance: `Researched on the web${by} through the Plan Tool's Red-link, for a red link on ${planTitle}.` }],
+    journal: [{ type: 'create', item: { title, story: story.map(i => ({ ...i })) }, date, provenance: `Researched on the web${by} through the Plan Tool's ${via}, for a red link on ${planTitle}.` }],
   }
 }
 

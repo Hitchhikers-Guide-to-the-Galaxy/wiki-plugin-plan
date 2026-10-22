@@ -68,6 +68,16 @@
     },
     {
       "type": "markdown",
+      "id": "7aeec0489a96d758",
+      "text": "# Pages The Redraft Links\n> Drafted with it, offered as ghosts, written only when you fork them."
+    },
+    {
+      "type": "markdown",
+      "id": "7c50ecd20c1fdaf2",
+      "text": "When a redraft arrives, every page it links that has no page yet is drafted straight away — the links the redraft adds first, then those already red, up to six; question links and the Open Questions section are left for their answers. Each is researched on the web like ⌕ Red-link, reading the redraft, your direction and the talk, and opens as a ghost at the end of the lineup as soon as it is ready. Fork one to write it, or press Write all; nothing is written until then. If you save over the plan first, the drafts not yet written open again beside it, and the plan's status line offers Write all too."
+    },
+    {
+      "type": "markdown",
       "id": "d343055529c2b48a",
       "text": "# When A Model Fails\n> The run climbs to a stronger model, and the coop hears about it."
     },
@@ -202,6 +212,30 @@
       },
       "date": 1792681462927,
       "provenance": "wiki-plugin-plan 0.16.0: the help moves to Revise Plan Help; Talk it over; the ladder."
+    },
+    {
+      "type": "add",
+      "id": "7aeec0489a96d758",
+      "item": {
+        "type": "markdown",
+        "id": "7aeec0489a96d758",
+        "text": "# Pages The Redraft Links\n> Drafted with it, offered as ghosts, written only when you fork them."
+      },
+      "after": "f75028d58fd57608",
+      "date": 1792682954455,
+      "provenance": "wiki-plugin-plan 0.16.2: the pages a redraft links are drafted with it."
+    },
+    {
+      "type": "add",
+      "id": "7c50ecd20c1fdaf2",
+      "item": {
+        "type": "markdown",
+        "id": "7c50ecd20c1fdaf2",
+        "text": "When a redraft arrives, every page it links that has no page yet is drafted straight away — the links the redraft adds first, then those already red, up to six; question links and the Open Questions section are left for their answers. Each is researched on the web like ⌕ Red-link, reading the redraft, your direction and the talk, and opens as a ghost at the end of the lineup as soon as it is ready. Fork one to write it, or press Write all; nothing is written until then. If you save over the plan first, the drafts not yet written open again beside it, and the plan's status line offers Write all too."
+      },
+      "after": "7aeec0489a96d758",
+      "date": 1792682954455,
+      "provenance": "wiki-plugin-plan 0.16.2: the pages a redraft links are drafted with it."
     }
   ]
 }

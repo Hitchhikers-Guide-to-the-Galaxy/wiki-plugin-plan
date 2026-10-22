@@ -422,7 +422,7 @@ export const classifierMode = () => {
   const m = String(process.env.PLAN_AUTO_CLASSIFIER || 'decide').toLowerCase()
   return CLASSIFIER_MODES.includes(m) ? m : 'decide'
 }
-const RUN_NAMES = { revise: 'Revise Plan', site: 'Revise Site', apply: 'Go Ahead, one page', next: 'Do Next Phase', chat: 'Talk it over' }
+const RUN_NAMES = { revise: 'Revise Plan', site: 'Revise Site', apply: 'Go Ahead, one page', next: 'Do Next Phase', chat: 'Talk it over', drafts: 'Draft linked pages' }
 const oneLine = (s, n) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n)
 
 /** What the classifier reads: a few hundred tokens about the run, never the question itself. */
@@ -906,6 +906,68 @@ export async function redlink({ slug, model, origin, status, farmRoot } = {}) {
       }
       const indexReset = written.length ? resetIndex(status) : false
       return { model: how, ms: Date.now() - t0, reportTitle: j.reportTitle, written, skipped, failed, index: { reset: indexReset } }
+    },
+  })
+}
+
+/**
+ * Draft the pages a redraft links (0.16.2). David, 2026-10-22, after a
+ * direction redraft of Gatekeeper Plan coined two links that stayed red: the
+ * pages a revision links should be researched with it and offered beside it.
+ * The redraft (the Revise Plan ghost's story) is read as the plan would read
+ * once saved; each link on it with no page on this farm — the ones the
+ * redraft adds first, then those already red, never question links or the
+ * Open Questions section — is researched like Red-link (web search through
+ * the Claude CLI, the owner's direction and talk as material too), up to
+ * RESEARCH_BATCH. Each page lands on the job (`drafts`) as it is done and the
+ * tool opens it as a ghost; NOTHING is written here and no WIP claim is
+ * taken. The owner forks a ghost, or the tool's Write all forks them all.
+ */
+export async function draftLinks({ slug, story, direction, conversation, model, origin, status, farmRoot } = {}) {
+  const p = readPlan(status, origin, slug)
+  const redraft = { title: p.page.title, story: checkStory(revisedStory(checkStory(story))) }
+  const said = String(direction || '').trim().slice(0, DIRECTION_CAP)
+  const talk = checkTalk(conversation)
+  const found = redLinksOf(redraft, knownSlugs(farmRoot, p.site))
+  const before = new Set(planLinks(p.page).map(l => asSlug(l.title)))
+  const red = [...found.red.filter(r => !before.has(r.slug)), ...found.red.filter(r => before.has(r.slug))]
+  if (!red.length) throw problem(400, `every page the redraft of ${p.page.title} links is on this farm already`)
+  const todo = red.slice(0, RESEARCH_BATCH)
+  return start({
+    kind: 'drafts',
+    origin,
+    status,
+    slug: p.slug,
+    site: p.site,
+    page: p.page,
+    phase: null,
+    session: `Plan Tool: Draft linked pages ${origin}/${p.slug}`,
+    title: `Pages the redraft of ${p.page.title} links`,
+    claimWip: false,
+    meta: { red: todo.map(r => ({ title: r.title, slug: r.slug, isNew: !before.has(r.slug) })), more: red.length - todo.length, questions: found.questions },
+    model: model && isModelId(model) && isClaudeModel(model) ? model : RESEARCH_MODEL,
+    run: async (j, model) => {
+      const how = /^claude-(?!cli:)/.test(model) ? `claude-cli:${model}` : model
+      const titles = siteTitles(p.site)
+      const t0 = Date.now()
+      j.drafts = []
+      j.failed = []
+      for (const [i, r] of todo.entries()) {
+        j.progress = { n: i + 1, of: todo.length, title: r.title }
+        persist(j)
+        try {
+          const { content } = buildResearchContent({ page: redraft, link: r, titles, origin, direction: said, conversation: talk })
+          const out = await ask(how, content, { system: SYSTEM, timeoutMs: RESEARCH_TIMEOUT_MS, tools: RESEARCH_TOOLS })
+          const { title, body } = parseResearch(out.markdown, r.title)
+          if (!body) throw new Error('the model wrote no page')
+          const page = researchedPage({ title, body, planTitle: p.page.title, model: out.model, via: 'Revise Plan' })
+          j.drafts.push({ title, slug: r.slug, isNew: !before.has(r.slug), ms: out.ms, page })
+        } catch (e) {
+          j.failed.push({ title: r.title, slug: r.slug, error: e.message })
+        }
+        persist(j)
+      }
+      return { model: how, ms: Date.now() - t0, reportTitle: j.reportTitle, drafts: j.drafts.map(d => ({ title: d.title, slug: d.slug })), failed: j.failed }
     },
   })
 }
