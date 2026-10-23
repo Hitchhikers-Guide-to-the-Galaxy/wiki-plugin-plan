@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Plan",
-    "version": "0.16.5",
+    "version": "0.16.6",
     "description": "Run a plan page. A plan is a page whose title ends in Plan or Roadmap; its phases are headings, its checkpoints are task lines, one per markdown item, and its Open Questions are task lines holding a red question link. The Plan Tool reads all of that in the browser; the operations here are the services that write. Update Plan is the mechanical one: deterministic, no model call, written in place. Do Next Phase and Revise Plan are the agentic ones: they ask the shared Claude door and answer with a job whose report the tool opens as a ghost page; they write nothing to any page. Revise Plan's ghost has the plan's own title and carries the whole page; Save over the plan (saveRevision) writes it over the plan in place through the journal, so the version replaced is the plan's _rev<N>. Rewind writes nothing: the tool opens the _rev the journal holds as a ghost beside the plan, and forking it is the rewind. Revise Site is agentic too: it reads every answered question and every page of the site and asks the door for a Revision Proposal, a job that writes nothing; Go Ahead, applyRevision, then rewrites the pages that proposal names one at a time through the door, the plan last. Finish Plan is mechanical too: once every checkpoint is ticked it writes the plan's Conclusion section with its demo link. Red-link finds the plan's links that have no page behind them on this farm, question links and the Open Questions section left alone, and as a job researches each on the web through the door (WebSearch and WebFetch only) and writes its page, a new page with one journaled create each."
   },
   "paths": {

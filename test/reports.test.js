@@ -60,3 +60,9 @@ test('the Do Phase brief asks the run to link its report at the end of the secti
   assert.match(text, /add one markdown item whose text is \[\[Toy Plan Phase 3 Report\]\] at the end of the Phase 3 section on the plan page, through the journal, unless that section links it already/)
   assert.ok(!/['"`$\\]/.test(text.split('\n').pop()))
 })
+
+test('0.16.6: the brief asks for each tick the moment it is verified, before the next', () => {
+  const text = phaseButtonText({ title: 'Toy Plan', slug: 'toy-plan', base: 'http://toy.localhost', phase: { label: 'Phase 3', slug: 'phase-3' }, reportTitle: 'Toy Plan Phase 3 Report' })
+  assert.match(text, /Tick each checkpoint on the plan page the moment you have verified it, one journal edit for that item, before you start the next/)
+  assert.ok(text.indexOf('Tick each checkpoint') < text.indexOf('When the phase is done'))
+})

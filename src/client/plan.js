@@ -86,6 +86,8 @@ const STYLE = `
 .plan-tool li.plan-next{font-weight:bold}
 .plan-tool .plan-next-tag{background:#f6d6c4;border-radius:3px;font-size:75%;font-weight:normal;margin-left:.4em;padding:0 4px}
 .plan-tool .plan-blockers{font-weight:normal;font-size:90%;color:#555;margin:2px 0 4px}
+@keyframes plan-ticked{0%{background:#c8f0d0}100%{background:transparent}}
+.item.plan-just-ticked{animation:plan-ticked 3.5s ease-out;border-radius:4px}
 .plan-tool a.plan-report{font-size:80%;margin-left:.3em;color:#2559a8;border:1px solid #b5c8e6;border-radius:3px;padding:0 4px;text-decoration:none}
 .plan-tool ul.plan-missing{list-style:none;padding-left:.6em;margin:2px 0 6px;font-size:90%}
 .plan-tool ul.plan-missing li{margin:1px 0}
@@ -1600,6 +1602,10 @@ const syncLineup = async ($subject, fresh) => {
   keep()
   if (!diff.changed) return -1
   const byId = new Map($now.toArray().map(el => [el.getAttribute('data-id'), el]))
+  // A checkpoint that has just been ticked (a Do Phase run working through its
+  // phase) flashes once it is redrawn, so the progress is seen (0.16.6).
+  const wasOpen = new Map(shown.filter(it => it && it.id).map(it => [it.id, /^\s*[-*] \[ \]/m.test(String(it.text || ''))]))
+  const justTicked = fresh.story.filter(it => it && it.id && wasOpen.get(it.id) && /^\s*[-*] \[[xX]\]/m.test(String(it.text || '')) && !/^\s*[-*] \[ \]/m.test(String(it.text || ''))).map(it => it.id)
   for (const it of fresh.story) {
     if (!it || !it.id) continue
     let el = byId.get(it.id)
@@ -1612,6 +1618,13 @@ const syncLineup = async ($subject, fresh) => {
   const $at = $story.children('.item').eq(Math.min(diff.first, $story.children('.item').length - 1))
   const from = $at.length ? $('.item').index($at) : -1
   if (from !== -1 && window.wiki && typeof wiki.renderFrom === 'function') await wiki.renderFrom(from)
+  for (const id of justTicked) {
+    const $el = $story.children(`.item[data-id="${id}"]`)
+    $el.removeClass('plan-just-ticked')
+    void ($el[0] && $el[0].offsetWidth) // restart the animation
+    $el.addClass('plan-just-ticked')
+    setTimeout(() => $el.removeClass('plan-just-ticked'), 4000)
+  }
   return from
 }
 
@@ -1619,7 +1632,7 @@ const syncLineup = async ($subject, fresh) => {
 // seconds (only while the tab is visible) and when the page comes back into
 // view, and follow it when its journal has moved. One watcher per page
 // element; it stops when the page leaves the lineup.
-const WATCH_MS = 8000
+const WATCH_MS = 5000
 const watchPage = $subject => {
   const el = $subject && $subject[0]
   if (!el || el.planWatch || !isHere($subject) || $subject.hasClass('ghost') || $subject.hasClass('local')) return
