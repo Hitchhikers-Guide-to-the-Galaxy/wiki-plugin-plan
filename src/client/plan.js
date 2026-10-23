@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved, waitingLines, redLinksOf } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved, waitingLines, redLinksOf, reportLine } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -1081,7 +1081,7 @@ async function saveAndLink($item, $subject) {
     const phase = A.phase ? (A.phase.number !== null && A.phase.number !== undefined ? A.phase.number : A.phase.heading) : null
     const asList = A.kind === 'revise' || A.kind === 'site'
     const after = linkAfter(plan, { kind: asList ? 'revise' : A.kind, phase })
-    const text = asList ? `- [[${title}]]` : `[[${title}]]`
+    const text = asList ? `- [[${title}]]` : reportLine(title)
     await addItem($subject, after, { type: 'markdown', id: randomId(), text })
     const where = asList ? 'at the end of its See section' : `after the last checkpoint of ${A.phase.label}`
     A.state = 'saved'
@@ -1565,6 +1565,7 @@ const answerHtml = (r, site) => {
   else parts.push('Nothing to tick')
   if (r.unanswered.length) parts.push(`still unanswered: ${r.unanswered.map(q => internal(q.title, q.slug, site) + (q.query ? ' (asked back)' : '')).join('; ')}`)
   const b = r.button
+  if (r.reportsReformatted && r.reportsReformatted.length) parts.push(`${r.reportsReformatted.length} report link${r.reportsReformatted.length === 1 ? '' : 's'} now read${r.reportsReformatted.length === 1 ? 's' : ''} See [[…]].`)
   if (r.reports && r.reports.length) parts.push(`linked ${r.reports.map(x => `${escapeHtml(x.phase)}'s report, ${internal(x.title, x.slug, site)}`).join('; ')}, at the end of ${r.reports.length === 1 ? 'its section' : 'their sections'}`)
   if (b && b.id && (b.moved || b.rewritten)) parts.push(`the Do button moved on from ${escapeHtml(b.from || 'where it was')} to ${escapeHtml(b.to)}${b.unsigned ? ', unsigned now: sign it again before an unattended run' : ''}`)
   if (r.asset && r.asset.rendered) parts.push(`<a href="${escapeHtml(r.asset.path)}" target="_blank">markdown</a> ${r.asset.changed ? 're-rendered' : 'unchanged'}`)

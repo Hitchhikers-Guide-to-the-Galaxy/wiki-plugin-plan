@@ -902,6 +902,9 @@ export const linkAfter = (page, { kind, phase } = {}) => {
 // link alone, at the end of its section — written by the run (the brief asks
 // for it) or, failing that, by Update Plan (linkReports).
 
+/** The line that links a phase's report (0.16.8, David: "See [[…]]." reads better than the bare link). */
+export const reportLine = title => `See [[${title}]].`
+
 /** Each phase with checkpoints: its report's title and slug, whether its section links it, whether it is complete, and the section's last item. */
 export const phaseReports = page => {
   const title = (page && page.title) || ''
@@ -912,8 +915,8 @@ export const phaseReports = page => {
       const t = reportTitle({ kind: 'next', planTitle: title, phaseLabel: p.label })
       const items = (secs.find(sec => sec.items[0] && sec.items[0].id === p.headingId) || { items: [] }).items
       const want = asSlug(t)
-      const linked = items.some(it => wikilinksIn(String((it && it.text) || '')).some(x => asSlug(x) === want))
-      return { heading: p.heading, label: p.label, title: t, slug: want, linked, complete: p.done === p.total, lastId: items.length ? items[items.length - 1].id : p.headingId }
+      const linker = items.find(it => wikilinksIn(String((it && it.text) || '')).some(x => asSlug(x) === want))
+      return { heading: p.heading, label: p.label, title: t, slug: want, linked: !!linker, linkId: linker ? linker.id : null, complete: p.done === p.total, lastId: items.length ? items[items.length - 1].id : p.headingId }
     })
 }
 
@@ -927,16 +930,28 @@ export const linkReports = (page, exists, { now = () => Date.now(), id = randomH
   out.story = Array.isArray(out.story) ? out.story : []
   out.journal = Array.isArray(out.journal) ? out.journal : []
   const added = []
+  const reformatted = []
   for (const r of phaseReports(out)) {
-    if (!r.complete || r.linked || !exists(r.slug)) continue
+    // A bare [[report]] item, as 0.16.5 wrote them, becomes the See line.
+    if (r.linked) {
+      const it = out.story.find(x => x && x.id === r.linkId)
+      const bare = it && it.type === 'markdown' && /^\[\[[^\]]+\]\]$/.test(String(it.text || '').trim())
+      if (bare) {
+        it.text = reportLine(String(it.text).trim().slice(2, -2))
+        out.journal.push({ type: 'edit', id: it.id, item: { ...it }, date: now(), provenance: `Update Plan: ${r.label}'s report link reads as a See line.` })
+        reformatted.push({ title: r.title, slug: r.slug, phase: r.label })
+      }
+      continue
+    }
+    if (!r.complete || !exists(r.slug)) continue
     const at = out.story.findIndex(it => it && it.id === r.lastId)
     if (at === -1) continue
-    const item = { type: 'markdown', id: id(), text: `[[${r.title}]]` }
+    const item = { type: 'markdown', id: id(), text: reportLine(r.title) }
     out.story.splice(at + 1, 0, item)
     out.journal.push({ type: 'add', id: item.id, item: { ...item }, after: r.lastId, date: now(), provenance: `Update Plan: ${r.label} is done, so its report is linked at the end of the section.` })
     added.push({ title: r.title, slug: r.slug, phase: r.label })
   }
-  return { page: out, added }
+  return { page: out, added, reformatted }
 }
 
 /** The add the wiki client journals for one new item: {type, id, item, after, date}. */
@@ -2145,7 +2160,7 @@ export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report,
     `Ask me before any DNS change, anything on a public site, a farm restart, an npm publish, a git push or a message to anyone, and before any checkpoint that needs my decision. ` +
     waitingSentence(label, who) +
     `Tick each checkpoint on the plan page the moment you have verified it, one journal edit for that item, before you start the next, so the open page shows your progress as you go; never tick one you have not verified. ` +
-    `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; make sure every checkpoint you verified is ticked; add one markdown item whose text is [[${r}]] at the end of the ${label} section on the plan page, through the journal, unless that section links it already; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, ` +
+    `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; make sure every checkpoint you verified is ticked; add one markdown item at the end of the ${label} section on the plan page, through the journal, reading See [[${r}]]. with its full stop, unless that section links the report already; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, ` +
     (carry
       ? `keeping SESSION ${session} since the plan carries context, `
       : `with SESSION ${nextPhase ? buttonSession(slug, nextPhase) : `${slug} and the next phase as a slug, joined by a hyphen`} so the next phase starts fresh, `) +

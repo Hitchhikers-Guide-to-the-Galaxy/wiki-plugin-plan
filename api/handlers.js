@@ -188,7 +188,7 @@ export async function update({ slug, origin, status, farmRoot } = {}) {
     const next = reports.page
     let written = false
     let indexReset = false
-    if (ticked.length || button.moved || reports.added.length) {
+    if (ticked.length || button.moved || reports.added.length || reports.reformatted.length) {
       writeAtomic(status, pageFile, JSON.stringify(next, null, 2))
       written = true
     }
@@ -232,6 +232,7 @@ export async function update({ slug, origin, status, farmRoot } = {}) {
       page: { written, journalEdits: written ? next.journal.length - (page.journal || []).length : 0 },
       button: button.moved || { moved: false, reason: button.reason },
       reports: reports.added,
+      reportsReformatted: reports.reformatted,
       openQuestions: oq ? { slug: oq.slug, title: oq.title, written: oq.written, journalEdits: oq.journalEdits, ticked: oq.ticked.length } : null,
       index: { reset: indexReset },
       asset: { rendered: true, path: `/assets/${s}/${s}.md`, changed: before !== md, lines: md.split('\n').length - 1 },

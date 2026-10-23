@@ -30,19 +30,25 @@ test('phaseReports: each phase with checkpoints, its report, linked in its own s
   ])
 })
 
-test('linkReports: a complete phase whose report exists gets [[report]] at the end of its section, journaled; nothing else', () => {
+test('linkReports: a complete phase whose report exists gets "See [[report]]." at the end of its section, journaled; a bare link is reworded', () => {
   let n = 0
   const exists = slug => ['toy-plan-phase-1-report', 'toy-plan-phase-2-report', 'toy-plan-phase-3-report'].includes(slug)
-  const { page, added } = linkReports(plan(), exists, { now: () => 9, id: () => `x${n++}` })
+  const { page, added, reformatted } = linkReports(plan(), exists, { now: () => 9, id: () => `x${n++}` })
   assert.deepEqual(added, [{ title: 'Toy Plan Phase 1 Report', slug: 'toy-plan-phase-1-report', phase: 'Phase 1' }])
   assert.deepEqual(page.story.map(i => i.id).slice(0, 6), ['p', 'h1', 'c1', 'n1', 'x0', 'h2'])
-  assert.equal(page.story[4].text, '[[Toy Plan Phase 1 Report]]')
-  const add = page.journal.at(-1)
+  assert.equal(page.story[4].text, 'See [[Toy Plan Phase 1 Report]].')
+  // the bare Phase 2 link (as 0.16.5 wrote them) now reads as a See line, by an edit
+  assert.deepEqual(reformatted, [{ title: 'Toy Plan Phase 2 Report', slug: 'toy-plan-phase-2-report', phase: 'Phase 2' }])
+  assert.equal(page.story.find(i => i.id === 'r2').text, 'See [[Toy Plan Phase 2 Report]].')
+  const edit = page.journal.find(a => a.type === 'edit' && a.id === 'r2')
+  assert.match(edit.provenance, /Phase 2's report link reads as a See line/)
+  const add = page.journal.find(a => a.type === 'add')
   assert.deepEqual([add.type, add.id, add.after, add.date], ['add', 'x0', 'n1', 9])
   assert.match(add.provenance, /Phase 1 is done, so its report is linked/)
   assert.deepEqual(storyAt(page), page.story)
-  // run again: nothing to add
+  // run again: nothing to add, nothing to reword; a See line in prose is left as written
   assert.deepEqual(linkReports(page, exists).added, [])
+  assert.deepEqual(linkReports(page, exists).reformatted, [])
   // no report page yet: nothing
   assert.deepEqual(linkReports(plan(), () => false).added, [])
 })
@@ -57,7 +63,7 @@ test('the status line shows a linked report beside its phase', () => {
 
 test('the Do Phase brief asks the run to link its report at the end of the section', () => {
   const text = phaseButtonText({ title: 'Toy Plan', slug: 'toy-plan', base: 'http://toy.localhost', phase: { label: 'Phase 3', slug: 'phase-3' }, reportTitle: 'Toy Plan Phase 3 Report' })
-  assert.match(text, /add one markdown item whose text is \[\[Toy Plan Phase 3 Report\]\] at the end of the Phase 3 section on the plan page, through the journal, unless that section links it already/)
+  assert.match(text, /add one markdown item at the end of the Phase 3 section on the plan page, through the journal, reading See \[\[Toy Plan Phase 3 Report\]\]\. with its full stop, unless that section links the report already/)
   assert.ok(!/['"`$\\]/.test(text.split('\n').pop()))
 })
 
