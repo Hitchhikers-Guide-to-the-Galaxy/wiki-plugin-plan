@@ -102,7 +102,7 @@ const known = new Set(['toy-tool', 'is-it-big', 'is-it-done'])
 test('sections, phases and the next phase', () => {
   assert.deepEqual(sections(plan).map(s => s.heading), ['The Idea', 'Phase 0', 'Phase 1', 'Phase 2', 'Open Questions', 'See'])
   const s = planState(plan, known)
-  assert.deepEqual(s.phases, [
+  assert.deepEqual(s.phases.map(({ line, done, total }) => ({ line, done, total })), [
     { line: 'Phase 0', done: 2, total: 2 },
     { line: 'Phase 1 — 3', done: 1, total: 2 },
     { line: 'Phase 2', done: 0, total: 1 },

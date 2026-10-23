@@ -524,6 +524,7 @@ export const planState = (page, known = new Set(), slug = asSlug, linked = null)
     .map(s => ({ ...s, ...sectionTicks(s) }))
     .filter(s => s.total > 0)
   const next = phases.findIndex(p => p.done < p.total)
+  const reportsBy = new Map(phaseReports(page).map(r => [r.heading, r]))
   const questions = allQuestions(page, linked, known, slug)
   const unanswered = questions.filter(q => !q.answered)
 
@@ -551,7 +552,7 @@ export const planState = (page, known = new Set(), slug = asSlug, linked = null)
 
   return {
     title: page && page.title,
-    phases: phases.map(({ line, done, total }) => ({ line, done, total })),
+    phases: phases.map(({ line, done, total, heading }) => ({ line, done, total, report: reportsBy.get(heading) || null })),
     done,
     total,
     next,
@@ -885,6 +886,52 @@ export const linkAfter = (page, { kind, phase } = {}) => {
     if (see) return see.items[see.items.length - 1].id
   }
   return story.length ? story[story.length - 1].id : null
+}
+
+// ---------- the report under its phase (0.16.5) ----------
+//
+// David, 2026-10-23: a Do Phase run writes "<Plan> Phase N Report", but
+// nothing on the plan led to it. Each phase's report is named by reportTitle;
+// it counts as linked when an item of the phase's own section links it. A
+// complete phase whose report exists and is not linked gets one item, the
+// link alone, at the end of its section — written by the run (the brief asks
+// for it) or, failing that, by Update Plan (linkReports).
+
+/** Each phase with checkpoints: its report's title and slug, whether its section links it, whether it is complete, and the section's last item. */
+export const phaseReports = page => {
+  const title = (page && page.title) || ''
+  const secs = sections(page)
+  return phasesOf(page)
+    .filter(p => p.total > 0)
+    .map(p => {
+      const t = reportTitle({ kind: 'next', planTitle: title, phaseLabel: p.label })
+      const items = (secs.find(sec => sec.items[0] && sec.items[0].id === p.headingId) || { items: [] }).items
+      const want = asSlug(t)
+      const linked = items.some(it => wikilinksIn(String((it && it.text) || '')).some(x => asSlug(x) === want))
+      return { heading: p.heading, label: p.label, title: t, slug: want, linked, complete: p.done === p.total, lastId: items.length ? items[items.length - 1].id : p.headingId }
+    })
+}
+
+/**
+ * Link the report of every complete phase that has one (`exists(slug)`) and
+ * does not link it yet: one item `[[<report>]]` at the end of the section,
+ * journaled as an add. Answers {page, added: [{title, slug, phase}]}.
+ */
+export const linkReports = (page, exists, { now = () => Date.now(), id = randomHex } = {}) => {
+  const out = JSON.parse(JSON.stringify(page || {}))
+  out.story = Array.isArray(out.story) ? out.story : []
+  out.journal = Array.isArray(out.journal) ? out.journal : []
+  const added = []
+  for (const r of phaseReports(out)) {
+    if (!r.complete || r.linked || !exists(r.slug)) continue
+    const at = out.story.findIndex(it => it && it.id === r.lastId)
+    if (at === -1) continue
+    const item = { type: 'markdown', id: id(), text: `[[${r.title}]]` }
+    out.story.splice(at + 1, 0, item)
+    out.journal.push({ type: 'add', id: item.id, item: { ...item }, after: r.lastId, date: now(), provenance: `Update Plan: ${r.label} is done, so its report is linked at the end of the section.` })
+    added.push({ title: r.title, slug: r.slug, phase: r.label })
+  }
+  return { page: out, added }
 }
 
 /** The add the wiki client journals for one new item: {type, id, item, after, date}. */
@@ -2093,7 +2140,7 @@ export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report,
     `The page files live on the machine whose farm serves ${origin}: write pages there through the journal with fedwiki-lib, and follow the fedwiki-plan skill. ` +
     `Ask me before any DNS change, anything on a public site, a farm restart, an npm publish, a git push or a message to anyone, and before any checkpoint that needs my decision. ` +
     waitingSentence(label, who) +
-    `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; tick each checkpoint you verified, one journal edit per item; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, ` +
+    `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; tick each checkpoint you verified, one journal edit per item; add one markdown item whose text is [[${r}]] at the end of the ${label} section on the plan page, through the journal, unless that section links it already; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, ` +
     (carry
       ? `keeping SESSION ${session} since the plan carries context, `
       : `with SESSION ${nextPhase ? buttonSession(slug, nextPhase) : `${slug} and the next phase as a slug, joined by a hyphen`} so the next phase starts fresh, `) +

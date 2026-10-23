@@ -86,6 +86,7 @@ const STYLE = `
 .plan-tool li.plan-next{font-weight:bold}
 .plan-tool .plan-next-tag{background:#f6d6c4;border-radius:3px;font-size:75%;font-weight:normal;margin-left:.4em;padding:0 4px}
 .plan-tool .plan-blockers{font-weight:normal;font-size:90%;color:#555;margin:2px 0 4px}
+.plan-tool a.plan-report{font-size:80%;margin-left:.3em;color:#2559a8;border:1px solid #b5c8e6;border-radius:3px;padding:0 4px;text-decoration:none}
 .plan-tool ul.plan-missing{list-style:none;padding-left:.6em;margin:2px 0 6px;font-size:90%}
 .plan-tool ul.plan-missing li{margin:1px 0}
 .plan-tool .plan-box{color:#888;margin-right:.2em}
@@ -320,6 +321,8 @@ const stateHtml = (st, site, heading, folded = false, rev = null) => {
     const items = st.phases.map((p, i) => {
       const cls = p.done === p.total ? 'plan-done' : i === st.next ? 'plan-next' : ''
       let li = `<li${cls ? ` class="${cls}"` : ''}>${escapeHtml(p.line)} <span class="plan-ticks">${p.done}/${p.total}</span>`
+      // Its report, once the section links it (0.16.5).
+      if (p.report && p.report.linked) li += ` <a class="internal plan-report" href="/${escapeHtml(p.report.slug)}.html" data-page-name="${escapeHtml(p.report.slug)}" title="${escapeHtml(p.report.title)}">report</a>`
       if (i === st.next) {
         li += `<span class="plan-next-tag">next</span>`
         const b = []
@@ -1560,6 +1563,7 @@ const answerHtml = (r, site) => {
   else parts.push('Nothing to tick')
   if (r.unanswered.length) parts.push(`still unanswered: ${r.unanswered.map(q => internal(q.title, q.slug, site) + (q.query ? ' (asked back)' : '')).join('; ')}`)
   const b = r.button
+  if (r.reports && r.reports.length) parts.push(`linked ${r.reports.map(x => `${escapeHtml(x.phase)}'s report, ${internal(x.title, x.slug, site)}`).join('; ')}, at the end of ${r.reports.length === 1 ? 'its section' : 'their sections'}`)
   if (b && b.id && (b.moved || b.rewritten)) parts.push(`the Do button moved on from ${escapeHtml(b.from || 'where it was')} to ${escapeHtml(b.to)}${b.unsigned ? ', unsigned now: sign it again before an unattended run' : ''}`)
   if (r.asset && r.asset.rendered) parts.push(`<a href="${escapeHtml(r.asset.path)}" target="_blank">markdown</a> ${r.asset.changed ? 're-rendered' : 'unchanged'}`)
   return parts.join(' · ')

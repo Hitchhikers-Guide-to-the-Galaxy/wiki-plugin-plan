@@ -49,7 +49,7 @@ import { fileURLToPath } from 'node:url'
 
 import { ask, door, isModelId, listModels, contextOf, estimateTokens, autoModel, classifyTier, classifierModel, tokensLabel, RESEARCH_TOOLS } from '@fortyfoxes/wiki-claude-door'
 
-import { isPlanTitle, advanceButton, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt, planState, autoTier, autoLine, AUTO, AUTO_RULE } from '../src/client/core.js'
+import { isPlanTitle, advanceButton, linkReports, questionsOf, tickAnswered, planMarkdown, choosePhase, reportTitle, proposedTicks, today, asSlug, finishRefusal, writeConclusion, openQuestionsLink, parseProposal, foreignOf, storyFromReply, reviseJournal, namesCopied, linksOf, proposalApplied, proposalItems, PROPOSAL_TITLE, ACTIONS, wikilinksIn, headingOf, revisedStory, writeRevision, revLabel, revSlug, REVISION_KINDS, redLinksOf, parseResearch, researchedPage, planLinks, isUntouchedStub, researchedOverStub, storyAt, planState, autoTier, autoLine, AUTO, AUTO_RULE } from '../src/client/core.js'
 import { claim, release, heartbeat } from './wip.js'
 import { nextRung, failureKind, logFailures, thenText, postFailures, checkPosted, appendToPage } from './ladder.js'
 import { buildContent, buildSiteContent, buildPageContent, buildResearchContent, answerPages, questionsFor, PROPOSAL_RE, SYSTEM, REVISE_MODES, DIRECTION_CAP, TALK_MESSAGE_CAP, fitTalk } from './prompt.js'
@@ -183,10 +183,12 @@ export async function update({ slug, origin, status, farmRoot } = {}) {
     // The moving button rule, for checkpoints ticked by something that did not
     // move it (a runner, another session, a hand): forward to the next open phase.
     const button = advanceButton(tick.page, { origin, slug: s })
-    const next = button.page
+    // 0.16.5: a complete phase whose report is on this site links it at the end of its section.
+    const reports = linkReports(button.page, r => fs.existsSync(path.join(site, 'pages', r)))
+    const next = reports.page
     let written = false
     let indexReset = false
-    if (ticked.length || button.moved) {
+    if (ticked.length || button.moved || reports.added.length) {
       writeAtomic(status, pageFile, JSON.stringify(next, null, 2))
       written = true
     }
@@ -229,6 +231,7 @@ export async function update({ slug, origin, status, farmRoot } = {}) {
       unanswered: [...unanswered, ...(oq ? oq.unanswered.filter(q => !seen.has(q.slug)).map(q => ({ ...q, page: oq.slug })) : [])],
       page: { written, journalEdits: written ? next.journal.length - (page.journal || []).length : 0 },
       button: button.moved || { moved: false, reason: button.reason },
+      reports: reports.added,
       openQuestions: oq ? { slug: oq.slug, title: oq.title, written: oq.written, journalEdits: oq.journalEdits, ticked: oq.ticked.length } : null,
       index: { reset: indexReset },
       asset: { rendered: true, path: `/assets/${s}/${s}.md`, changed: before !== md, lines: md.split('\n').length - 1 },
