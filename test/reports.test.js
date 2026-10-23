@@ -66,3 +66,26 @@ test('0.16.6: the brief asks for each tick the moment it is verified, before the
   assert.match(text, /Tick each checkpoint on the plan page the moment you have verified it, one journal edit for that item, before you start the next/)
   assert.ok(text.indexOf('Tick each checkpoint') < text.indexOf('When the phase is done'))
 })
+
+test('0.16.7: the Open Questions heading is found however it is cased or spaced', async () => {
+  const { isQuestionsHeading, phasesOf, questionsOf, openQuestions, planLinks } = await import('../src/client/core.js')
+  for (const h of ['Open Questions', 'Open questions', 'open questions', 'OPEN QUESTIONS', ' Open  Questions: ']) assert.equal(isQuestionsHeading(h), true, h)
+  for (const h of ['Questions', 'Open Questions Page', 'Phase 1', null, undefined, '']) assert.equal(isQuestionsHeading(h), false, String(h))
+  const page = {
+    title: 'Swampish Plan',
+    story: [
+      md('h1', '# Phase 1\n> Go.'),
+      md('c1', '- [x] Do it'),
+      md('hq', '# Open questions\n> Each a red link.'),
+      md('q1', '- [ ] [[Is it small?]] size'),
+      md('q2', '- [x] [[Is it done?]] yes *Answer: yes.*'),
+    ],
+  }
+  assert.deepEqual(phasesOf(page).map(p => p.label), ['Phase 1'])
+  assert.deepEqual(planState(page).phases.map(p => p.line), ['Phase 1'])
+  assert.equal(planState(page).complete, true)
+  assert.deepEqual(questionsOf(page).map(q => q.title), ['Is it small?', 'Is it done?'])
+  assert.equal(openQuestions(page), 1)
+  assert.equal(planLinks(page).find(l => l.title === 'Is it small?').held, true)
+  assert.deepEqual(phaseReports(page).map(r => r.label), ['Phase 1'])
+})

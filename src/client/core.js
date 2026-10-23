@@ -129,11 +129,16 @@ export const headingOf = it => {
   return first.replace(/^#+/, '').trim().replace(COUNT_SUFFIX_RE, '').trim()
 }
 
+// The Open Questions section, however it is cased or spaced: "Open Questions",
+// "Open questions", "OPEN QUESTIONS:" (0.16.7 — Swamp Card Plan's lower-case
+// heading was read as a phase). The one rule every check below uses.
+export const isQuestionsHeading = heading => /^\s*open\s+questions\s*:?\s*$/i.test(String(heading ?? ''))
+
 // Unticked task lines inside the section headed "# Open Questions": from that
 // heading item up to the next heading item of any level.
 export const openQuestions = page => {
   const story = page && Array.isArray(page.story) ? page.story : []
-  const start = story.findIndex(it => headingOf(it) === 'Open Questions')
+  const start = story.findIndex(it => isQuestionsHeading(headingOf(it)))
   if (start === -1) return 0
   let n = 0
   for (let i = start; i < story.length; i++) {
@@ -393,7 +398,7 @@ const readQuestion = (m, known, slug) => {
 // research site links from its plan as [[Open Questions]], Phase 7) keeps them
 // anywhere on it, and its own Open Questions section is used when it has one.
 const questionItems = (page, whole = false) => {
-  const sec = sections(page).find(s => s.heading === 'Open Questions')
+  const sec = sections(page).find(s => isQuestionsHeading(s.heading))
   if (sec) return sec.items
   return whole ? (page && Array.isArray(page.story) ? page.story : []) : []
 }
@@ -520,7 +525,7 @@ export const allQuestions = (page, linked = null, known = new Set(), slug = asSl
 // caller has read it; its questions join the plan's own, once each.
 export const planState = (page, known = new Set(), slug = asSlug, linked = null) => {
   const phases = sections(page)
-    .filter(s => s.heading !== 'Open Questions')
+    .filter(s => !isQuestionsHeading(s.heading))
     .map(s => ({ ...s, ...sectionTicks(s) }))
     .filter(s => s.total > 0)
   const next = phases.findIndex(p => p.done < p.total)
@@ -728,7 +733,7 @@ const phaseNumber = heading => {
 
 export const phasesOf = page =>
   sections(page)
-    .filter(s => s.heading !== 'Open Questions')
+    .filter(s => !isQuestionsHeading(s.heading))
     .map(s => {
       const checkpoints = []
       let lastItemId = null
@@ -1867,7 +1872,6 @@ export const lastRevision = page => {
 // and from timeline event labels (fedwiki.py's from_timeline). Code and
 // terminal items hold no links.
 
-const QUESTIONS_RE = /^open questions$/i
 const TIMELINE_EVENT_RE = /^(\d{4}-\d{2}-\d{2})(?:\.\.\d{4}-\d{2}-\d{2})?\s+(.*)$/
 const LINK_ITEM_TYPES = new Set(['markdown', 'paragraph', 'html'])
 
@@ -1881,7 +1885,7 @@ export const planLinks = page => {
     const h = headingOf(it)
     if (h !== null) {
       section = h
-      held = QUESTIONS_RE.test(h)
+      held = isQuestionsHeading(h)
     }
     if (LINK_ITEM_TYPES.has(it.type)) {
       let fenced = false
