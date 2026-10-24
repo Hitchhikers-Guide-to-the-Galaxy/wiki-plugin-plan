@@ -2107,9 +2107,35 @@ export const planContext = page => {
 export const WAITING_MARK = '⏸ Waiting for'
 export const WAITING_WHO = 'David'
 
-export const waitingSentence = (label, who = WAITING_WHO) => {
+// Asking on the page (0.16.10, David 2026-10-24: "we want to interact and
+// have a record of what happened in wiki"). A run that needs a decision asks
+// it on the plan page, under the waiting line, one red question link per
+// decision, and adds a Send my answers button for its own session; David
+// answers on the lines (Answer: …) and presses it, which brings the run back.
+// No watcher: the button is the plugin's own way back into the session, so
+// it works for anyone with the Terminal Plugin, on any machine.
+export const ANSWER_LABEL = 'Send my answers'
+
+/** The message the Send my answers button types into the waiting session. */
+export const answerMessage = (label, url = '') =>
+  `I have answered on the plan page${url ? ` ${shellSafe(url)}` : ''}: read my answers to the questions under the ${shellSafe(label)} waiting line and carry on with ${shellSafe(label)}, acting only on what I answered there.`
+
+/** The Send my answers terminal item, for the session that asked. */
+export const answerButtonText = ({ label, session, url = '' }) => [
+  'BUTTON: show',
+  `LABEL: ${ANSWER_LABEL}`,
+  `SESSION: ${session}`,
+  'BOOT: cd ~ && claude',
+  'GUARD: claude auth status',
+  'GUARDLABEL: Sign in to Claude first',
+  answerMessage(label, url),
+].join('\n')
+
+export const waitingSentence = (label, who = WAITING_WHO, url = '', session = '') => {
   const w = shellSafe(who) || WAITING_WHO
-  return `If you stop to wait for me, for a decision, something only I can do or a hand-over, first add one markdown item just under the ${label} heading on the plan page, through the journal, whose text starts ${WAITING_MARK} ${w} and says since when and what I must do, in one sentence; edit that item if you stop again, and remove it, one journal remove, when the phase is done and before you move this button. `
+  return `If you stop to wait for me, for a decision, something only I can do or a hand-over, ask me on the plan page, not only in this terminal, so the page shows what needs answering and keeps the record: through the journal, write one markdown item just under the ${label} heading on the plan page whose text starts ${WAITING_MARK} ${w} and says since when and what I must do, in one sentence; under it one checkpoint per decision, each a red question link whose title ends in a question mark, with a short gloss of what it does and what it risks, so I can answer on the line after Answer and a colon or by making the page behind the link; and after the last question one terminal item of seven lines: BUTTON: show, then LABEL: ${ANSWER_LABEL}, then SESSION: ${session || 'this session'}, then BOOT: cd ~ && claude, then GUARD: claude auth status, then GUARDLABEL: Sign in to Claude first, then the sentence ${answerMessage(label, url)} ` +
+    `Then end your turn and wait. When that button or this one brings you back, read my answers off the page, act on each, reply to an answer that asks back by editing that gloss and waiting again, and record each one you acted on by ticking its line and adding an indented second line starting Done and the time, saying what happened, keeping my answer. Answers already on the page when you start are my decisions too. ` +
+    `Edit the waiting line if you stop again, and remove it and the ${ANSWER_LABEL} button, one journal remove each, when nothing is left to answer and before you move this button. `
 }
 
 /** The text of a waiting line: `⏸ Waiting for David since 22:52, 21 October: drive Squad.` */
@@ -2158,7 +2184,7 @@ export const phaseButtonText = ({ title, slug, base, phase, reportTitle: report,
       : `This is a fresh session for this phase: what earlier phases did is on the plan page${prev ? ` and in ${prev}` : ' and in its phase reports'}, not in your memory. Read the plan page first${prev ? `, then ${prev} if it exists` : ''}, then do every unticked checkpoint of ${label}, in order, for real: write the code, run it, write the pages, and verify each one with a command before you count it done. `) +
     `The page files live on the machine whose farm serves ${origin}: write pages there through the journal with fedwiki-lib, and follow the fedwiki-plan skill. ` +
     `Ask me before any DNS change, anything on a public site, a farm restart, an npm publish, a git push or a message to anyone, and before any checkpoint that needs my decision. ` +
-    waitingSentence(label, who) +
+    waitingSentence(label, who, `${String(base).replace(/\/$/, '')}/view/${slug}`, session) +
     `Tick each checkpoint on the plan page the moment you have verified it, one journal edit for that item, before you start the next, so the open page shows your progress as you go; never tick one you have not verified. ` +
     `When the phase is done, write the page ${r}, over the old one through its journal if it exists, saying what you did and how you verified each checkpoint; make sure every checkpoint you verified is ticked; add one markdown item at the end of the ${label} section on the plan page, through the journal, reading See [[${r}]]. with its full stop, unless that section links the report already; then move this terminal item to just after the last checkpoint of the next unticked phase and rewrite it for that phase, as the moving button rule in fedwiki-plan says, ` +
     (carry

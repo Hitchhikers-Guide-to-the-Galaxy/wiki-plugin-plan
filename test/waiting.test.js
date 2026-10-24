@@ -11,7 +11,13 @@ test('the brief asks for a waiting line under the phase, and its removal at the 
   assert.match(text, /If you stop to wait for me/)
   assert.match(text, /just under the Phase 2 heading on the plan page/)
   assert.ok(text.includes(`${WAITING_MARK} David`))
-  assert.match(text, /remove it, one journal remove, when the phase is done and before you move this button/)
+  // 0.16.10: the decisions are asked on the page, answered there, and waited on
+  assert.match(text, /one checkpoint per decision, each a red question link/)
+  assert.match(text, /LABEL: Send my answers, then SESSION: open-squad-plan-phase-2, then BOOT/)
+  assert.match(text, /I have answered on the plan page https:\/\/agentic\.private\.fish\/view\/open-squad-plan: read my answers/)
+  assert.match(text, /remove it and the Send my answers button, one journal remove each/)
+  assert.doesNotMatch(text, /wiki-await-answers|fedwiki\.settle/)
+  assert.ok(!/[*?]/.test(text.split('\n').pop()), 'no glob characters for a bare zsh')
   // it comes before the closing instructions, and the brief stays shell-safe
   assert.ok(text.indexOf('If you stop to wait') < text.indexOf('When the phase is done'))
   const brief = text.split('\n').pop()
@@ -37,4 +43,13 @@ test('waiting lines are written, recognised and found under their phase', () => 
     { type: 'markdown', id: 'c2', text: '- [ ] Squad session' },
   ] }
   assert.deepEqual(waitingLines(page), [{ id: 'w', phase: 'Phase 2', text: line }])
+})
+
+test('the Send my answers button goes back into the session that asked', async () => {
+  const { answerButtonText } = await import('../src/client/core.js')
+  const text = answerButtonText({ label: 'Phase 4', session: 'fieldguide-dns-plan-phase-4', url: 'https://dns.private.fish/view/fieldguide-dns-plan' })
+  const lines = text.split('\n')
+  assert.deepEqual(lines.slice(0, 3), ['BUTTON: show', 'LABEL: Send my answers', 'SESSION: fieldguide-dns-plan-phase-4'])
+  assert.equal(lines[3], 'BOOT: cd ~ && claude')
+  assert.ok(!/['"`$\\*?]/.test(lines.pop()), 'the message is safe for a bare zsh')
 })
