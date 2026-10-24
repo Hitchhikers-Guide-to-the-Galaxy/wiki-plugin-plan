@@ -2118,7 +2118,9 @@ export const ANSWER_LABEL = 'Send my answers'
 
 /** The message the Send my answers button types into the waiting session. */
 export const answerMessage = (label, url = '') =>
-  `I have answered on the plan page${url ? ` ${shellSafe(url)}` : ''}: read my answers to the questions under the ${shellSafe(label)} waiting line and carry on with ${shellSafe(label)}, acting only on what I answered there.`
+  // Not "I have …": the terminal service took a line opening with a one-letter
+  // capital word for a directive and refused the paste (24 October 2026).
+  `My answers are on the plan page${url ? ` ${shellSafe(url)}` : ''}: read them under the ${shellSafe(label)} waiting line and carry on with ${shellSafe(label)}, acting only on what I answered there.`
 
 /** The Send my answers terminal item, for the session that asked. */
 export const answerButtonText = ({ label, session, url = '' }) => [

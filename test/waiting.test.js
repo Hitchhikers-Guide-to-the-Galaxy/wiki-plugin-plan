@@ -14,7 +14,7 @@ test('the brief asks for a waiting line under the phase, and its removal at the 
   // 0.16.10: the decisions are asked on the page, answered there, and waited on
   assert.match(text, /one checkpoint per decision, each a red question link/)
   assert.match(text, /LABEL: Send my answers, then SESSION: open-squad-plan-phase-2, then BOOT/)
-  assert.match(text, /I have answered on the plan page https:\/\/agentic\.private\.fish\/view\/open-squad-plan: read my answers/)
+  assert.match(text, /My answers are on the plan page https:\/\/agentic\.private\.fish\/view\/open-squad-plan: read them/)
   assert.match(text, /remove it and the Send my answers button, one journal remove each/)
   assert.doesNotMatch(text, /wiki-await-answers|fedwiki\.settle/)
   assert.ok(!/[*?]/.test(text.split('\n').pop()), 'no glob characters for a bare zsh')
@@ -51,5 +51,7 @@ test('the Send my answers button goes back into the session that asked', async (
   const lines = text.split('\n')
   assert.deepEqual(lines.slice(0, 3), ['BUTTON: show', 'LABEL: Send my answers', 'SESSION: fieldguide-dns-plan-phase-4'])
   assert.equal(lines[3], 'BOOT: cd ~ && claude')
-  assert.ok(!/['"`$\\*?]/.test(lines.pop()), 'the message is safe for a bare zsh')
+  const message = lines.pop()
+  assert.ok(!/['"`$\\*?]/.test(message), 'the message is safe for a bare zsh')
+  assert.ok(!/^[A-Z][A-Z0-9_]*(:|\s)/.test(message), 'the message never looks like a directive line')
 })
