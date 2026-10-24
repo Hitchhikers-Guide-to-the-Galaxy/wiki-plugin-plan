@@ -1,0 +1,166 @@
+{
+  "title": "Claude in Wiki",
+  "story": [
+    {
+      "type": "markdown",
+      "id": "59a38ff8201f1e9a",
+      "text": "How Claude Code works with the wiki on this laptop: an open conversation about a plan, a run of one phase, answers given on the plan page, and one list of every Claude session that is running."
+    },
+    {
+      "type": "markdown",
+      "id": "052e8fa38add9074",
+      "text": "# Open Claude\n> An open conversation about one plan."
+    },
+    {
+      "type": "markdown",
+      "id": "2bcdfea9861f20dc",
+      "text": "\u273b on a plan's status line writes an *Open Claude on this plan* button just under the status line, the first time, and opens its session, named after the plan with -claude on the end. Claude reads the plan, tells you in a few lines where it stands, and waits. It changes nothing until you ask. When you ask for a change, it writes through the journal, so the page keeps the record."
+    },
+    {
+      "type": "markdown",
+      "id": "47f624edd2e2f631",
+      "text": "Click \u273b again later and it opens the same session's terminal instead of starting over. \u2922 on the terminal's bar makes it full screen, and \u2922 again brings it back. Keep Esc for Claude: in the terminal it stops what Claude is doing."
+    },
+    {
+      "type": "markdown",
+      "id": "6f3cb68f28b40686",
+      "text": "# Do a phase\n> One fresh session per phase."
+    },
+    {
+      "type": "markdown",
+      "id": "7a34965857a1d5b2",
+      "text": "\u25b6 Do Next Phase writes the *Do Phase* button after the next phase's checkpoints. Its click opens a session named after the plan and the phase and types the phase in, and you approve each step in the terminal. The session ticks what it verified, writes the phase report and moves the button on to the next phase."
+    },
+    {
+      "type": "markdown",
+      "id": "8ddc3e95a0e5dbe7",
+      "text": "# Answer on the page\n> Decisions wait on the plan, not in the terminal."
+    },
+    {
+      "type": "markdown",
+      "id": "dacb34c7f973c3b8",
+      "text": "When a run needs your decision it writes a \u23f8 waiting line under its phase, one red question link per decision, and a *Send my answers* button. Write each answer on its question's line after *Answer:*, then press the button. The session reads the page and carries on."
+    },
+    {
+      "type": "markdown",
+      "id": "a4e38a91188cedd7",
+      "text": "# Claude Sessions\n> Every Claude on this laptop, in one list."
+    },
+    {
+      "type": "markdown",
+      "id": "7b2e5c8454893bc8",
+      "text": "\u25c9 on a plan's status line opens [[Claude Sessions]]: every Claude Code session running on this laptop, whether it is working, waiting for you or at its prompt, the plan it belongs to, and *open \u2197* to see it full screen."
+    },
+    {
+      "type": "markdown",
+      "id": "79fac8cd59efff13",
+      "text": "The list comes from Claude Code itself. In any terminal, `claude agents` opens Claude Code's own list of its sessions, and `claude agents --json` prints them, which is what the Claude Sessions page reads. This button opens that list in a terminal on this laptop. It changes nothing."
+    },
+    {
+      "type": "terminal",
+      "id": "19ace9ab7d684e5e",
+      "text": "BUTTON: show\nLABEL: Open Claude's own session list\nSESSION: claude-agents\nclaude agents"
+    },
+    {
+      "type": "markdown",
+      "id": "cc5013964c0e6bb6",
+      "text": "# Inside a session\n> Claude Code's own keys and commands."
+    },
+    {
+      "type": "markdown",
+      "id": "2451aa67d3eb9489",
+      "text": "- Type to Claude at its \u276f prompt; Return sends.\n- Esc stops what Claude is doing without ending the session.\n- `/exit` ends the session and leaves the terminal at the shell; the next click on its button starts Claude again.\n- `claude --continue` picks up the most recent conversation in the folder, and `claude --resume` lists earlier ones to choose from.\n- `claude attach <name>` opens a background session, one started with `claude --bg`."
+    },
+    {
+      "type": "markdown",
+      "id": "fc4e66592b8f5ebd",
+      "text": "# See\n\n- [[Claude Sessions]]\n- [[Plan Tool]]\n- [[About Plan Plugin]]\n- [[About Terminal Plugin]]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "Claude in Wiki",
+        "story": [
+          {
+            "type": "markdown",
+            "id": "59a38ff8201f1e9a",
+            "text": "How Claude Code works with the wiki on this laptop: an open conversation about a plan, a run of one phase, answers given on the plan page, and one list of every Claude session that is running."
+          },
+          {
+            "type": "markdown",
+            "id": "052e8fa38add9074",
+            "text": "# Open Claude\n> An open conversation about one plan."
+          },
+          {
+            "type": "markdown",
+            "id": "2bcdfea9861f20dc",
+            "text": "\u273b on a plan's status line writes an *Open Claude on this plan* button just under the status line, the first time, and opens its session, named after the plan with -claude on the end. Claude reads the plan, tells you in a few lines where it stands, and waits. It changes nothing until you ask. When you ask for a change, it writes through the journal, so the page keeps the record."
+          },
+          {
+            "type": "markdown",
+            "id": "47f624edd2e2f631",
+            "text": "Click \u273b again later and it opens the same session's terminal instead of starting over. \u2922 on the terminal's bar makes it full screen, and \u2922 again brings it back. Keep Esc for Claude: in the terminal it stops what Claude is doing."
+          },
+          {
+            "type": "markdown",
+            "id": "6f3cb68f28b40686",
+            "text": "# Do a phase\n> One fresh session per phase."
+          },
+          {
+            "type": "markdown",
+            "id": "7a34965857a1d5b2",
+            "text": "\u25b6 Do Next Phase writes the *Do Phase* button after the next phase's checkpoints. Its click opens a session named after the plan and the phase and types the phase in, and you approve each step in the terminal. The session ticks what it verified, writes the phase report and moves the button on to the next phase."
+          },
+          {
+            "type": "markdown",
+            "id": "8ddc3e95a0e5dbe7",
+            "text": "# Answer on the page\n> Decisions wait on the plan, not in the terminal."
+          },
+          {
+            "type": "markdown",
+            "id": "dacb34c7f973c3b8",
+            "text": "When a run needs your decision it writes a \u23f8 waiting line under its phase, one red question link per decision, and a *Send my answers* button. Write each answer on its question's line after *Answer:*, then press the button. The session reads the page and carries on."
+          },
+          {
+            "type": "markdown",
+            "id": "a4e38a91188cedd7",
+            "text": "# Claude Sessions\n> Every Claude on this laptop, in one list."
+          },
+          {
+            "type": "markdown",
+            "id": "7b2e5c8454893bc8",
+            "text": "\u25c9 on a plan's status line opens [[Claude Sessions]]: every Claude Code session running on this laptop, whether it is working, waiting for you or at its prompt, the plan it belongs to, and *open \u2197* to see it full screen."
+          },
+          {
+            "type": "markdown",
+            "id": "79fac8cd59efff13",
+            "text": "The list comes from Claude Code itself. In any terminal, `claude agents` opens Claude Code's own list of its sessions, and `claude agents --json` prints them, which is what the Claude Sessions page reads. This button opens that list in a terminal on this laptop. It changes nothing."
+          },
+          {
+            "type": "terminal",
+            "id": "19ace9ab7d684e5e",
+            "text": "BUTTON: show\nLABEL: Open Claude's own session list\nSESSION: claude-agents\nclaude agents"
+          },
+          {
+            "type": "markdown",
+            "id": "cc5013964c0e6bb6",
+            "text": "# Inside a session\n> Claude Code's own keys and commands."
+          },
+          {
+            "type": "markdown",
+            "id": "2451aa67d3eb9489",
+            "text": "- Type to Claude at its \u276f prompt; Return sends.\n- Esc stops what Claude is doing without ending the session.\n- `/exit` ends the session and leaves the terminal at the shell; the next click on its button starts Claude again.\n- `claude --continue` picks up the most recent conversation in the folder, and `claude --resume` lists earlier ones to choose from.\n- `claude attach <name>` opens a background session, one started with `claude --bg`."
+          },
+          {
+            "type": "markdown",
+            "id": "fc4e66592b8f5ebd",
+            "text": "# See\n\n- [[Claude Sessions]]\n- [[Plan Tool]]\n- [[About Plan Plugin]]\n- [[About Terminal Plugin]]"
+          }
+        ]
+      },
+      "date": 1792874544833
+    }
+  ]
+}

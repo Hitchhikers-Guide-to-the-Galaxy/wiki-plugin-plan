@@ -1,0 +1,86 @@
+{
+  "title": "Claude Sessions",
+  "story": [
+    {
+      "type": "paragraph",
+      "id": "581afc6a799a9dcf",
+      "text": "Every Claude Code session running on this laptop, read live from `claude agents`. Opened from \u25c9 on a plan's status line, where that plan's sessions come first."
+    },
+    {
+      "type": "plan",
+      "id": "96edaedf0ffd1811",
+      "text": "SESSIONS"
+    },
+    {
+      "type": "markdown",
+      "id": "9efa24f71ff61e59",
+      "text": "# Reading the list\n> Waiting first, then working."
+    },
+    {
+      "type": "markdown",
+      "id": "380979025d614da2",
+      "text": "*Waiting for you* means the session has stopped for you, often at a permission prompt or a question: open it and answer. *Working* means it is thinking or running a tool. *At its prompt* means it has finished and waits for your next message."
+    },
+    {
+      "type": "markdown",
+      "id": "91afbc8273d6d0f8",
+      "text": "A session the wiki started is named after its plan and its phase, and has *open \u2197*, which opens it full screen in a new tab. A session with no link was started in the Claude app or in a terminal window. Terminal sessions with no Claude in them are listed under the table, folded."
+    },
+    {
+      "type": "markdown",
+      "id": "94e6f6043b607b23",
+      "text": "The list is read through the terminal service on this laptop, so it shows only on a page opened on the laptop. It refreshes every 15 seconds while the page is open. [[Claude in Wiki]] says how the sessions start and how to answer them."
+    },
+    {
+      "type": "markdown",
+      "id": "82a9ce549b3e6f15",
+      "text": "# See\n\n- [[Claude in Wiki]]\n- [[Plan Tool]]\n- [[About Plan Plugin]]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "Claude Sessions",
+        "story": [
+          {
+            "type": "paragraph",
+            "id": "581afc6a799a9dcf",
+            "text": "Every Claude Code session running on this laptop, read live from `claude agents`. Opened from \u25c9 on a plan's status line, where that plan's sessions come first."
+          },
+          {
+            "type": "plan",
+            "id": "96edaedf0ffd1811",
+            "text": "SESSIONS"
+          },
+          {
+            "type": "markdown",
+            "id": "9efa24f71ff61e59",
+            "text": "# Reading the list\n> Waiting first, then working."
+          },
+          {
+            "type": "markdown",
+            "id": "380979025d614da2",
+            "text": "*Waiting for you* means the session has stopped for you, often at a permission prompt or a question: open it and answer. *Working* means it is thinking or running a tool. *At its prompt* means it has finished and waits for your next message."
+          },
+          {
+            "type": "markdown",
+            "id": "91afbc8273d6d0f8",
+            "text": "A session the wiki started is named after its plan and its phase, and has *open \u2197*, which opens it full screen in a new tab. A session with no link was started in the Claude app or in a terminal window. Terminal sessions with no Claude in them are listed under the table, folded."
+          },
+          {
+            "type": "markdown",
+            "id": "94e6f6043b607b23",
+            "text": "The list is read through the terminal service on this laptop, so it shows only on a page opened on the laptop. It refreshes every 15 seconds while the page is open. [[Claude in Wiki]] says how the sessions start and how to answer them."
+          },
+          {
+            "type": "markdown",
+            "id": "82a9ce549b3e6f15",
+            "text": "# See\n\n- [[Claude in Wiki]]\n- [[Plan Tool]]\n- [[About Plan Plugin]]"
+          }
+        ]
+      },
+      "date": 1792874544832
+    }
+  ]
+}

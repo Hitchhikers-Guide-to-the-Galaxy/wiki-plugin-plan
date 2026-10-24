@@ -34,13 +34,13 @@
 // subject is true only for an explicit SUBJECT line; face() below decides
 // what a bare item does from the page it sits on. SKILLS and STATUS do not
 // change the face: a status item that names skills is still the status line.
-export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS', 'CONTEXT', 'REVISE', 'RUNNER']
+export const COMMANDS = ['SUBJECT', 'SITE', 'LIMIT', 'SKILLS', 'STATUS', 'MODELS', 'CONTEXT', 'REVISE', 'RUNNER', 'SESSIONS']
 
 /** The text a new plan item carries, and the text an empty one is given when its editor opens. */
 export const DEFAULT_TEXT = 'STATUS'
 
 export const parse = text => {
-  const out = { subject: false, status: false, models: false, revise: false, context: 'fresh', runner: null, site: null, limit: null, skills: [], caption: '', commands: 0 }
+  const out = { subject: false, status: false, models: false, revise: false, sessions: false, context: 'fresh', runner: null, site: null, limit: null, skills: [], caption: '', commands: 0 }
   const caption = []
   for (const raw of (text || '').split('\n')) {
     const line = raw.trim()
@@ -54,6 +54,7 @@ export const parse = text => {
     if (key === 'SUBJECT') out.subject = true
     if (key === 'STATUS') out.status = true
     if (key === 'MODELS') out.models = true
+    if (key === 'SESSIONS') out.sessions = true
     if (key === 'REVISE') out.revise = true
     if (key === 'CONTEXT') out.context = /^carry$/i.test(args[0] || '') ? 'carry' : 'fresh'
     // RUNNER <command>: the phase button boots that command with site, slug and phase,
@@ -200,6 +201,8 @@ export const summarise = (entry, page) => {
 //           item on a page that is not a plan. The Phase 1 list.
 export const face = (opts, { ownTitle = null, leftTitle = null } = {}) => {
   if (opts.models) return 'models'
+  // SESSIONS: the Claude Sessions page (0.17.0), opened by ◉ beside a plan.
+  if (opts.sessions) return 'sessions'
   // REVISE: the Revise Plan tool page (0.15.0), opened by ✎ beside a plan; it
   // looks left for the plan and says so when there is none.
   if (opts.revise) return 'revise'
@@ -308,7 +311,7 @@ export const windowLabel = n => {
 // Tool pages the look-left walks past: audionote's TOOL_SLUGS (voice.js) plus
 // this plugin's own Plan Tool, so a Voice Tool or the ☰ menu between the plan
 // and the Plan Tool does not hide the plan.
-export const TOOL_SLUGS = new Set(['selected-plugin-pages', 'voice-tool', 'search-tool', 'like-this-page', 'plan-tool', 'model-settings', 'revise-plan'])
+export const TOOL_SLUGS = new Set(['selected-plugin-pages', 'voice-tool', 'search-tool', 'like-this-page', 'plan-tool', 'model-settings', 'revise-plan', 'claude-sessions', 'claude-in-wiki'])
 
 // wiki-client's asSlug (lib/page.js): whitespace to hyphens, every other
 // character outside [A-Za-z0-9-] deleted. The browser uses wiki.asSlug when it
@@ -2325,4 +2328,142 @@ export const journalMoved = (raw, fresh) => {
   if (a.length !== b.length) return true
   const last = j => (j.length ? `${j[j.length - 1].type}:${j[j.length - 1].date}:${j[j.length - 1].id || ''}` : '')
   return last(a) !== last(b)
+}
+
+// ---------- Open Claude (0.17.0) ----------
+//
+// David, 24 October 2026: "sometimes I wish to open up Claude and interact
+// with the plan in an open way". ✻ on the status line writes one Terminal
+// Button just under the plan's status item, as Do Next Phase writes its own:
+// the item on the page is what the terminal service checks before a page may
+// type into a session. Its session, <plan-slug>-claude, is the plan's open
+// conversation: Claude reads the plan, says where it stands and waits. It
+// changes nothing until asked. Not the Revise Plan page's Talk it over, which
+// asks a model with no tools and keeps nothing.
+
+export const OPEN_LABEL = 'Open Claude on this plan'
+
+/** The session of a plan's open conversation. */
+// The terminal service takes names of up to 64 characters.
+export const openSession = slug => `${String(slug).slice(0, 57)}-claude`
+
+export const openBrief = ({ title, url }) => {
+  const origin = String(url).replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  return (
+    `Open conversation about the ${shellSafe(title)}, ${shellSafe(url)}. ` +
+    `Read the plan page first, and the phase reports and pages it links when you need them; then tell me in three or four lines where the plan stands and what you would look at next, and wait for me. ` +
+    `This is an open conversation, not a phase run: change nothing until I ask, no page, no file and no command that changes anything. ` +
+    `When I ask for a change to the plan, make it on the machine whose farm serves ${shellSafe(origin)}, through the journal with fedwiki-lib, following the fedwiki-plan skill, and reset the site index after writing. ` +
+    `Ask me before any DNS change, anything on a public site, a farm restart, an npm publish, a git push or a message to anyone.`
+  )
+}
+
+/** The Open Claude terminal item for a plan. */
+export const openButtonText = ({ title, slug, base }) => [
+  'BUTTON: show',
+  `LABEL: ${OPEN_LABEL}`,
+  `SESSION: ${openSession(slug)}`,
+  'BOOT: cd ~ && claude',
+  'GUARD: claude auth status',
+  'GUARDLABEL: Sign in to Claude first',
+  openBrief({ title, url: `${String(base).replace(/\/$/, '')}/view/${slug}` }),
+].join('\n')
+
+/** The plan's Open Claude button, wherever it was moved to. */
+export const findOpenButton = page => {
+  const story = page && Array.isArray(page.story) ? page.story : []
+  const label = new RegExp(`^LABEL:\\s*${OPEN_LABEL}\\s*$`, 'm')
+  const index = story.findIndex(it => it && it.type === 'terminal' && label.test(String(it.text || '')))
+  return index === -1 ? null : { index, item: story[index] }
+}
+
+/**
+ * Where ✻ puts the button. An existing one stays where it is (the owner may
+ * have moved it), rewritten only when its text is out of date; a new one goes
+ * just under the plan's status item, else after the first item.
+ */
+export const openPlacement = (page, text) => {
+  const found = findOpenButton(page)
+  if (found) return { add: false, existing: found.item, edit: found.item.text !== text }
+  const story = page && Array.isArray(page.story) ? page.story : []
+  const status = story.find(it => it && it.type === 'plan')
+  return { add: true, after: status ? status.id : story[0] ? story[0].id : null }
+}
+
+// ---------- Claude Sessions (0.17.0) ----------
+//
+// "List all Claude active sessions running." Claude Code answers that itself:
+// `claude agents --json` prints every active session on the machine,
+// interactive and background, with its pid, name and status (busy, waiting,
+// idle). The Claude Sessions page runs it through the laptop's terminal
+// service (/terminal/run, which a local page may call), then asks ps for the
+// environment of those pids: a session the wiki started carries
+// ZDOTDIR=…/wiki-plugin-terminal/sessions/<name>, which names its terminal
+// session and so its plan. Sessions with no ZDOTDIR are the Claude app's own,
+// or ones started in a terminal window.
+
+export const SESSIONS_SCRIPT = 'claude agents --json'
+
+/** The ps command that reads the environment of these pids; '' when there are none. */
+export const envScript = pids => {
+  const ok = [...new Set((pids || []).map(Number).filter(n => Number.isInteger(n) && n > 0))]
+  return ok.length ? `ps -E -o pid=,command= -p ${ok.join(',')}` : ''
+}
+
+/** pid → terminal session name, read off `ps -E` lines. */
+export const terminalsOf = text => {
+  const map = new Map()
+  for (const line of String(text || '').split('\n')) {
+    const pid = line.match(/^\s*(\d+)\s/)
+    const z = line.match(/(?:^|\s)ZDOTDIR=\S*\/wiki-plugin-terminal\/sessions\/([A-Za-z0-9][A-Za-z0-9_.-]*)(?=\s|$)/)
+    if (pid && z) map.set(Number(pid[1]), z[1])
+  }
+  return map
+}
+
+/** The plan a session name belongs to: the longest plan slug it starts with. */
+export const planOfSession = (name, slugs = []) => {
+  let best = null
+  for (const s of slugs) if (s && (name === s || String(name).startsWith(`${s}-`)) && (!best || s.length > best.length)) best = s
+  return best ? { slug: best, part: String(name).slice(best.length + 1) } : null
+}
+
+/** A plan read off a session name alone, for plans on other sites: the-x-plan-phase-2 → { slug: 'the-x-plan', part: 'phase-2' }. */
+export const planGuess = name => {
+  const m = String(name || '').match(/^([a-z0-9-]+?-plan)(?:-([a-z0-9-]+))?$/)
+  return m ? { slug: m[1], part: m[2] || '' } : null
+}
+
+export const STATUS_WORDS = { waiting: 'waiting for you', busy: 'working', idle: 'at its prompt' }
+const STATUS_ORDER = { waiting: 0, busy: 1, idle: 2 }
+
+/**
+ * The rows of the Claude Sessions page. claude: every Claude session, waiting
+ * first, then working, then at its prompt, newest first within each. other:
+ * the terminal service's sessions with no Claude in them — 'shell' when the
+ * shell holds the terminal, 'running' when some other program does.
+ */
+export const sessionRows = ({ agents = [], terminals = new Map(), shells = {}, slugs = [] } = {}) => {
+  const claude = (Array.isArray(agents) ? agents : [])
+    .filter(a => a && a.pid)
+    .map(a => {
+      const terminal = terminals.get(Number(a.pid)) || null
+      return {
+        name: terminal || a.name || a.sessionId || String(a.pid),
+        terminal,
+        claudeName: a.name || '',
+        status: a.status || 'unknown',
+        kind: a.kind || '',
+        startedAt: a.startedAt || null,
+        pid: a.pid,
+        plan: terminal ? planOfSession(terminal, slugs) : null,
+      }
+    })
+    .sort((a, b) => (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3) || (b.startedAt || 0) - (a.startedAt || 0))
+  const used = new Set(claude.map(r => r.terminal).filter(Boolean))
+  const idle = new Set(shells.idle || [])
+  const other = (shells.sessions || [])
+    .filter(n => !used.has(n))
+    .map(n => ({ name: n, state: idle.has(n) ? 'shell' : 'running', plan: planOfSession(n, slugs) }))
+  return { claude, other }
 }

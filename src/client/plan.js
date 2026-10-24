@@ -18,7 +18,7 @@
 // Everything shown is read from page JSON: the lineup's own copy of a page,
 // /system/sitemap.json, {slug}.json and the neighbourhood's sitemaps. There is
 // no server and no storage of its own.
-import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved, waitingLines, redLinksOf, reportLine } from './core.js'
+import { parse, isPlanTitle, summarise, byRecent, face, planState, audit, forkSites, trashable, TOOL_SLUGS, asSlug as asSlugCopy, reportItems, linkAfter, lastEdit, WAITING_FOR_KEY, demoCandidate, boardEntries, compareIndex, openQuestionsLink, proposalItems, proposalApplied, parseProposal, wikilinksIn, PROPOSAL_TITLE, reviseItems, lastRevision, revLabel, revSlug, rewindPage, DEFAULT_TEXT, choosePhase, reportTitle, phaseButtonText, buttonPlacement, buttonSession, planContext, planRunner, phasesOf, modelLabel, windowLabel, autoLine, AUTO_RULE, REVISE_WAYS, reviseHowText, lineupSync, journalMoved, waitingLines, redLinksOf, reportLine, OPEN_LABEL, openSession, openButtonText, openPlacement, SESSIONS_SCRIPT, envScript, terminalsOf, sessionRows, STATUS_WORDS, planGuess } from './core.js'
 
 const FETCHES_AT_ONCE = 6
 
@@ -103,6 +103,15 @@ const STYLE = `
 .plan-tool .plan-update button{font-size:inherit}
 .plan-tool .plan-update button.plan-icon{font-size:140%;line-height:1.1;min-width:1.8em;padding:1px 5px;margin:0 1px;border:1px solid #ccc;border-radius:4px;background:#fafafa;cursor:pointer}
 .plan-tool .plan-update button.plan-icon:hover{background:#eef4ff;border-color:#9ab}
+.plan-tool .plan-sessions-table{border-collapse:collapse;width:100%;font-size:90%;margin:4px 0 6px}
+.plan-tool .plan-sessions-table th,.plan-tool .plan-sessions-table td{text-align:left;vertical-align:top;padding:3px 6px;border-bottom:1px solid #e3e3e3}
+.plan-tool .plan-sessions-table th{background:#f2f2f2;white-space:nowrap}
+.plan-tool .plan-sessions-table tr.plan-mine td{background:#f6faff}
+.plan-tool .plan-status{white-space:nowrap;border-radius:3px;padding:0 4px}
+.plan-tool .plan-status-waiting{background:#fff1d6;color:#7a4b00;font-weight:bold}
+.plan-tool .plan-status-busy{background:#e6f4ea;color:#1e6b34}
+.plan-tool .plan-status-idle{color:#777}
+.plan-tool .plan-other{font-size:90%;margin:4px 0}
 .plan-tool .plan-update .plan-sep{display:inline-block;width:1px;height:1.2em;background:#ddd;vertical-align:middle;margin:0 5px}
 .plan-tool a.plan-model{color:#555;text-decoration:none;border:1px solid #ccc;border-radius:10px;padding:1px 7px;margin-left:4px;white-space:nowrap;cursor:pointer;font-size:95%}
 .plan-tool a.plan-model:hover{background:#eef4ff;border-color:#9ab}
@@ -451,6 +460,8 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
       icon('plan-update-go', '⟳', 'Update Plan', "ticks what the answers settled and re-renders the plan's markdown asset; no model, written on the page") +
       (st && st.complete ? icon('plan-finish-go', '✓', 'Finish Plan', "every checkpoint is ticked: write the plan's Conclusion section and its demo link") : '') +
       (next ? icon('plan-next-go', '▶', 'Do Next Phase', `put the plan's Do Phase button just after ${escapeHtml(next)}: clicking it opens a Claude Code session on this laptop and types the phase in, and you watch and approve the work there`) : '') +
+      icon('plan-open-go', '✻', 'Open Claude', `open a Claude Code session on this laptop for an open conversation about the plan: the first click writes the ${OPEN_LABEL} button just under this line, and every click opens its session (${openSession(slug)}); Claude reads the plan, says where it stands and waits, and changes nothing until you ask`) +
+      icon('plan-sessions-go', '◉', 'Claude Sessions', 'every Claude session running on this laptop, which plan each belongs to and whether it is working or waiting for you, with a link to open each one') +
       `<span class="plan-sep"></span>` +
       icon('plan-revise-go', '✎', 'Revise Plan', "opens the Revise Plan tool beside the plan: choose how the model redrafts it — from the answers, from your direction (typed or spoken), to catch up with the work, or tidy only; the redraft is a ghost with the plan's own title, and forking it saves it over the plan through the journal") +
       (page && (openQuestionsLink(page, asSlug) || (st && st.answered > 0))
@@ -472,6 +483,14 @@ const attachUpdate = ($item, opts, $subject, st = null, page = null) => {
   $box.on('click', '.plan-model', e => {
     e.preventDefault()
     wiki.doInternalLink(MODEL_SETTINGS, $item.parents('.page').first())
+  })
+  $box.on('click', '.plan-open-go', e => {
+    e.preventDefault()
+    placeOpen($item, $subject, slug)
+  })
+  $box.on('click', '.plan-sessions-go', e => {
+    e.preventDefault()
+    wiki.doInternalLink(CLAUDE_SESSIONS, $item.parents('.page').first())
   })
   paintChips()
   $box.on('click', '.plan-next-go', e => {
@@ -1981,6 +2000,209 @@ async function showModels($item, opts, item) {
   paint(await modelsNow())
 }
 
+// ---------- Open Claude (0.17.0) ----------
+//
+// ✻ writes the plan's Open Claude button (openButtonText in core.js) just
+// under the status line the first time, then opens its session: a click on
+// the button when the session is new or back at the shell (it boots claude
+// and types the brief), or the button's own terminal panel when Claude is
+// already running there, so a second ✻ never types the brief in twice.
+
+const terminalService = async () => {
+  for (const url of TERMINAL_HEALTH) {
+    try {
+      const r = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(2500) })
+      if (r.ok) return { base: url.replace(/\/terminal\/health$/, ''), health: await r.json() }
+    } catch (_) {}
+  }
+  return null
+}
+
+// The terminal item arms its button only once its own health check answers.
+const armed = async ($button, ms = 10000) => {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    const $go = $button.find('.t-go')
+    if ($go.length && !$go.prop('disabled')) return $go
+    await new Promise(r => setTimeout(r, 250))
+  }
+  return null
+}
+
+async function placeOpen($item, $subject, slug) {
+  const say = (html, refused = false) => {
+    $item[0].planAnswer = { refused, html }
+    $item.find('.plan-answer').toggleClass('plan-refused', refused).html(html)
+  }
+  if (ownerHere() === false) return say(escapeHtml(`Log in to ${location.host} as its owner: Open Claude writes the plan's ${OPEN_LABEL} button.`), true)
+  const $go = $item.find('.plan-open-go').prop('disabled', true)
+  try {
+    let plan
+    try {
+      plan = await getJSON(`/${slug}.json`)
+    } catch (_) {
+      plan = $subject.data('data')
+    }
+    const text = openButtonText({ title: plan.title, slug, base: location.origin })
+    const want = openPlacement(plan, text)
+    const $story = $subject.find('.story:first')
+    let id
+    if (want.add) {
+      say('Open Claude: writing the button…')
+      id = await addItem($subject, want.after, { type: 'terminal', id: randomId(), text })
+    } else {
+      id = want.existing.id
+      if (want.edit) {
+        const item = { ...want.existing, text }
+        const $it = $story.children(`.item[data-id="${id}"]`)
+        if ($it.length) {
+          $it.data('item', item).empty()
+          wiki.doPlugin($it, item)
+        }
+        await putAndWait($subject, { type: 'edit', id, item })
+      }
+    }
+    const $button = $story.children(`.item[data-id="${id}"]`)
+    if ($button.length && $button[0].scrollIntoView) $button[0].scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const session = openSession(slug)
+    const service = await terminalService()
+    if (!service) {
+      return say(
+        `The ${escapeHtml(OPEN_LABEL)} button is on the plan, but the terminal service on this laptop did not answer this page. ` +
+          `It runs only on the laptop, and a page from ${escapeHtml(location.host)} also needs the site listed in ~/.config/wiki-plugin-terminal/trust.json and the padlock opened on the button.`,
+        true,
+      )
+    }
+    const sessions = service.health.sessions || []
+    const idle = service.health.idle || []
+    if (sessions.includes(session) && !idle.includes(session)) {
+      // Claude (or something) already runs there: open the window, type nothing.
+      const $box = $button.find('.terminal-item').addBack('.terminal-item')
+      const $toggle = $button.find('.t-term').first()
+      if (!$toggle.length) return say(`Claude is already running in ${escapeHtml(session)}: use ↗ open in tab on the ${escapeHtml(OPEN_LABEL)} button to see it.`)
+      if (!$box.hasClass('term-open')) $toggle.trigger('click')
+      return say(`Claude is already running in ${escapeHtml(session)}: its terminal is open under the status line. Type to it there; ⤢ makes it full screen.`)
+    }
+    const $t = await armed($button)
+    if (!$t) return say(`The ${escapeHtml(OPEN_LABEL)} button is under the status line: click it to start Claude in ${escapeHtml(session)}.`)
+    $t.trigger('click')
+    say(`Starting Claude in ${escapeHtml(session)}: it reads the plan, says where it stands and waits for you in the terminal under the status line. It changes nothing until you ask. ◉ lists every Claude session on this laptop.`)
+  } catch (err) {
+    say(escapeHtml(`Could not open Claude: ${err.message}`), true)
+  } finally {
+    $go.prop('disabled', false)
+  }
+}
+
+// ---------- the Claude Sessions page (0.17.0) ----------
+//
+// A plan item with SESSIONS, shipped as a page of this plugin and opened by ◉.
+// It asks the laptop's terminal service to run `claude agents --json` and ps
+// (sessionRows in core.js), and lists every Claude session: working, waiting
+// for you or at its prompt, the plan it belongs to, and a link that opens a
+// wiki-started one full screen. Beside a plan, that plan's sessions come first.
+// Refreshed every 15 seconds while the page is open and the tab is visible.
+
+const CLAUDE_SESSIONS = 'Claude Sessions'
+const CLAUDE_IN_WIKI = 'Claude in Wiki'
+
+const runOnLaptop = async (base, text) => {
+  const r = await fetch(`${base}/terminal/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, timeout: 20 }),
+    signal: AbortSignal.timeout(25000),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok || j.exit !== 0) throw new Error((j.stderr || `HTTP ${r.status}`).trim().split('\n').pop())
+  return j.stdout || ''
+}
+
+const planSlugs = async () => {
+  try {
+    const map = await getJSON('/system/sitemap.json')
+    return map.filter(p => isPlanTitle(p.title)).map(p => p.slug)
+  } catch (_) {
+    return []
+  }
+}
+
+const since = ms => {
+  if (!ms) return ''
+  const m = Math.round((Date.now() - ms) / 60000)
+  if (m < 60) return `${m} min`
+  const h = Math.round(m / 60)
+  return h < 48 ? `${h} h` : `${Math.round(h / 24)} days`
+}
+
+async function showSessions($item, opts, item) {
+  const $page = $item.parents('.page').first()
+  const { $subject } = resolve($item, opts)
+  const here = $subject ? slugOf($subject) : null
+  const paint = body => $item.html(shell(opts, `<div class="plan-sessions">${body}</div>`))
+  const tick = async () => {
+    const service = await terminalService()
+    if (!service) {
+      return paint(
+        `<p class="plan-error">The terminal service on this laptop did not answer this page, so the sessions cannot be read from here. ` +
+          `It runs only on the laptop; open <a href="http://localhost/view/claude-sessions" target="_blank">localhost/claude-sessions</a> there, or type <code>claude agents</code> in any terminal.</p>`,
+      )
+    }
+    let agents
+    try {
+      agents = JSON.parse(await runOnLaptop(service.base, SESSIONS_SCRIPT))
+    } catch (err) {
+      return paint(`<p class="plan-error">Could not run <code>${escapeHtml(SESSIONS_SCRIPT)}</code> on the laptop: ${escapeHtml(err.message)}</p>`)
+    }
+    const ps = envScript(agents.map(a => a.pid))
+    const terminals = ps ? terminalsOf(await runOnLaptop(service.base, ps).catch(() => '')) : new Map()
+    const { claude, other } = sessionRows({ agents, terminals, shells: service.health, slugs: await planSlugs() })
+    const mine = r => here && r.plan && r.plan.slug === here
+    const open = name => `<a href="${escapeHtml(`${service.base}/terminal/page?session=${encodeURIComponent(name)}`)}" target="_blank" title="open the session full screen in a new tab">open ↗</a>`
+    const words = s => escapeHtml(String(s).replace(/-/g, ' '))
+    const planCell = r => {
+      if (r.plan) return `${internal(words(r.plan.slug), r.plan.slug, location.host)}${r.plan.part ? ` · ${words(r.plan.part)}` : ''}`
+      // a plan on another site: named from the session, not linked
+      const g = r.terminal ? planGuess(r.terminal) : null
+      return g ? `<span class="plan-meta">${words(g.slug)}${g.part ? ` · ${words(g.part)}` : ''}</span>` : ''
+    }
+    const where = r =>
+      r.terminal ? open(r.terminal) : r.kind === 'background' ? `<code>claude attach ${escapeHtml(r.claudeName)}</code>` : '<span class="plan-meta">Claude app or a terminal window</span>'
+    const row = r =>
+      `<tr class="${mine(r) ? 'plan-mine' : ''}"><td><span class="plan-status plan-status-${escapeHtml(r.status)}">${escapeHtml(STATUS_WORDS[r.status] || r.status)}</span></td>` +
+      `<td>${escapeHtml(r.terminal || r.claudeName || r.name)}${r.kind === 'background' ? ' <span class="plan-meta">background</span>' : ''}</td>` +
+      `<td>${planCell(r)}</td><td class="plan-meta">${escapeHtml(since(r.startedAt))}</td><td>${where(r)}</td></tr>`
+    const rows = [...claude.filter(mine), ...claude.filter(r => !mine(r))]
+    const waiting = claude.filter(r => r.status === 'waiting').length
+    paint(
+      `<p class="plan-meta">${claude.length} Claude session${claude.length === 1 ? '' : 's'} on this laptop` +
+        (waiting ? `, <b>${waiting} waiting for you</b>` : '') +
+        (here ? `; those of ${escapeHtml(titleOfPage($subject))} first` : '') +
+        `. From <code>${escapeHtml(SESSIONS_SCRIPT)}</code>, read ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.</p>` +
+        (rows.length
+          ? `<table class="plan-sessions-table"><thead><tr><th>Status</th><th>Session</th><th>Plan</th><th>Started</th><th></th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>`
+          : '<p>No Claude session is running.</p>') +
+        (other.length
+          ? `<details class="plan-other"><summary>${other.length} terminal session${other.length === 1 ? '' : 's'} with no Claude in them</summary><ul>` +
+            other.map(o => `<li>${escapeHtml(o.name)} <span class="plan-meta">${o.state === 'shell' ? 'at the shell' : 'running another program'}</span> ${open(o.name)}</li>`).join('') +
+            `</ul></details>`
+          : '') +
+        `<p class="plan-meta"><a href="#" class="plan-sessions-refresh">Ask again</a> · ${internal(CLAUDE_IN_WIKI, asSlug(CLAUDE_IN_WIKI), location.host)}</p>`,
+    )
+    $item.find('.plan-sessions-refresh').on('click', e => {
+      e.preventDefault()
+      tick()
+    })
+  }
+  await tick()
+  if ($item[0].planSessionsTimer) clearInterval($item[0].planSessionsTimer)
+  const timer = setInterval(() => {
+    if (!document.body.contains($item[0])) return clearInterval(timer)
+    if (document.visibilityState === 'visible' && !$item.find('details.plan-other[open]').length) tick()
+  }, 15000)
+  $item[0].planSessionsTimer = timer
+}
+
 // ---------- the Revise Plan page (0.15.0) ----------
 //
 // ✎ on a plan's status line opens this page beside the plan instead of
@@ -2348,16 +2570,16 @@ async function showRevise($item, opts, item) {
 // Which face, and the page whose state it reads.
 const resolve = ($item, opts) => {
   const $page = $item.parents('.page').first()
-  const $left = (opts.subject || opts.revise) && $page.length ? leftSubject($page) : null
+  const $left = (opts.subject || opts.revise || opts.sessions) && $page.length ? leftSubject($page) : null
   const which = face(opts, { ownTitle: $page.length ? titleOfPage($page) : null, leftTitle: $left ? titleOfPage($left) : null })
   const leftPlan = $left && isPlanTitle(titleOfPage($left)) ? $left : null
-  return { which, $subject: which === 'status' ? $page : which === 'subject' ? $left : which === 'revise' ? leftPlan : null, $left }
+  return { which, $subject: which === 'status' ? $page : which === 'subject' ? $left : which === 'revise' || which === 'sessions' ? leftPlan : null, $left }
 }
 
 export const emit = ($item, item) => {
   const opts = parse(item.text)
   const { which, $subject } = resolve($item, opts)
-  const what = which === 'models' ? 'the models this farm can ask' : which === 'revise' ? ($subject ? escapeHtml(titleOfPage($subject)) : 'the page to the left') : which === 'list' ? `the plans on ${escapeHtml(opts.site || location.host)}` : `${escapeHtml(titleOfPage($subject))}`
+  const what = which === 'models' ? 'the models this farm can ask' : which === 'sessions' ? 'the Claude sessions on this laptop' : which === 'revise' ? ($subject ? escapeHtml(titleOfPage($subject)) : 'the page to the left') : which === 'list' ? `the plans on ${escapeHtml(opts.site || location.host)}` : `${escapeHtml(titleOfPage($subject))}`
   $item.html(shell(opts, `<p class="plan-meta">Reading ${what}…</p>`))
 }
 
@@ -2365,6 +2587,7 @@ const render = ($item, item) => {
   const opts = parse(item.text)
   const { which, $subject } = resolve($item, opts)
   if (which === 'models') return showModels($item, opts, item)
+  if (which === 'sessions') return showSessions($item, opts, item)
   if (which === 'revise') return showRevise($item, opts, item)
   if (which === 'list') {
     const note = opts.subject ? 'Nothing to the left is a plan, so: ' : ''

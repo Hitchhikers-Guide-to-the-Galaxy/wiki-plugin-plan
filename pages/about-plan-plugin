@@ -238,6 +238,16 @@
     },
     {
       "type": "markdown",
+      "id": "3b5d9931a387ca10",
+      "text": "# Open Claude and Claude Sessions\n> 0.17.0: Claude Code on the plan, and every session in one list."
+    },
+    {
+      "type": "markdown",
+      "id": "e4b7b8f4a093daa3",
+      "text": "\u273b Open Claude writes an *Open Claude on this plan* terminal button just under the status line, the first time, and opens its session: Claude reads the plan, says where it stands and waits, changing nothing until asked. A later \u273b opens the running session's terminal instead of typing the brief in again. \u25c9 opens [[Claude Sessions]], which runs `claude agents --json` through the laptop's terminal service and lists every Claude session with its status and its plan. [[Claude in Wiki]] is the help page for both, and for Do Phase and Send my answers."
+    },
+    {
+      "type": "markdown",
       "id": "3d73cc7bfe1f2bd9",
       "text": "# Next\n> Phase 6: ship it and show it."
     },
@@ -249,7 +259,7 @@
     {
       "type": "markdown",
       "id": "a180150d09b7d386",
-      "text": "# See\n\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
+      "text": "# See\n\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Claude Sessions]]\n- [[Claude in Wiki]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
     }
   ],
   "journal": [
@@ -1178,6 +1188,38 @@
       },
       "date": 1792596573560,
       "provenance": "wiki-plugin-plan 0.15.0: \u270e opens the Revise Plan page."
+    },
+    {
+      "type": "add",
+      "id": "3b5d9931a387ca10",
+      "item": {
+        "type": "markdown",
+        "id": "3b5d9931a387ca10",
+        "text": "# Open Claude and Claude Sessions\n> 0.17.0: Claude Code on the plan, and every session in one list."
+      },
+      "after": "aac85e26df367b49",
+      "date": 1792874554952
+    },
+    {
+      "type": "add",
+      "id": "e4b7b8f4a093daa3",
+      "item": {
+        "type": "markdown",
+        "id": "e4b7b8f4a093daa3",
+        "text": "\u273b Open Claude writes an *Open Claude on this plan* terminal button just under the status line, the first time, and opens its session: Claude reads the plan, says where it stands and waits, changing nothing until asked. A later \u273b opens the running session's terminal instead of typing the brief in again. \u25c9 opens [[Claude Sessions]], which runs `claude agents --json` through the laptop's terminal service and lists every Claude session with its status and its plan. [[Claude in Wiki]] is the help page for both, and for Do Phase and Send my answers."
+      },
+      "after": "3b5d9931a387ca10",
+      "date": 1792874554952
+    },
+    {
+      "type": "edit",
+      "id": "a180150d09b7d386",
+      "item": {
+        "type": "markdown",
+        "id": "a180150d09b7d386",
+        "text": "# See\n\n- [[Plan Tool]]\n- [[Model Settings]]\n- [[Claude Sessions]]\n- [[Claude in Wiki]]\n- [[Plan Tool Plan]]\n- [[Plan API]]\n- [[Plan Index]]\n- [[Fedwiki DSL Skill]]"
+      },
+      "date": 1792874554952
     }
   ],
   "plugin": "plan"
