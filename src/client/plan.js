@@ -1563,7 +1563,8 @@ const answerHtml = (r, site) => {
   // Questions end in "?", so the parts are set apart with a dot, not ended with a full stop.
   if (r.ticked.length) parts.push(`Ticked ${r.ticked.length}: ${r.ticked.map(t => internal(t.title, t.slug, t.foundOn || site) + (t.by === 'inline' ? ' (answered on its line)' : '')).join('; ')}`)
   else parts.push('Nothing to tick')
-  if (r.unanswered.length) parts.push(`still unanswered: ${r.unanswered.map(q => internal(q.title, q.slug, site) + (q.query ? ' (asked back)' : '')).join('; ')}`)
+  // Each unanswered question carries Answer, as in the state view (0.16.9).
+  if (r.unanswered.length) parts.push(`still unanswered: ${r.unanswered.map(q => internal(q.title, q.slug, site) + (q.query ? ' (asked back)' : '') + askLink(q)).join('; ')}`)
   const b = r.button
   if (r.reportsReformatted && r.reportsReformatted.length) parts.push(`${r.reportsReformatted.length} report link${r.reportsReformatted.length === 1 ? '' : 's'} now read${r.reportsReformatted.length === 1 ? 's' : ''} See [[…]].`)
   if (r.reports && r.reports.length) parts.push(`linked ${r.reports.map(x => `${escapeHtml(x.phase)}'s report, ${internal(x.title, x.slug, site)}`).join('; ')}, at the end of ${r.reports.length === 1 ? 'its section' : 'their sections'}`)
