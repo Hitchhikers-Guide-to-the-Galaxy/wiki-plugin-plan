@@ -17,6 +17,7 @@ test('the brief asks for a waiting line under the phase, and its removal at the 
   assert.match(text, /My answers are on the plan page https:\/\/agentic\.private\.fish\/view\/open-squad-plan: read them/)
   assert.match(text, /remove it and the Send my answers button, one journal remove each/)
   assert.doesNotMatch(text, /wiki-await-answers|fedwiki\.settle/)
+  assert.match(text, /If I answer in this terminal or with a suggested reply instead, first write my reply onto each question line/)
   assert.ok(!/[*?]/.test(text.split('\n').pop()), 'no glob characters for a bare zsh')
   // it comes before the closing instructions, and the brief stays shell-safe
   assert.ok(text.indexOf('If you stop to wait') < text.indexOf('When the phase is done'))
